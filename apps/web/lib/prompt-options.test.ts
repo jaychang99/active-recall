@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import generatorPrompt from '@/lib/generated/question-generator-prompt';
-import { PROMPT_DEFAULTS, applyPromptOptions, changedKeys, readConfigValues, renderConfigBlock, resolvePromptOptions, sumDifficulty, sumTypeTarget, toSavedDefaults } from './prompt-options';
+import { PROMPT_DEFAULTS, applyPromptOptions, changedKeys, readConfigValues, rebalancePercentages, renderConfigBlock, resolvePromptOptions, sumDifficulty, sumTypeTarget, toSavedDefaults } from './prompt-options';
 
 describe('prompt options', () => {
   it('parses the CONFIG block of the shipped prompt', () => {
@@ -42,5 +42,26 @@ describe('prompt options', () => {
     const o = { ...PROMPT_DEFAULTS, numberOfQuestions: 30 };
     expect(toSavedDefaults(o)).toEqual({ numberOfQuestions: 30 });
     expect(changedKeys(o, PROMPT_DEFAULTS)).toEqual(['numberOfQuestions']);
+  });
+});
+
+describe('rebalancePercentages', () => {
+  it('redistributes the remainder proportionally and keeps the sum at 100', () => {
+    const r = rebalancePercentages({ easy: 25, medium: 50, hard: 25 }, 'easy', 40);
+    expect(r).toEqual({ easy: 40, medium: 40, hard: 20 });
+    expect(r.easy + r.medium + r.hard).toBe(100);
+  });
+  it('rounds with largest remainder so the total is exact', () => {
+    const r = rebalancePercentages({ a: 33, b: 33, c: 34 }, 'a', 50);
+    expect(r.a + r.b + r.c).toBe(100);
+    expect(r).toEqual({ a: 50, b: 25, c: 25 });
+    const t = rebalancePercentages({ single_choice: 35, multiple_choice: 20, true_false: 10, short_answer: 10, essay: 10, cloze: 5, ordering: 5, matching: 5 }, 'essay', 0);
+    expect(Object.values(t).reduce((x, y) => x + y, 0)).toBe(100);
+    expect(t.essay).toBe(0);
+  });
+  it('shares equally when the others are all zero, and clamps the input', () => {
+    expect(rebalancePercentages({ a: 100, b: 0, c: 0 }, 'a', 40)).toEqual({ a: 40, b: 30, c: 30 });
+    expect(rebalancePercentages({ a: 10, b: 90 }, 'a', 250)).toEqual({ a: 100, b: 0 });
+    expect(rebalancePercentages({ a: 10, b: 90 }, 'a', -5)).toEqual({ a: 0, b: 100 });
   });
 });

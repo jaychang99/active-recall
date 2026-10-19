@@ -5,7 +5,7 @@ import type { Deck } from '@/lib/api';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { CORE_TYPES, COVERAGES, EXPLANATION_DEPTHS, LANGUAGE_PRESETS, LIMITS, MATH_NOTATIONS, PROMPT_DEFAULTS, SOURCE_LOCATORS, SOURCE_MODES, TYPE_LABEL_KO, changedKeys, sumDifficulty, sumTypeTarget, type PromptOptions } from '@/lib/prompt-options';
+import { CORE_TYPES, COVERAGES, EXPLANATION_DEPTHS, LANGUAGE_PRESETS, LIMITS, MATH_NOTATIONS, PROMPT_DEFAULTS, SOURCE_LOCATORS, SOURCE_MODES, TYPE_LABEL_KO, changedKeys, rebalancePercentages, sumDifficulty, sumTypeTarget, type PromptOptions } from '@/lib/prompt-options';
 import { cn } from '@/lib/utils';
 
 const SOURCE_MODE_KO: Record<(typeof SOURCE_MODES)[number], string> = { provided_materials: '첨부 자료만', general_knowledge: '일반 지식 허용' };
@@ -49,17 +49,19 @@ function NumberRange({ id, value, min, max, step = 1, unit, onChange }: { id: st
   );
 }
 
-function PercentInput({ id, label, value, onChange }: { id: string; label: string; value: number; onChange: (v: number) => void }) {
+/** One share of a distribution: slider + number. Changing it rebalances the other shares proportionally (always sums to 100). */
+function ShareRow({ id, label, value, onChange }: { id: string; label: string; value: number; onChange: (v: number) => void }) {
   return (
-    <label htmlFor={id} className="flex items-center justify-between gap-2 text-[13px]">
-      <span className="truncate text-ink-2">{label}</span>
-      <span className="flex shrink-0 items-center gap-1"><Input id={id} type="number" inputMode="numeric" min={0} max={100} value={value} onChange={(e) => onChange(Math.min(100, Math.max(0, Math.round(Number(e.target.value) || 0))))} className="h-8 w-16 text-right tabular" aria-label={`${label} 비율`} /><span className="text-[12px] text-ink-3">%</span></span>
-    </label>
+    <div className="grid grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-2 text-[13px]">
+      <label htmlFor={id} className="truncate text-ink-2">{label}</label>
+      <input type="range" aria-hidden tabIndex={-1} min={0} max={100} value={value} onChange={(e) => onChange(Number(e.target.value))} className="min-w-0" />
+      <span className="flex shrink-0 items-center gap-1"><Input id={id} type="number" inputMode="numeric" min={0} max={100} value={value} onChange={(e) => onChange(Number(e.target.value))} className="h-8 w-16 text-right tabular" aria-label={`${label} 비율`} /><span className="text-[12px] text-ink-3">%</span></span>
+    </div>
   );
 }
 
 function SumBadge({ sum }: { sum: number }) {
-  return sum === 100 ? <Badge tone="ok">합계 100%</Badge> : <Badge tone="warn">합계 {sum}% · 100%가 되어야 합니다</Badge>;
+  return sum === 100 ? <Badge tone="ok">합계 100%</Badge> : <Badge tone="warn">합계 {sum}% · 항목을 움직이면 100%로 맞춰집니다</Badge>;
 }
 
 export interface PromptOptionsFormProps {
@@ -150,22 +152,18 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
 
       <section>
         <h3 className="mb-1 text-[13px] font-semibold text-ink-2">문항 구성</h3>
-        <Row label="난이도 분포" hint="세 값의 합이 100%여야 합니다." {...row('difficulty')}>
+        <Row label="난이도 분포" hint="하나를 움직이면 나머지가 비례해서 따라와 합이 항상 100%입니다." {...row('difficulty')}>
           <div className="space-y-1.5">
             {(['easy', 'medium', 'hard'] as const).map((k) => (
-              <div key={k} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-2 text-[13px]">
-                <span className="text-ink-2">{{ easy: '쉬움', medium: '보통', hard: '어려움' }[k]}</span>
-                <input type="range" aria-label={`${k} 비율`} min={0} max={100} value={o.difficulty[k]} onChange={(e) => set('difficulty', { ...o.difficulty, [k]: Number(e.target.value) })} />
-                <span className="w-10 text-right tabular">{o.difficulty[k]}%</span>
-              </div>
+              <ShareRow key={k} id={id(`d-${k}`)} label={{ easy: '쉬움', medium: '보통', hard: '어려움' }[k]} value={o.difficulty[k]} onChange={(v) => set('difficulty', rebalancePercentages(o.difficulty, k, v))} />
             ))}
-            <div className="pt-1"><SumBadge sum={diffSum} /></div>
+            {diffSum !== 100 ? <div className="pt-1"><SumBadge sum={diffSum} /></div> : null}
           </div>
         </Row>
-        <Row label="유형별 목표 비율" hint="핵심 8종의 대략적 목표 비율(지침). 합이 100%여야 하지만, 내용에 맞지 않는 유형을 억지로 채우지는 않습니다." {...row('typeTarget')}>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-            {CORE_TYPES.map((t) => <PercentInput key={t} id={id(`t-${t}`)} label={TYPE_LABEL_KO[t]} value={o.typeTarget[t]} onChange={(v) => set('typeTarget', { ...o.typeTarget, [t]: v })} />)}
-            <div className="col-span-2 pt-1"><SumBadge sum={typeSum} /></div>
+        <Row label="유형별 목표 비율" hint="핵심 8종의 대략적 목표 비율(지침). 하나를 움직이면 나머지가 비례해서 따라와 합이 항상 100%이며, 내용에 맞지 않는 유형을 억지로 채우지는 않습니다." {...row('typeTarget')}>
+          <div className="space-y-1.5">
+            {CORE_TYPES.map((t) => <ShareRow key={t} id={id(`t-${t}`)} label={TYPE_LABEL_KO[t]} value={o.typeTarget[t]} onChange={(v) => set('typeTarget', rebalancePercentages(o.typeTarget, t, v))} />)}
+            {typeSum !== 100 ? <div className="pt-1"><SumBadge sum={typeSum} /></div> : null}
           </div>
         </Row>
         <Row label="핵심 8종 모두 포함" hint="문항이 8개 이상이면 각 유형을 최소 1개씩 만듭니다. 자연스럽게 맞는 내용이 없는 유형은 뺍니다." {...row('requireAllEightTypes')} htmlFor={id('all8')}>

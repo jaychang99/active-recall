@@ -191,3 +191,25 @@ export function toSavedDefaults(o: PromptOptions): Partial<PromptOptions> | null
 }
 
 export const TYPE_LABEL_KO: Record<CoreType, string> = { single_choice: '단일선택', multiple_choice: '복수선택', true_false: 'OX', short_answer: '단답형', essay: '서술형', cloze: '빈칸', ordering: '순서배열', matching: '연결형' };
+
+/**
+ * Set one share of a percentage distribution and redistribute the rest over the other keys in
+ * proportion to their current values (equally when they are all zero), rounding to integers that
+ * always sum to exactly 100 (largest-remainder rounding). Relative ratios between the untouched keys are preserved.
+ */
+export function rebalancePercentages<T extends Record<string, number>>(values: T, key: keyof T & string, next: number): T {
+  const keys = Object.keys(values) as (keyof T & string)[];
+  const target = Math.min(100, Math.max(0, Math.round(Number.isFinite(next) ? next : 0)));
+  const others = keys.filter((k) => k !== key);
+  if (!others.length) return { ...values, [key]: 100 } as T;
+  const remaining = 100 - target;
+  const othersSum = others.reduce((a, k) => a + Math.max(0, values[k] || 0), 0);
+  const raw = others.map((k) => (othersSum > 0 ? (Math.max(0, values[k] || 0) / othersSum) * remaining : remaining / others.length));
+  const floored = raw.map((v) => Math.floor(v));
+  let leftover = remaining - floored.reduce((a, v) => a + v, 0);
+  const order = raw.map((v, i) => ({ i, frac: v - floored[i]! })).sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (const { i } of order) { if (leftover <= 0) break; floored[i]! += 1; leftover -= 1; }
+  const out: Record<string, number> = { ...values, [key]: target };
+  others.forEach((k, i) => { out[k] = floored[i]!; });
+  return out as T;
+}
