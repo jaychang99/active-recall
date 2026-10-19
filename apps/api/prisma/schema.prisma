@@ -292,6 +292,8 @@ model AppSettings {
   newCardOrder           String    @default("deck") @db.VarChar(16) // deck | random
   dailyReviewGoal        Int       @default(50)
   leechThreshold         Int       @default(8)
+  /// Defaults for the LLM question-generator prompt CONFIG block (partial; keys from docs/QUESTION_GENERATOR_PROMPT.md). null = prompt's own values.
+  promptDefaults         Json?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
   deletedAt              DateTime?

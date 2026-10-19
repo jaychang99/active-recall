@@ -25,6 +25,9 @@ export class SettingsService {
     if (dto.timezone !== undefined && !isValidTimeZone(dto.timezone))
       throw ApiError.badRequest(`"${dto.timezone}" is not a valid IANA timezone`);
     await this.get();
-    return this.prisma.appSettings.update({ where: { id: 1 }, data: dto });
+    const { promptDefaults, ...rest } = dto;
+    const data: Prisma.AppSettingsUpdateInput = { ...rest };
+    if (promptDefaults !== undefined) data.promptDefaults = promptDefaults === null ? Prisma.DbNull : (promptDefaults as Prisma.InputJsonObject);
+    return this.prisma.appSettings.update({ where: { id: 1 }, data });
   }
 }

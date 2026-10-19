@@ -154,8 +154,14 @@ body {
 /* Native form controls take the accent so they match the Radix checkbox/switch. */
 input[type='checkbox'],
 input[type='radio'],
+input[type='range'],
 progress {
   accent-color: var(--accent);
+}
+input[type='range'] {
+  width: 100%;
+  height: 1.25rem;
+  cursor: pointer;
 }
 input[type='checkbox'] {
   width: 1rem;

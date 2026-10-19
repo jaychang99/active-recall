@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BarChart3, Database, FolderTree, GraduationCap, Home, Keyboard, Layers, Menu, Search, Settings, Upload } from 'lucide-react';
+import { BarChart3, Database, FolderTree, GraduationCap, Home, Keyboard, Layers, Menu, Search, Settings, Sparkles, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useShortcuts } from '@/lib/shortcuts/provider';
@@ -19,6 +19,7 @@ export const NAV = [
   { href: '/subjects', label: '과목', icon: FolderTree, key: 'g s' },
   { href: '/exam', label: '시험', icon: GraduationCap, key: 'g e' },
   { href: '/import', label: '가져오기', icon: Upload, key: 'g i' },
+  { href: '/prompt', label: '프롬프트', icon: Sparkles, key: 'g p' },
   { href: '/insights', label: '통계', icon: BarChart3, key: 'g n' },
   { href: '/data', label: '데이터', icon: Database, key: 'g t' },
   { href: '/settings', label: '설정', icon: Settings, key: 'g ,' },

@@ -10,6 +10,9 @@ import { Input, Label, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
 import { ErrorState, PageHeader, Panel, Skeleton } from '@/components/ui/misc';
 import { InstallAppButton, usePwa } from '@/components/layout/pwa';
+import Link from 'next/link';
+import { PromptOptionsForm } from '@/components/prompt/prompt-options-form';
+import { PROMPT_DEFAULTS, changedKeys, resolvePromptOptions, toSavedDefaults } from '@/lib/prompt-options';
 
 function Row({ label, hint, children, id }: { label: string; hint?: string; children: React.ReactNode; id?: string }) {
   return (
@@ -43,6 +46,8 @@ export default function SettingsPage() {
   if (q.isLoading) return <Skeleton className="h-64" />;
   if (q.isError) return <ErrorState message={(q.error as Error).message} onRetry={() => q.refetch()} />;
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const promptOpts = resolvePromptOptions(form.promptDefaults);
+  const promptChanged = new Set(changedKeys(promptOpts, PROMPT_DEFAULTS));
   const num = (k: keyof Settings) => (e: React.ChangeEvent<HTMLInputElement>) => set(k, Number(e.target.value) as never);
   const submit = () => {
     const patch = { ...form } as Partial<Settings>;
@@ -81,6 +86,15 @@ export default function SettingsPage() {
         <h2 className="text-[13px] font-semibold text-ink-2">데스크톱 앱 (PWA)</h2>
         <p className="mt-1 text-[12px] text-ink-3">Chrome·Edge에서 주소창의 설치 아이콘 또는 아래 버튼으로 독립 창 앱으로 설치할 수 있습니다. 설치 후에도 데이터는 로컬 API(포트 4000)에서 옵니다. {pwa.installed ? '지금 앱 창에서 실행 중입니다.' : pwa.canInstall ? '' : '설치 버튼이 보이지 않으면 프로덕션 빌드(pnpm build && pnpm --filter @recall/web start)에서 열거나 브라우저 메뉴의 "앱 설치"를 사용하세요.'}</p>
         <div className="mt-3"><InstallAppButton /></div>
+      </Panel>
+      <Panel id="prompt-defaults" className="mb-6 scroll-mt-20 px-5 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3">
+          <h2 className="text-[13px] font-semibold text-ink-2">LLM 프롬프트 기본값</h2>
+          <Link href="/prompt" className="text-[13px] text-accent underline-offset-4 hover:underline">일회성으로 조정해 복사 →</Link>
+        </div>
+        <p className="mb-1 text-[12px] text-ink-3">상단 「LLM 프롬프트」 버튼으로 복사할 때 쓰이는 CONFIG 값입니다. 프롬프트 문서의 값과 다른 항목만 저장되며, 저장 버튼으로 반영됩니다.</p>
+        <PromptOptionsForm value={promptOpts} onChange={(next) => set('promptDefaults', toSavedDefaults(next))} changed={promptChanged} hideDeck />
+        {promptChanged.size ? <div className="py-3"><Button size="sm" variant="ghost" onClick={() => set('promptDefaults', null)}>문서 원본 값으로 되돌리기</Button></div> : null}
       </Panel>
       <Panel className="px-5 py-4">
         <h2 className="text-[13px] font-semibold text-ink-2">데이터</h2>

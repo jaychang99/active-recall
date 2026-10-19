@@ -1,0 +1,193 @@
+import generatorPrompt from '@/lib/generated/question-generator-prompt';
+
+/**
+ * The CONFIG block of docs/QUESTION_GENERATOR_PROMPT.md as a typed object.
+ * The prompt document stays the source of truth: PROMPT_DEFAULTS is parsed from it at module load,
+ * saved defaults (Settings.promptDefaults) overlay it, and a one-off copy overlays that.
+ */
+
+export const CORE_TYPES = ['single_choice', 'multiple_choice', 'true_false', 'short_answer', 'essay', 'cloze', 'ordering', 'matching'] as const;
+export type CoreType = (typeof CORE_TYPES)[number];
+
+export const SOURCE_MODES = ['provided_materials', 'general_knowledge'] as const;
+export const COVERAGES = ['balanced_across_topics', 'follow_material_order'] as const;
+export const EXPLANATION_DEPTHS = ['brief', 'standard', 'detailed'] as const;
+export const MATH_NOTATIONS = ['latex', 'plain'] as const;
+export const SOURCE_LOCATORS = ['always', 'only_if_verifiable', 'never'] as const;
+export const LANGUAGE_PRESETS = ['auto', 'ko', 'en', 'ja', 'zh'] as const;
+
+export interface PromptOptions {
+  deckId: string;
+  deckTitle: string;
+  subject: string;
+  outputLanguage: string;
+  numberOfQuestions: number;
+  sourceMode: (typeof SOURCE_MODES)[number];
+  coverage: (typeof COVERAGES)[number];
+  difficulty: { easy: number; medium: number; hard: number };
+  typeTarget: Record<CoreType, number>;
+  requireAllEightTypes: boolean;
+  allowExtendedTypes: boolean;
+  mcqChoiceCount: number;
+  explanationDepth: (typeof EXPLANATION_DEPTHS)[number];
+  mathNotation: (typeof MATH_NOTATIONS)[number];
+  allowOutOfScopeInformation: boolean;
+  includeSourceLocators: (typeof SOURCE_LOCATORS)[number];
+}
+
+export const LIMITS = { numberOfQuestions: { min: 1, max: 200 }, mcqChoiceCount: { min: 2, max: 8 } } as const;
+
+/** Key in the prompt's CONFIG block for every option (SCHEMA_VERSION is fixed and never edited). */
+const KEYS: Record<keyof PromptOptions, string> = {
+  deckId: 'DECK_ID',
+  deckTitle: 'DECK_TITLE',
+  subject: 'SUBJECT',
+  outputLanguage: 'OUTPUT_LANGUAGE',
+  numberOfQuestions: 'NUMBER_OF_QUESTIONS',
+  sourceMode: 'SOURCE_MODE',
+  coverage: 'COVERAGE',
+  difficulty: 'DIFFICULTY_DISTRIBUTION',
+  typeTarget: 'QUESTION_TYPE_TARGET',
+  requireAllEightTypes: 'REQUIRE_ALL_EIGHT_TYPES',
+  allowExtendedTypes: 'ALLOW_EXTENDED_TYPES',
+  mcqChoiceCount: 'MCQ_CHOICE_COUNT',
+  explanationDepth: 'EXPLANATION_DEPTH',
+  mathNotation: 'MATH_NOTATION',
+  allowOutOfScopeInformation: 'ALLOW_OUT_OF_SCOPE_INFORMATION',
+  includeSourceLocators: 'INCLUDE_SOURCE_LOCATORS',
+};
+
+function parsePercentList(raw: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const part of raw.split(',')) {
+    const m = part.trim().match(/^([a-z_]+)\s*=\s*(\d+(?:\.\d+)?)%?$/i);
+    if (m) out[m[1]!] = Number(m[2]);
+  }
+  return out;
+}
+
+/** Reads `KEY: value   # comment` lines out of the CONFIG block. Values are trimmed; comments dropped. */
+export function readConfigValues(prompt: string): Record<string, string> {
+  const block = prompt.match(/```text\n([\s\S]*?)```/);
+  const values: Record<string, string> = {};
+  for (const line of (block?.[1] ?? '').split('\n')) {
+    const m = line.match(/^([A-Z_]+):\s*(.*?)\s*(?:#.*)?$/);
+    if (m) values[m[1]!] = m[2]!;
+  }
+  return values;
+}
+
+function oneOf<T extends readonly string[]>(list: T, v: string | undefined, fallback: T[number]): T[number] {
+  return v && (list as readonly string[]).includes(v) ? (v as T[number]) : fallback;
+}
+
+function clampInt(v: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof v === 'number' ? v : Number.parseInt(String(v ?? ''), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function parseOptions(values: Record<string, string>): PromptOptions {
+  const diff = parsePercentList(values.DIFFICULTY_DISTRIBUTION ?? '');
+  const types = parsePercentList(values.QUESTION_TYPE_TARGET ?? '');
+  const typeTarget = Object.fromEntries(CORE_TYPES.map((t) => [t, types[t] ?? 0])) as Record<CoreType, number>;
+  return {
+    deckId: values.DECK_ID ?? '',
+    deckTitle: values.DECK_TITLE ?? '',
+    subject: values.SUBJECT ?? '',
+    outputLanguage: values.OUTPUT_LANGUAGE || 'auto',
+    numberOfQuestions: clampInt(values.NUMBER_OF_QUESTIONS, LIMITS.numberOfQuestions.min, LIMITS.numberOfQuestions.max, 24),
+    sourceMode: oneOf(SOURCE_MODES, values.SOURCE_MODE, 'provided_materials'),
+    coverage: oneOf(COVERAGES, values.COVERAGE, 'balanced_across_topics'),
+    difficulty: { easy: diff.easy ?? 25, medium: diff.medium ?? 50, hard: diff.hard ?? 25 },
+    typeTarget,
+    requireAllEightTypes: (values.REQUIRE_ALL_EIGHT_TYPES ?? 'true') === 'true',
+    allowExtendedTypes: (values.ALLOW_EXTENDED_TYPES ?? 'true') === 'true',
+    mcqChoiceCount: clampInt(values.MCQ_CHOICE_COUNT, LIMITS.mcqChoiceCount.min, LIMITS.mcqChoiceCount.max, 5),
+    explanationDepth: oneOf(EXPLANATION_DEPTHS, values.EXPLANATION_DEPTH, 'detailed'),
+    mathNotation: oneOf(MATH_NOTATIONS, values.MATH_NOTATION, 'latex'),
+    allowOutOfScopeInformation: (values.ALLOW_OUT_OF_SCOPE_INFORMATION ?? 'false') === 'true',
+    includeSourceLocators: oneOf(SOURCE_LOCATORS, values.INCLUDE_SOURCE_LOCATORS, 'only_if_verifiable'),
+  };
+}
+
+/** The values written in the prompt document itself. */
+export const PROMPT_DEFAULTS: PromptOptions = parseOptions(readConfigValues(generatorPrompt));
+
+/** Saved defaults are stored as a partial object; anything missing or invalid falls back to the prompt's values. */
+export function resolvePromptOptions(saved: unknown, base: PromptOptions = PROMPT_DEFAULTS): PromptOptions {
+  if (!saved || typeof saved !== 'object') return { ...base, difficulty: { ...base.difficulty }, typeTarget: { ...base.typeTarget } };
+  const s = saved as Partial<Record<keyof PromptOptions, unknown>>;
+  const str = (v: unknown, fb: string) => (typeof v === 'string' ? v : fb);
+  const bool = (v: unknown, fb: boolean) => (typeof v === 'boolean' ? v : fb);
+  const pct = (v: unknown, fb: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(100, Math.max(0, Math.round(v))) : fb);
+  const d = (s.difficulty ?? {}) as Partial<PromptOptions['difficulty']>;
+  const t = (s.typeTarget ?? {}) as Partial<Record<CoreType, number>>;
+  return {
+    deckId: str(s.deckId, base.deckId),
+    deckTitle: str(s.deckTitle, base.deckTitle),
+    subject: str(s.subject, base.subject),
+    outputLanguage: str(s.outputLanguage, base.outputLanguage) || 'auto',
+    numberOfQuestions: clampInt(s.numberOfQuestions, LIMITS.numberOfQuestions.min, LIMITS.numberOfQuestions.max, base.numberOfQuestions),
+    sourceMode: oneOf(SOURCE_MODES, str(s.sourceMode, ''), base.sourceMode),
+    coverage: oneOf(COVERAGES, str(s.coverage, ''), base.coverage),
+    difficulty: { easy: pct(d.easy, base.difficulty.easy), medium: pct(d.medium, base.difficulty.medium), hard: pct(d.hard, base.difficulty.hard) },
+    typeTarget: Object.fromEntries(CORE_TYPES.map((k) => [k, pct(t[k], base.typeTarget[k])])) as Record<CoreType, number>,
+    requireAllEightTypes: bool(s.requireAllEightTypes, base.requireAllEightTypes),
+    allowExtendedTypes: bool(s.allowExtendedTypes, base.allowExtendedTypes),
+    mcqChoiceCount: clampInt(s.mcqChoiceCount, LIMITS.mcqChoiceCount.min, LIMITS.mcqChoiceCount.max, base.mcqChoiceCount),
+    explanationDepth: oneOf(EXPLANATION_DEPTHS, str(s.explanationDepth, ''), base.explanationDepth),
+    mathNotation: oneOf(MATH_NOTATIONS, str(s.mathNotation, ''), base.mathNotation),
+    allowOutOfScopeInformation: bool(s.allowOutOfScopeInformation, base.allowOutOfScopeInformation),
+    includeSourceLocators: oneOf(SOURCE_LOCATORS, str(s.includeSourceLocators, ''), base.includeSourceLocators),
+  };
+}
+
+/** The value text written after `KEY:` for each option. */
+export function configValue(key: keyof PromptOptions, o: PromptOptions): string {
+  switch (key) {
+    case 'difficulty': return `easy=${o.difficulty.easy}%, medium=${o.difficulty.medium}%, hard=${o.difficulty.hard}%`;
+    case 'typeTarget': return CORE_TYPES.map((t) => `${t}=${o.typeTarget[t]}%`).join(', ');
+    case 'requireAllEightTypes': case 'allowExtendedTypes': case 'allowOutOfScopeInformation': return String(o[key]);
+    case 'numberOfQuestions': case 'mcqChoiceCount': return String(o[key]);
+    default: return String(o[key]);
+  }
+}
+
+/** Rewrites the CONFIG block lines in place, keeping each line's trailing comment and the rest of the document untouched. */
+export function applyPromptOptions(prompt: string, o: PromptOptions): string {
+  let out = prompt;
+  for (const key of Object.keys(KEYS) as (keyof PromptOptions)[]) {
+    const name = KEYS[key];
+    const re = new RegExp(`^(${name}:\\s*)(.*?)(\\s*#.*)?$`, 'm');
+    out = out.replace(re, (_m, head: string, _value: string, comment?: string) => `${head}${configValue(key, o)}${comment ?? ''}`);
+  }
+  return out;
+}
+
+/** Just the CONFIG block as it will be copied (for the live preview). */
+export function renderConfigBlock(o: PromptOptions): string {
+  const block = applyPromptOptions(generatorPrompt, o).match(/```text\n([\s\S]*?)```/);
+  return block?.[1]?.trimEnd() ?? '';
+}
+
+export function sumDifficulty(o: PromptOptions): number {
+  return o.difficulty.easy + o.difficulty.medium + o.difficulty.hard;
+}
+export function sumTypeTarget(o: PromptOptions): number {
+  return CORE_TYPES.reduce((a, t) => a + o.typeTarget[t], 0);
+}
+
+/** Keys where a one-off copy differs from the given base — shown as "변경됨" marks. */
+export function changedKeys(a: PromptOptions, b: PromptOptions): (keyof PromptOptions)[] {
+  return (Object.keys(KEYS) as (keyof PromptOptions)[]).filter((k) => configValue(k, a) !== configValue(k, b));
+}
+
+/** Only the fields that differ from the prompt document are saved, so the document stays the default for everything else. */
+export function toSavedDefaults(o: PromptOptions): Partial<PromptOptions> | null {
+  const diff: Partial<PromptOptions> = {};
+  for (const k of changedKeys(o, PROMPT_DEFAULTS)) (diff as Record<string, unknown>)[k] = o[k];
+  return Object.keys(diff).length ? diff : null;
+}
+
+export const TYPE_LABEL_KO: Record<CoreType, string> = { single_choice: '단일선택', multiple_choice: '복수선택', true_false: 'OX', short_answer: '단답형', essay: '서술형', cloze: '빈칸', ordering: '순서배열', matching: '연결형' };

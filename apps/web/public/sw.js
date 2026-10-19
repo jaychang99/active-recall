@@ -3,7 +3,7 @@
  * - Navigations: network-first with an offline fallback to the cached shell.
  * - API (port 4000 / /api): never cached — study data must always be live.
  */
-const VERSION = 'rs-v1';
+const VERSION = 'rs-v3';
 const SHELL = ['/', '/decks', '/import', '/insights', '/settings', '/offline'];
 
 self.addEventListener('install', (event) => {

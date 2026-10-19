@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Max, Min, ValidateIf } from 'class-validator';
 
 export class UpdateSettingsDto {
   @IsOptional() @IsInt() @Min(0) @Max(1000) newCardsPerDay?: number;
@@ -14,4 +14,6 @@ export class UpdateSettingsDto {
   @IsOptional() @IsIn(['deck', 'random']) newCardOrder?: string;
   @IsOptional() @IsInt() @Min(0) @Max(10000) dailyReviewGoal?: number;
   @IsOptional() @IsInt() @Min(1) @Max(1000) leechThreshold?: number;
+  /** Partial CONFIG overrides for the generator prompt; null resets to the prompt's own values. */
+  @ValidateIf((_, v) => v !== null) @IsOptional() @IsObject() promptDefaults?: Record<string, unknown> | null;
 }
