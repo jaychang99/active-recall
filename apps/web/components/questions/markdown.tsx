@@ -12,7 +12,8 @@ export function Markdown({ children, className, inline }: { children: string; cl
   return (
     <div className={cn(inline ? 'prose-q inline [&>p]:inline' : 'prose-q', className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+        // singleTilde: false → only ~~text~~ is strikethrough; a lone "~" (범위 표기 1~5, 오늘~내일) stays literal.
+        remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkMath]}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: 'ignore' }]]}
         components={{
           pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
