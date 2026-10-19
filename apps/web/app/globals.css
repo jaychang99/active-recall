@@ -1,0 +1,201 @@
+@import 'tailwindcss';
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+@import 'katex/dist/katex.min.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Recall Studio design tokens
+   Ground: a cool paper white; ink: deep slate. One accent (petrol teal) for
+   actions and selection. Semantic colors are never the only cue for a state.
+--------------------------------------------------------------------------- */
+:root {
+  --bg: #f7f8f7;
+  --bg-elevated: #ffffff;
+  --bg-sunken: #eef0ef;
+  --bg-muted: #f1f3f2;
+  --ink: #16201e;
+  --ink-2: #44514e;
+  --ink-3: #6f7d79;
+  --line: #d9dedc;
+  --line-strong: #b8c0bd;
+  --accent: #0f766e;
+  --accent-ink: #ffffff;
+  --accent-soft: #d8efec;
+  --accent-soft-ink: #0b5c56;
+  --ok: #1f7a3a;
+  --ok-soft: #dcf2e3;
+  --ok-ink: #155a2a;
+  --bad: #b3261e;
+  --bad-soft: #f8dedb;
+  --bad-ink: #8a1d17;
+  --warn: #9a6400;
+  --warn-soft: #fbecc6;
+  --warn-ink: #704800;
+  --info: #2458b3;
+  --info-soft: #dde7f9;
+  --again: #b3261e;
+  --hard: #a35d00;
+  --good: #0f766e;
+  --easy: #1f7a3a;
+  --focus: #0f766e;
+  --selection: #cfe8e4;
+  --shadow: 0 1px 2px rgb(22 32 30 / 0.06), 0 8px 24px -12px rgb(22 32 30 / 0.18);
+  --radius: 8px;
+  --radius-lg: 12px;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #121716;
+  --bg-elevated: #1a2120;
+  --bg-sunken: #0d1211;
+  --bg-muted: #1f2726;
+  --ink: #e8ecea;
+  --ink-2: #b4bdba;
+  --ink-3: #7f8b88;
+  --line: #2b3533;
+  --line-strong: #3d4a47;
+  --accent: #35b5a9;
+  --accent-ink: #06201d;
+  --accent-soft: #15332f;
+  --accent-soft-ink: #8ddcd3;
+  --ok: #5fcf85;
+  --ok-soft: #15301f;
+  --ok-ink: #9ee6b6;
+  --bad: #ff8a80;
+  --bad-soft: #3a1b18;
+  --bad-ink: #ffb4ad;
+  --warn: #f2b84b;
+  --warn-soft: #3a2c10;
+  --warn-ink: #f7d08a;
+  --info: #7aa7ff;
+  --info-soft: #182645;
+  --again: #ff8a80;
+  --hard: #f2b84b;
+  --good: #35b5a9;
+  --easy: #5fcf85;
+  --focus: #35b5a9;
+  --selection: #1e4a45;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px -12px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-elevated: var(--bg-elevated);
+  --color-sunken: var(--bg-sunken);
+  --color-muted: var(--bg-muted);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-ink: var(--accent-soft-ink);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-ink: var(--ok-ink);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-bad-ink: var(--bad-ink);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-ink: var(--warn-ink);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-again: var(--again);
+  --color-hard: var(--hard);
+  --color-good: var(--good);
+  --color-easy: var(--easy);
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --shadow-card: var(--shadow);
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'tnum' 1, 'calt' 1;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Prose rendered from question markdown */
+.prose-q {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.prose-q > * + * { margin-top: 0.75em; }
+.prose-q p { margin: 0; }
+.prose-q strong { font-weight: 650; }
+.prose-q code { font-family: var(--font-mono); font-size: 0.9em; background: var(--bg-muted); padding: 0.1em 0.35em; border-radius: 4px; }
+.prose-q pre { background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.85rem 1rem; overflow-x: auto; font-size: 0.875rem; line-height: 1.55; position: relative; }
+.prose-q pre code { background: transparent; padding: 0; font-size: inherit; }
+.prose-q ul { list-style: disc; padding-left: 1.4em; }
+.prose-q ol { list-style: decimal; padding-left: 1.4em; }
+.prose-q li + li { margin-top: 0.25em; }
+.prose-q blockquote { border-left: 2px solid var(--line-strong); padding-left: 0.9em; color: var(--ink-2); }
+.prose-q table { border-collapse: collapse; font-size: 0.95em; }
+.prose-q th, .prose-q td { border: 1px solid var(--line); padding: 0.35em 0.65em; text-align: left; }
+.prose-q a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.prose-q h1, .prose-q h2, .prose-q h3 { font-weight: 650; line-height: 1.3; }
+.prose-q h1 { font-size: 1.35em; } .prose-q h2 { font-size: 1.2em; } .prose-q h3 { font-size: 1.05em; }
+.prose-q .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.25em 0; }
+.prose-sm { font-size: 0.9375rem; }
+
+kbd.kbd {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  min-width: 1.35rem;
+  text-align: center;
+  display: inline-block;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--ink-2);
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+@keyframes rs-pop { from { transform: scale(0.98); opacity: 0.6; } to { transform: scale(1); opacity: 1; } }
+.rs-pop { animation: rs-pop 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }

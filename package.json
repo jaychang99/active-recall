@@ -1,0 +1,30 @@
+{
+  "name": "recall-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Recall Studio — local-first active-recall study workstation (Next.js + NestJS + MySQL + ts-fsrs)",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=8"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter ./apps/* dev",
+    "dev:api": "pnpm --filter @recall/api dev",
+    "dev:web": "pnpm --filter @recall/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @recall/web test:e2e",
+    "db:generate": "pnpm --filter @recall/api db:generate",
+    "db:migrate": "pnpm --filter @recall/api db:migrate",
+    "db:seed": "pnpm --filter @recall/api db:seed",
+    "db:up": "docker compose up -d mysql",
+    "db:down": "docker compose down",
+    "postinstall": "pnpm --filter @recall/contracts build"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3"
+  }
+}

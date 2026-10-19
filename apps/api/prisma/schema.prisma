@@ -1,0 +1,289 @@
+// Recall Studio — Prisma schema (MySQL 8)
+// Conventions: every entity carries createdAt / updatedAt / deletedAt (soft delete; null = live).
+// FSRS card state is stored both as explicit columns (for queries/indexes) and as the full
+// ts-fsrs Card JSON (`stateJson`) so library state round-trips losslessly.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  runtime      = "nodejs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum QuestionType {
+  single_choice
+  multiple_choice
+  true_false
+  short_answer
+  essay
+  cloze
+  ordering
+  matching
+}
+
+enum CardStatus {
+  NEW
+  LEARNING
+  REVIEW
+  RELEARNING
+}
+
+enum SessionMode {
+  study
+  cram
+  practice
+  exam
+}
+
+model Deck {
+  id          String    @id @db.VarChar(80) // external stable slug from batch.deck.id
+  title       String    @db.VarChar(200)
+  description String?   @db.Text
+  subject     String    @db.VarChar(200)
+  language    String    @db.VarChar(35)
+  tagsJson    Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  questions    Question[]
+  sessions     StudySession[]
+  examAttempts ExamAttempt[]
+
+  @@index([subject])
+  @@index([deletedAt])
+}
+
+model Question {
+  id          String       @id @default(cuid())
+  externalId  String       @db.VarChar(80)
+  deckId      String       @db.VarChar(80)
+  type        QuestionType
+  payloadJson Json
+  contentHash String       @db.Char(64)
+  answerHash  String       @db.Char(64)
+  revision    Int          @default(1)
+  sortIndex   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime? // soft delete (also set by replace_deck imports)
+
+  deck          Deck           @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  card          CardState?
+  reviews       ReviewLog[]
+  notes         QuestionNote[]
+  examResponses ExamResponse[]
+  practiceLogs  PracticeLog[]
+  subjects      QuestionSubject[]
+
+  @@unique([deckId, externalId])
+  @@index([deckId, type])
+  @@index([deckId, sortIndex])
+  @@index([deletedAt])
+}
+
+// Subjects are tag-like labels: one question can belong to many subjects.
+// The deck's `subject` is assigned automatically on import (source = "deck"); learners add more (source = "manual").
+model Subject {
+  id          String    @id @default(cuid())
+  name        String    @unique @db.VarChar(200)
+  color       String?   @db.VarChar(16)
+  description String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  questions QuestionSubject[]
+
+  @@index([deletedAt])
+}
+
+model QuestionSubject {
+  questionId String
+  subjectId  String
+  source     String    @default("manual") @db.VarChar(16) // deck | manual
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  subject  Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, subjectId])
+  @@index([subjectId])
+}
+
+model CardState {
+  questionId   String     @id
+  stateJson    Json // full ts-fsrs Card (dates as ISO strings)
+  dueAt        DateTime
+  status       CardStatus @default(NEW)
+  stability    Float      @default(0)
+  difficulty   Float      @default(0)
+  reps         Int        @default(0)
+  lapses       Int        @default(0)
+  lastReviewAt DateTime?
+  suspended    Boolean    @default(false) // excluded from study queues until resumed
+  flagged      Boolean    @default(false) // learner bookmark
+  buriedUntil  DateTime? // hidden from queues until this instant
+  version      Int        @default(0) // optimistic concurrency
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([dueAt, status])
+  @@index([status])
+  @@index([flagged])
+}
+
+model ReviewLog {
+  id                     String     @id @default(cuid())
+  questionId             String
+  sessionId              String?
+  idempotencyKey         String     @unique @db.VarChar(120)
+  rating                 Int // 1 Again, 2 Hard, 3 Good, 4 Easy
+  previousStatus         CardStatus @default(NEW)
+  reviewRound            Int // nth effective review of this question (1-based)
+  reviewedAt             DateTime   @default(now())
+  elapsedMs              Int        @default(0)
+  isCorrect              Boolean?
+  revealedBeforeAnswer   Boolean    @default(false)
+  hintUsed               Boolean    @default(false)
+  answerPayloadJson      Json?
+  previousCardStateJson  Json
+  resultingCardStateJson Json
+  fsrsLogJson            Json
+  schedulerVersion       String     @db.VarChar(40)
+  undone                 Boolean    @default(false)
+  undoneAt               DateTime?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+  deletedAt              DateTime?
+
+  question Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  session  StudySession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  notes    QuestionNote[]
+
+  @@index([questionId, reviewedAt])
+  @@index([reviewedAt])
+  @@index([sessionId])
+}
+
+model QuestionNote {
+  id          String    @id @default(cuid())
+  questionId  String
+  reviewRound Int // one note per review round per question
+  reviewLogId String?
+  body        String    @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  question  Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reviewLog ReviewLog? @relation(fields: [reviewLogId], references: [id], onDelete: SetNull)
+
+  @@unique([questionId, reviewRound])
+  @@index([questionId, updatedAt])
+}
+
+model StudySession {
+  id        String      @id @default(cuid())
+  deckId    String?     @db.VarChar(80) // null for cross-deck sessions
+  scope     String      @default("deck") @db.VarChar(120) // deck | all | subject:<name>
+  mode      SessionMode @default(study)
+  startedAt DateTime    @default(now())
+  endedAt   DateTime?
+  queueSize Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?
+
+  deck      Deck?         @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  reviews   ReviewLog[]
+  practices PracticeLog[]
+
+  @@index([deckId, startedAt])
+  @@index([startedAt])
+}
+
+model PracticeLog {
+  id                String    @id @default(cuid())
+  questionId        String
+  sessionId         String?
+  isCorrect         Boolean?
+  answerPayloadJson Json?
+  elapsedMs         Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  question Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  session  StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([questionId, createdAt])
+  @@index([createdAt])
+}
+
+model ExamAttempt {
+  id          String    @id @default(cuid())
+  deckId      String    @db.VarChar(80)
+  title       String    @default("") @db.VarChar(200)
+  configJson  Json
+  questionIds Json // ordered internal question ids
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+  scoreJson   Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  deck      Deck           @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  responses ExamResponse[]
+
+  @@index([deckId, startedAt])
+  @@index([startedAt])
+}
+
+model ExamResponse {
+  id                String    @id @default(cuid())
+  attemptId         String
+  questionId        String
+  answerPayloadJson Json?
+  isCorrect         Boolean?
+  gradeDetailJson   Json?
+  selfScore         Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  attempt  ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+}
+
+model AppSettings {
+  id                     Int       @id @default(1)
+  newCardsPerDay         Int       @default(20)
+  reviewsPerDay          Int       @default(200)
+  timezone               String    @default("Asia/Seoul") @db.VarChar(64)
+  shortcutsEnabled       Boolean   @default(true)
+  showIntervalPreview    Boolean   @default(true)
+  autoAdvanceAfterRating Boolean   @default(true)
+  requestRetention       Float     @default(0.9)
+  maximumInterval        Int       @default(36500)
+  enableFuzz             Boolean   @default(false)
+  shuffleChoices         Boolean   @default(true)
+  newCardOrder           String    @default("deck") @db.VarChar(16) // deck | random
+  dailyReviewGoal        Int       @default(50)
+  leechThreshold         Int       @default(8)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
+}

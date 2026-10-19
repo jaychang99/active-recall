@@ -1,0 +1,14 @@
+node_modules
+dist
+.next
+out
+coverage
+*.log
+.env
+.env.local
+apps/api/src/generated
+apps/web/test-results
+apps/web/playwright-report
+.turbo
+.DS_Store
+.taste-skill
