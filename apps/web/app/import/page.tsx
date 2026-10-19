@@ -1,16 +1,17 @@
 'use client';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, ClipboardPaste, FileJson, FileUp, Play, XCircle, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { parseBatchJson, validateBatch, type ValidationIssue } from '@recall/contracts';
-import { API_URL, api, type ImportPlan } from '@/lib/api';
+import { API_URL, api, type Deck, type ImportPlan } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/input';
 import { PageHeader, Panel } from '@/components/ui/misc';
 import { TYPE_LABEL, cn, copyToClipboard } from '@/lib/utils';
+import { DEFAULT_TARGET, ImportTargetPanel, applyTarget, readJsonDeck, targetProblems, type ImportTarget } from '@/components/import/import-target';
 import { schemaText } from '@/lib/prompt-bundle';
 import exampleBatch from '../../../../examples/example-question-batch.json';
 
@@ -26,12 +27,19 @@ export default function ImportPage() {
   const [report, setReport] = useState<ImportPlan | null>(null);
   const [drag, setDrag] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Where the batch goes: defaults to the deck/subject written in the JSON, overridable (existing or new).
+  const [target, setTarget] = useState<ImportTarget>(DEFAULT_TARGET);
+  const decks = useQuery({ queryKey: ['decks'], queryFn: () => api<Deck[]>('/decks') });
+  const jsonDeck = useMemo(() => { if (!text.trim()) return null; const p = parseBatchJson(text); return p.ok ? readJsonDeck(p.value) : null; }, [text]);
+  const targetIssues = targetProblems(target);
 
+  /** The batch as it will be sent: parsed, then its deck block rewritten to the chosen target. */
   const parsed = () => {
     const p = parseBatchJson(text);
     if (!p.ok) { setParseError(p.error ?? 'invalid JSON'); setClientIssues(null); return null; }
     setParseError(null);
-    return p.value;
+    if (targetIssues.length) { toast.error('가져올 위치를 확인하세요', { description: targetIssues.join(' ') }); return null; }
+    return applyTarget(p.value, target, decks.data ?? []);
   };
 
   const validate = useMutation({
@@ -129,6 +137,7 @@ export default function ImportPage() {
             <Button variant="ghost" onClick={() => void copyToClipboard(JSON.stringify(exampleBatch, null, 2)).then(() => toast.success('예제 JSON 복사됨'))}>예제 복사</Button>
             <Button variant="ghost" onClick={() => void copyToClipboard(schemaText()).then(() => toast.success('스키마 복사됨'))}>스키마 복사</Button>
           </div>
+          <ImportTargetPanel value={target} onChange={(next) => { setTarget(next); setPlan(null); setReport(null); }} json={jsonDeck} />
           <div className="flex flex-wrap items-center gap-2">
             <span className="order-last ml-auto text-[12px] text-ink-3 tabular">{(new TextEncoder().encode(text).length / 1024).toFixed(1)} KB · 한도 5 MB / 1,000문항</span>
             <Select value={strategy} onChange={(e) => { setStrategy(e.target.value as Strategy); setPlan(null); }} aria-label="덮어쓰기 전략">
@@ -137,9 +146,9 @@ export default function ImportPage() {
               <option value="replace_deck">덱 교체 — JSON에 없는 기존 문항은 비활성화</option>
             </Select>
             {strategy === 'replace_deck' ? <p className="order-last basis-full text-[12px] text-warn-ink">덱 교체: JSON에 없는 기존 문항은 비활성화됩니다 (복습 기록은 보존).</p> : null}
-            <Button variant={plan?.ok ? 'secondary' : 'primary'} onClick={() => validate.mutate()} disabled={!text.trim() || validate.isPending} data-testid="validate-btn"><CheckCircle2 className="h-4 w-4" /> {validate.isPending ? '검증 중…' : '검증'}</Button>
+            <Button variant={plan?.ok ? 'secondary' : 'primary'} onClick={() => validate.mutate()} disabled={!text.trim() || validate.isPending || targetIssues.length > 0} data-testid="validate-btn"><CheckCircle2 className="h-4 w-4" /> {validate.isPending ? '검증 중…' : '검증'}</Button>
             <Button variant="primary" onClick={() => commit.mutate()} disabled={!plan?.ok || commit.isPending || !!report} data-testid="commit-btn"><Play className="h-4 w-4" /> {commit.isPending ? '저장 중…' : '가져오기 확정'}</Button>
-            <Button variant="soft" onClick={() => validateAndCommit.mutate()} disabled={!text.trim() || validateAndCommit.isPending || !!report} data-testid="validate-and-commit-btn" title="검증을 통과하면 바로 가져옵니다 (⌘/Ctrl+Enter)"><Zap className="h-4 w-4" /> {validateAndCommit.isPending ? '검증 + 저장 중…' : '검증 + 가져오기 (원클릭)'}</Button>
+            <Button variant="soft" onClick={() => validateAndCommit.mutate()} disabled={!text.trim() || validateAndCommit.isPending || !!report || targetIssues.length > 0} data-testid="validate-and-commit-btn" title="검증을 통과하면 바로 가져옵니다 (⌘/Ctrl+Enter)"><Zap className="h-4 w-4" /> {validateAndCommit.isPending ? '검증 + 저장 중…' : '검증 + 가져오기 (원클릭)'}</Button>
           </div>
         </div>
 
@@ -190,7 +199,7 @@ export default function ImportPage() {
               <h3 className="mb-2 font-medium text-ink">작업 순서</h3>
               <ol className="list-decimal space-y-1 pl-5">
                 <li>상단 <strong>LLM 프롬프트</strong> 버튼으로 프롬프트+스키마를 복사해 LLM에 붙여넣고 자료(PDF·교안·주제)를 첨부합니다.</li>
-                <li>LLM이 출력한 JSON 전체를 왼쪽에 붙여넣습니다.</li>
+                <li>LLM이 출력한 JSON 전체를 왼쪽에 붙여넣습니다. <strong>가져올 위치</strong>에 JSON의 덱·과목이 기본값으로 뜨며, 기존 덱·과목을 고르거나 새로 만들어 바꿀 수 있습니다.</li>
                 <li><strong>검증</strong>: 브라우저에서 즉시 스키마 검사 → 서버에서 스키마·의미(참조 무결성)·변경 미리보기.</li>
                 <li><strong>가져오기 확정</strong>: 트랜잭션으로 저장됩니다. 같은 JSON을 다시 가져와도 중복되지 않습니다.</li>
                 <li>급하면 <strong>검증 + 가져오기 (원클릭)</strong> 또는 입력창에서 ⌘/Ctrl+Enter: 검증을 통과할 때만 바로 저장됩니다.</li>
