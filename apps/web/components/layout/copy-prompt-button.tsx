@@ -17,8 +17,8 @@ export function CopyPromptButton({ compact }: { compact?: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="soft" size={compact ? 'icon' : 'md'} aria-label="LLM 문제 생성 프롬프트 복사" data-testid="copy-prompt-trigger">
-          <Sparkles className="h-4 w-4" />
+        <Button variant="secondary" size={compact ? 'icon' : 'md'} aria-label="LLM 문제 생성 프롬프트 복사" data-testid="copy-prompt-trigger">
+          <Sparkles className="h-4 w-4 text-accent" />
           {compact ? null : <span>LLM 프롬프트</span>}
         </Button>
       </DropdownMenuTrigger>

@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Eye, Flag, Info, Lightbulb, PauseCircle, RotateCcw, SkipForward, Undo2 } from 'lucide-react';
+import { ArrowRight, Eye, Flag, Info, Lightbulb, PauseCircle, SkipForward, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -11,11 +11,12 @@ import { cn, uid } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Tooltip } from '@/components/ui/tooltip';
 import { ErrorState, Skeleton } from '@/components/ui/misc';
 import { QuestionPrompt, QuestionRenderer } from '@/components/questions/question-renderer';
 import type { Phase } from '@/components/questions/types';
 import { ExplanationPanel, Verdict } from './explanation-panel';
-import { RatingBar } from './rating-bar';
+import { RATINGS, RatingBar } from './rating-bar';
 import { NotesPanel } from './notes-panel';
 import { CardInfoTable } from './card-info';
 import { useSettings } from '@/components/layout/settings-context';
@@ -63,7 +64,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const [hint, setHint] = useState<string | null>(null);
   const [showExplanation, setShowExplanation] = useState(true);
   const [done, setDone] = useState<Done[]>([]);
-  const [lastReview, setLastReview] = useState<{ reviewId: string; questionId: string; index: number } | null>(null);
+  const [lastReview, setLastReview] = useState<{ reviewId: string; questionId: string; index: number; rating: 1 | 2 | 3 | 4; interval: string | null } | null>(null);
   const [pendingRating, setPendingRating] = useState<1 | 2 | 3 | 4 | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [notesFocus, setNotesFocus] = useState(0);
@@ -172,7 +173,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     onSuccess: (res, rating) => {
       if (!item) return;
       setDone((d) => [...d, { questionId: item.questionId, rating, isCorrect: grade?.grade.isCorrect ?? null, reviewId: res.review.id }]);
-      setLastReview({ reviewId: res.review.id, questionId: item.questionId, index });
+      setLastReview({ reviewId: res.review.id, questionId: item.questionId, index, rating, interval: item.preview ? item.preview[(['again', 'hard', 'good', 'easy'] as const)[rating - 1]!].interval : null });
       setPhase('rated');
       void qc.invalidateQueries({ queryKey: ['notes', item.questionId] });
       // Again/Hard on a learning step re-queues the card at the end of this session so it is seen again today.
@@ -292,31 +293,35 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       {/* progress strip */}
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-3">
         <span className="font-medium text-ink">{queue.data?.deck?.title ?? (params.subject ? `과목: ${params.subject}` : '모든 덱')}</span>
-        <Badge tone={isPractice ? 'warn' : 'accent'}>{MODE_LABEL[params.mode]}</Badge>
+        <Badge tone={isPractice ? 'warn' : 'neutral'}>{MODE_LABEL[params.mode]}</Badge>
         <span className="tabular">{progress} / {total} 완료</span>
-        <span className="tabular">남은 문제 {Math.max(0, total - index)}</span>
         {params.mode === 'scheduled' ? <span className="tabular">오늘 복습 {queue.data?.counts.reviewedToday ?? 0} / 목표 {settings.dailyReviewGoal}</span> : null}
+        {lastReview && phase === 'answering' ? <span className="flex items-center gap-1 tabular" data-testid="last-rating">직전 <span className={cn('font-medium', RATINGS[lastReview.rating - 1]!.cls.split(' ')[1])}>{RATINGS[lastReview.rating - 1]!.ko}</span>{lastReview.interval ? ` · ${lastReview.interval}` : ''} <kbd className="kbd" aria-hidden>U</kbd></span> : null}
         <span className="ml-auto flex items-center gap-1"><kbd className="kbd">?</kbd> 단축키</span>
       </div>
       <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-sunken" aria-hidden><div className="h-full bg-accent transition-[width] duration-200" style={{ width: `${(progress / Math.max(1, total)) * 100}%` }} /></div>
 
       <article className="space-y-5" key={`${item.questionId}:${item.reviewRound}`}>
         <header className="flex items-start justify-between gap-3">
-          <QuestionPrompt question={item.question} />
+          <QuestionPrompt
+            question={item.question}
+            extra={<>
+              <span>{item.reviewRound}회차</span>
+              <span>{item.card.status === 'NEW' ? '새 카드' : item.card.status === 'REVIEW' ? '복습' : '학습 중'}</span>
+              {item.noteCount ? <span>메모 {item.noteCount}</span> : null}
+            </>}
+          />
           <div className="flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="iconSm" aria-label={item.card.flagged ? '표시 해제' : '문제 표시'} aria-pressed={item.card.flagged} onClick={() => cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' })} className={cn(item.card.flagged && 'text-warn')}>
-              <Flag className="h-4 w-4" fill={item.card.flagged ? 'currentColor' : 'none'} />
-            </Button>
-            <Button variant="ghost" size="iconSm" aria-label="카드 정보" onClick={() => setShowInfo(true)}><Info className="h-4 w-4" /></Button>
+            <Tooltip content={<>{item.card.flagged ? '표시 해제' : '문제 표시'} <kbd className="kbd ml-1">F</kbd></>}>
+              <Button variant="ghost" size="iconSm" aria-label={item.card.flagged ? '표시 해제' : '문제 표시'} aria-pressed={item.card.flagged} onClick={() => cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' })} className={cn(item.card.flagged && 'text-warn')}>
+                <Flag className="h-4 w-4" fill={item.card.flagged ? 'currentColor' : 'none'} />
+              </Button>
+            </Tooltip>
+            <Tooltip content={<>카드 정보 <kbd className="kbd ml-1">I</kbd></>}>
+              <Button variant="ghost" size="iconSm" aria-label="카드 정보" onClick={() => setShowInfo(true)}><Info className="h-4 w-4" /></Button>
+            </Tooltip>
           </div>
         </header>
-
-        <div className="text-[12px] text-ink-3 flex flex-wrap gap-x-3">
-          <span>{item.deck.title}</span>
-          <span>{item.reviewRound}회차</span>
-          <span>{item.card.status === 'NEW' ? '새 카드' : item.card.status === 'REVIEW' ? '복습' : '학습 중'}</span>
-          {item.noteCount ? <span>메모 {item.noteCount}</span> : null}
-        </div>
 
         {hint ? <div className="flex items-start gap-2 rounded-md border border-warn/40 bg-warn-soft/50 px-3 py-2 text-sm"><Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-warn" /><span>{hint}</span></div> : null}
 
@@ -373,9 +378,6 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
         <NotesPanel questionId={item.questionId} round={item.reviewRound} focusSignal={notesFocus} defaultOpen={false} />
 
-        {lastReview && phase === 'answering' ? (
-          <div className="flex items-center gap-2 text-[12px] text-ink-3"><RotateCcw className="h-3.5 w-3.5" /> 직전 평가를 되돌리려면 <kbd className="kbd">U</kbd></div>
-        ) : null}
       </article>
 
       <Dialog open={showInfo} onOpenChange={setShowInfo}>

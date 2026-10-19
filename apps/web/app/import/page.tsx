@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/input';
 import { PageHeader, Panel } from '@/components/ui/misc';
-import { CopyPromptButton } from '@/components/layout/copy-prompt-button';
 import { TYPE_LABEL, cn, copyToClipboard } from '@/lib/utils';
 import { schemaText } from '@/lib/prompt-bundle';
 import exampleBatch from '../../../../examples/example-question-batch.json';
@@ -76,14 +75,14 @@ export default function ImportPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title="JSON 가져오기" description="LLM이 생성한 question-batch JSON을 붙여넣거나 파일로 올리세요. 검증(스키마 + 의미 검사 + 변경 미리보기) 후 가져오기를 확정합니다. 문항 하나라도 잘못되면 전체가 거부됩니다." actions={<><CopyPromptButton /><a href={`${API_URL}/schemas/question-batch.schema.json`} target="_blank" rel="noreferrer"><Button variant="ghost"><FileJson className="h-4 w-4" /> 스키마 열기</Button></a></>} />
+      <PageHeader title="JSON 가져오기" description="LLM이 생성한 question-batch JSON을 붙여넣거나 파일로 올리세요. 검증(스키마 + 의미 검사 + 변경 미리보기) 후 가져오기를 확정합니다. 문항 하나라도 잘못되면 전체가 거부됩니다." actions={<a href={`${API_URL}/schemas/question-batch.schema.json`} target="_blank" rel="noreferrer"><Button variant="ghost"><FileJson className="h-4 w-4" /> 스키마 열기</Button></a>} />
       <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
         <div className="space-y-3">
           <div
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) void loadFile(f); }}
-            className={cn('rounded-lg border-2 border-dashed transition-colors', drag ? 'border-accent bg-accent-soft/30' : 'border-line')}
+            className={cn('rounded-lg border-2 border-dashed transition-colors focus-within:border-accent', drag ? 'border-accent bg-accent-soft/30' : 'border-line-strong')}
           >
             <textarea
               value={text}
@@ -102,16 +101,17 @@ export default function ImportPage() {
             <Button variant="ghost" onClick={() => { setText(JSON.stringify(exampleBatch, null, 2)); setPlan(null); setReport(null); setClientIssues(null); }} data-testid="load-example">8종 예제 불러오기</Button>
             <Button variant="ghost" onClick={() => void copyToClipboard(JSON.stringify(exampleBatch, null, 2)).then(() => toast.success('예제 JSON 복사됨'))}>예제 복사</Button>
             <Button variant="ghost" onClick={() => void copyToClipboard(schemaText()).then(() => toast.success('스키마 복사됨'))}>스키마 복사</Button>
-            <span className="ml-auto text-[12px] text-ink-3 tabular">{(new TextEncoder().encode(text).length / 1024).toFixed(1)} KB · 한도 5 MB / 1,000문항</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <span className="order-last ml-auto text-[12px] text-ink-3 tabular">{(new TextEncoder().encode(text).length / 1024).toFixed(1)} KB · 한도 5 MB / 1,000문항</span>
             <Select value={strategy} onChange={(e) => { setStrategy(e.target.value as Strategy); setPlan(null); }} aria-label="덮어쓰기 전략">
               <option value="upsert">업서트 — 새 문항 추가, 변경된 문항 갱신 (기본)</option>
               <option value="add_only">추가만 — 기존 문항은 건드리지 않음</option>
               <option value="replace_deck">덱 교체 — JSON에 없는 기존 문항은 비활성화</option>
             </Select>
-            <Button variant="primary" onClick={() => validate.mutate()} disabled={!text.trim() || validate.isPending} data-testid="validate-btn"><CheckCircle2 className="h-4 w-4" /> 검증</Button>
-            <Button variant="primary" onClick={() => commit.mutate()} disabled={!plan?.ok || commit.isPending || !!report} data-testid="commit-btn"><Play className="h-4 w-4" /> 가져오기 확정</Button>
+            {strategy === 'replace_deck' ? <p className="order-last basis-full text-[12px] text-warn-ink">덱 교체: JSON에 없는 기존 문항은 비활성화됩니다 (복습 기록은 보존).</p> : null}
+            <Button variant={plan?.ok ? 'secondary' : 'primary'} onClick={() => validate.mutate()} disabled={!text.trim() || validate.isPending} data-testid="validate-btn"><CheckCircle2 className="h-4 w-4" /> {validate.isPending ? '검증 중…' : '검증'}</Button>
+            <Button variant="primary" onClick={() => commit.mutate()} disabled={!plan?.ok || commit.isPending || !!report} data-testid="commit-btn"><Play className="h-4 w-4" /> {commit.isPending ? '저장 중…' : '가져오기 확정'}</Button>
           </div>
         </div>
 

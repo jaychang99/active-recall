@@ -21,10 +21,11 @@ export function RatingBar({ preview, onRate, disabled, pending }: { preview: Int
           onClick={() => onRate(r.value)}
           data-rating={r.value}
           aria-label={`${r.ko} (${r.label}) — ${preview?.[r.key].interval ?? ''}`}
+          aria-busy={pending === r.value || undefined}
           className={cn(
-            'group relative flex flex-col items-center gap-0.5 rounded-md border-2 bg-elevated px-2 py-2.5 transition-colors hover:bg-muted disabled:opacity-50',
+            'group relative flex flex-col items-center gap-0.5 rounded-md border bg-elevated px-2 py-2.5 transition-colors hover:bg-muted disabled:opacity-60',
             r.cls,
-            pending === r.value && 'bg-muted',
+            pending === r.value && 'bg-muted ring-2 ring-current',
           )}
         >
           <span className="flex items-center gap-1.5 text-sm font-semibold">

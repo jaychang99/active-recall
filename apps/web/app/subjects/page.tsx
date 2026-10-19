@@ -60,7 +60,7 @@ export default function SubjectsPage() {
             <div className="mt-1 text-[12px] text-ink-3">{s.questionCount}문항 · 덱 {s.deckIds.length}개 · due {s.progress.dueToday}</div>
             <ProgressStrip p={s.progress} className="mt-3" />
             <div className="mt-3 flex gap-2">
-              <Link href={`/study/all?subject=${encodeURIComponent(s.name)}`}><Button size="sm" variant="primary"><Play className="h-3.5 w-3.5" /> 예정 학습</Button></Link>
+              <Link href={`/study/all?subject=${encodeURIComponent(s.name)}`}><Button size="sm"><Play className="h-3.5 w-3.5 text-accent" /> 예정 학습</Button></Link>
               <Link href={`/study/all?subject=${encodeURIComponent(s.name)}&mode=cram`}><Button size="sm">훑기</Button></Link>
               <Link href={`/insights?subject=${encodeURIComponent(s.name)}`}><Button size="sm" variant="ghost">통계</Button></Link>
             </div>

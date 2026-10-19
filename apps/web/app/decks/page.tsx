@@ -51,7 +51,7 @@ export default function DecksPage() {
                   <ProgressStrip p={d.progress} />
                   <div className="flex flex-wrap gap-1">{d.tags.map((t) => <Badge key={t}>{t}</Badge>)}{d.progress.flagged ? <Badge tone="warn">표시 {d.progress.flagged}</Badge> : null}{d.progress.suspended ? <Badge tone="outline">보류 {d.progress.suspended}</Badge> : null}</div>
                   <div className="mt-auto flex gap-2">
-                    <Link href={`/study/${d.id}`} className="flex-1"><Button variant="primary" size="sm" className="w-full"><Play className="h-3.5 w-3.5" /> 학습</Button></Link>
+                    <Link href={`/study/${d.id}`} className="flex-1"><Button size="sm" className="w-full"><Play className="h-3.5 w-3.5 text-accent" /> 학습</Button></Link>
                     <Link href={`/study/${d.id}?mode=cram`}><Button size="sm">훑기</Button></Link>
                     <Link href={`/exam?deckId=${d.id}`}><Button size="sm">시험</Button></Link>
                   </div>

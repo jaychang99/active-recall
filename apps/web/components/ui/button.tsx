@@ -4,16 +4,16 @@ import { forwardRef } from 'react';
 import { cn } from '@/lib/utils';
 
 export const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 select-none',
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 disabled:pointer-events-none select-none',
   {
     variants: {
       variant: {
-        primary: 'bg-accent text-accent-ink hover:brightness-110 active:brightness-95',
-        secondary: 'bg-elevated text-ink border border-line hover:bg-muted active:bg-sunken',
-        ghost: 'text-ink-2 hover:bg-muted hover:text-ink',
-        soft: 'bg-accent-soft text-accent-soft-ink hover:brightness-105',
-        danger: 'bg-bad-soft text-bad-ink border border-transparent hover:brightness-105',
-        link: 'text-accent underline-offset-4 hover:underline px-0',
+        primary: 'bg-accent text-accent-ink hover:brightness-110 active:brightness-95 disabled:bg-line-strong disabled:text-ink',
+        secondary: 'bg-elevated text-ink border border-line hover:bg-muted active:bg-sunken disabled:bg-sunken disabled:text-ink-3 disabled:border-line',
+        ghost: 'text-ink-2 hover:bg-muted hover:text-ink disabled:text-ink-3',
+        soft: 'bg-accent-soft text-accent-soft-ink hover:brightness-105 disabled:bg-muted disabled:text-ink-3',
+        danger: 'bg-bad-soft text-bad-ink border border-transparent hover:brightness-105 disabled:bg-muted disabled:text-ink-3',
+        link: 'text-accent underline-offset-4 hover:underline px-0 disabled:text-ink-3',
       },
       size: {
         sm: 'h-8 px-2.5 text-[13px]',

@@ -10,21 +10,20 @@ import { Cloze } from './cloze';
 import { Ordering } from './ordering';
 import { Matching } from './matching';
 import { Markdown } from './markdown';
-import { Badge } from '@/components/ui/badge';
 import { TYPE_LABEL } from '@/lib/utils';
 
-export function QuestionPrompt({ question, hidePrompt }: { question: RendererProps['question']; hidePrompt?: boolean }) {
+/** The prompt leads; type, difficulty, tags and any caller-supplied card facts follow as one quiet meta line. */
+export function QuestionPrompt({ question, hidePrompt, extra }: { question: RendererProps['question']; hidePrompt?: boolean; extra?: React.ReactNode }) {
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center gap-1.5">
-        <Badge tone="accent">{TYPE_LABEL[question.type] ?? question.type}</Badge>
-        <Badge tone="outline">난이도 {question.difficulty}/5</Badge>
-        {question.tags.slice(0, 4).map((t) => (
-          <Badge key={t}>{t}</Badge>
-        ))}
-        {question.estimatedSeconds ? <span className="text-[12px] text-ink-3">약 {question.estimatedSeconds}초</span> : null}
-      </div>
+    <div className="min-w-0">
       {!hidePrompt && question.type !== 'cloze' ? <Markdown className="text-[1.125rem] md:text-[1.2rem] leading-relaxed">{question.prompt}</Markdown> : null}
+      <div className={question.type === 'cloze' || hidePrompt ? 'flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-3' : 'mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-3'}>
+        <span className="font-medium text-ink-2">{TYPE_LABEL[question.type] ?? question.type}</span>
+        <span>난이도 {question.difficulty}/5</span>
+        {question.tags.slice(0, 4).map((t) => <span key={t}>#{t}</span>)}
+        {question.estimatedSeconds ? <span>약 {question.estimatedSeconds}초</span> : null}
+        {extra}
+      </div>
     </div>
   );
 }

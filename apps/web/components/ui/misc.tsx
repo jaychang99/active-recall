@@ -8,7 +8,7 @@ export function PageHeader({ title, description, actions, className }: { title: 
   return (
     <div className={cn('mb-6 flex flex-wrap items-end justify-between gap-3', className)}>
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-xl font-semibold">{title}</h1>
         {description ? <p className="mt-1 text-sm text-ink-3">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -47,11 +47,13 @@ export function Skeleton({ className }: { className?: string }) {
   return <div aria-hidden className={cn('animate-pulse rounded-md bg-muted', className)} />;
 }
 
-export function Stat({ label, value, hint, className }: { label: string; value: React.ReactNode; hint?: React.ReactNode; className?: string }) {
+/** Headline figure. `lead` marks the one figure that answers the screen's question (1.3x its siblings). A dash is a missing value and stays grey. */
+export function Stat({ label, value, hint, lead, className }: { label: string; value: React.ReactNode; hint?: React.ReactNode; lead?: boolean; className?: string }) {
+  const missing = value === '—';
   return (
     <div className={cn('min-w-0', className)}>
       <div className="text-[12px] text-ink-3">{label}</div>
-      <div className="mt-0.5 text-2xl font-semibold tabular leading-none">{value}</div>
+      <div className={cn('mt-0.5 font-semibold tabular leading-none', lead ? 'text-[32px]' : 'text-2xl', missing && 'text-ink-3')}>{value}</div>
       {hint ? <div className="mt-1 text-[12px] text-ink-3">{hint}</div> : null}
     </div>
   );

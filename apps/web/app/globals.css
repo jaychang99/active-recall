@@ -16,7 +16,7 @@
   --bg-muted: #f1f3f2;
   --ink: #16201e;
   --ink-2: #44514e;
-  --ink-3: #6f7d79;
+  --ink-3: #5f6d69;
   --line: #d9dedc;
   --line-strong: #b8c0bd;
   --accent: #0f766e;
@@ -128,6 +128,9 @@ body {
   background: var(--bg);
   color: var(--ink);
   line-height: 1.55;
+  /* Korean: never break inside a word; long Latin tokens still wrap. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 ::selection {
@@ -144,6 +147,43 @@ body {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Native form controls take the accent so they match the Radix checkbox/switch. */
+input[type='checkbox'],
+input[type='radio'],
+progress {
+  accent-color: var(--accent);
+}
+input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  vertical-align: -2px;
+}
+
+/* Touch devices: 44px targets without changing the desktop density (controls stay 32-36px with a mouse). */
+@media (pointer: coarse) {
+  button,
+  select,
+  [role='button'],
+  [role='radio'],
+  [role='checkbox'],
+  a.inline-flex,
+  nav a {
+    min-height: 44px;
+  }
+  input[type='checkbox'] {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}
+
+/* Chart annotation text: 11px floor, tabular. */
+.chart-tick {
+  font-size: 0.6875rem;
+  line-height: 1;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {

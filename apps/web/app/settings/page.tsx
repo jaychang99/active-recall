@@ -49,10 +49,10 @@ export default function SettingsPage() {
   };
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="설정" description="로컬 단일 프로필 설정입니다." actions={<Button variant="primary" onClick={submit} disabled={save.isPending} data-testid="save-settings">저장</Button>} />
+      <PageHeader title="설정" description="로컬 단일 프로필 설정입니다. 아래 값은 저장 버튼을 눌러야 반영됩니다." actions={<Button variant="primary" onClick={submit} disabled={save.isPending} data-testid="save-settings">{save.isPending ? '저장 중…' : '저장'}</Button>} />
       <Panel className="mb-6 px-5 py-2">
         <h2 className="pt-3 text-[13px] font-semibold text-ink-2">화면</h2>
-        <Row label="테마" hint="다크/라이트 모드. 브라우저에 저장됩니다." id="theme">
+        <Row label="테마" hint="바로 적용되고 이 브라우저에 저장됩니다 (저장 버튼과 무관)." id="theme">
           <Select id="theme" className="w-full" value={mounted ? (theme ?? 'light') : 'light'} onChange={(e) => setTheme(e.target.value)} aria-label="테마"><option value="light">라이트</option><option value="dark">다크</option><option value="system">시스템</option></Select>
         </Row>
         <Row label="키보드 단축키" hint="끄면 숫자·Space·Enter 단축키가 동작하지 않습니다." id="shortcutsEnabled"><Switch id="shortcutsEnabled" checked={form.shortcutsEnabled ?? true} onCheckedChange={(v) => set('shortcutsEnabled', v)} aria-label="단축키" /></Row>

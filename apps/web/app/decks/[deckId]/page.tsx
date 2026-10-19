@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Eye, EyeOff, Flag, GraduationCap, NotebookPen, PauseCircle, Play, PlayCircle, RotateCcw, Tags, Trash2 } from 'lucide-react';
+import { Download, Eye, EyeOff, Flag, GraduationCap, MoreHorizontal, NotebookPen, PauseCircle, Play, PlayCircle, RotateCcw, Tags, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useState } from 'react';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/tooltip';
 import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, Skeleton } from '@/components/ui/misc';
 import { Markdown } from '@/components/questions/markdown';
 import { NoteHistoryItem } from '@/components/study/notes-panel';
@@ -58,7 +59,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
   });
   const removeDeck = useMutation({
     mutationFn: () => api(`/decks/${deckId}`, { method: 'DELETE' }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['decks'] }); toast.success('덱을 삭제했습니다 (복구 가능)', { description: 'API: POST /decks/:id/restore' }); router.push('/decks'); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['decks'] }); toast.success('덱을 삭제했습니다', { description: '복습 기록은 보존되며 복구할 수 있습니다.' }); router.push('/decks'); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -79,21 +80,27 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
             <Link href={`/study/${d.id}?mode=cram`}><Button><PlayCircle className="h-4 w-4" /> 훑기</Button></Link>
             <Link href={`/study/${d.id}?mode=practice`}><Button>연습</Button></Link>
             <Link href={`/exam?deckId=${d.id}`}><Button><GraduationCap className="h-4 w-4" /> 시험</Button></Link>
-            <a href={`${API_URL}/exports/decks/${d.id}/batch.json`} download={`${d.id}.json`}><Button variant="ghost"><Download className="h-4 w-4" /> JSON 내보내기</Button></a>
-            <Button variant="ghost" onClick={() => { if (confirm('이 덱을 삭제할까요? 복습 기록은 보존되며 복구할 수 있습니다.')) removeDeck.mutate(); }}><Trash2 className="h-4 w-4" /></Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="덱 더 보기"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem asChild><a href={`${API_URL}/exports/decks/${d.id}/batch.json`} download={`${d.id}.json`}><Download className="h-4 w-4 text-ink-3" /> JSON 내보내기</a></DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-bad-ink" onSelect={() => { if (confirm('이 덱을 삭제할까요? 복습 기록은 보존되며 복구할 수 있습니다.')) removeDeck.mutate(); }}><Trash2 className="h-4 w-4" /> 덱 삭제</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         }
       />
       <Panel className="mb-6 grid gap-4 p-4 md:grid-cols-[1fr_auto]">
         <ProgressStrip p={d.progress} />
         <div className="flex flex-wrap gap-1.5 text-[12px]">
-          <Badge>due {d.progress.dueToday}</Badge><Badge tone="warn">표시 {d.progress.flagged}</Badge><Badge tone="outline">보류 {d.progress.suspended}</Badge><Badge tone="info"><NotebookPen className="h-3 w-3" /> 메모 {d.noteCount}</Badge>
+          <Badge tone={d.progress.dueToday ? 'accent' : 'neutral'}>due {d.progress.dueToday}</Badge><Badge tone={d.progress.flagged ? 'warn' : 'neutral'}>표시 {d.progress.flagged}</Badge><Badge tone={d.progress.suspended ? 'outline' : 'neutral'}>보류 {d.progress.suspended}</Badge><Badge tone={d.noteCount ? 'info' : 'neutral'}><NotebookPen className="h-3 w-3" /> 메모 {d.noteCount}</Badge>
         </div>
       </Panel>
 
       <div className="mb-3 flex gap-1 border-b border-line">
         {(['questions', 'notes'] as const).map((t) => (
-          <button key={t} type="button" onClick={() => setTab(t)} className={cn('-mb-px border-b-2 px-3 py-2 text-sm', tab === t ? 'border-accent font-medium text-ink' : 'border-transparent text-ink-3')}>{t === 'questions' ? '문항' : `메모 (${d.noteCount})`}</button>
+          <button key={t} type="button" onClick={() => setTab(t)} className={cn('-mb-px border-b-2 px-3 py-2 text-sm transition-colors', tab === t ? 'border-accent font-medium text-ink' : 'border-transparent text-ink-3 hover:text-ink')}>{t === 'questions' ? '문항' : `메모 (${d.noteCount})`}</button>
         ))}
       </div>
 
@@ -129,7 +136,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
                 <thead className="text-left text-[12px] text-ink-3">
                   <tr className="border-b border-line">
                     <th className="w-8 px-2 py-2"><input type="checkbox" aria-label="전체 선택" checked={selected.size > 0 && selected.size === questions.data.items.length} onChange={toggleAll} /></th>
-                    <th className="px-2 py-2">문항</th><th className="px-2 py-2">유형</th><th className="px-2 py-2">상태</th><th className="px-2 py-2 text-right">예정</th><th className="px-2 py-2 text-right">복습/실패</th><th className="px-2 py-2">과목</th><th className="px-2 py-2"></th>
+                    <th className="min-w-[14rem] px-2 py-2 font-normal">문항</th><th className="px-2 py-2 font-normal">유형</th><th className="px-2 py-2 font-normal">상태</th><th className="px-2 py-2 text-right font-normal whitespace-nowrap">예정</th><th className="px-2 py-2 text-right font-normal whitespace-nowrap">복습 / 실패</th><th className="px-2 py-2 font-normal">과목</th><th className="px-2 py-2 font-normal">메모</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -142,15 +149,15 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
                           <button type="button" className="block w-full text-left" onClick={() => setOpen(row)}>
                             <span className="mr-1.5 text-[11px] text-ink-3">{row.externalId}</span>
                             {row.card?.flagged ? <Flag className="mr-1 inline h-3 w-3 text-warn" fill="currentColor" /> : null}
-                            <span className="line-clamp-2">{qq.prompt}</span>
+                            <Markdown inline className="line-clamp-2 text-sm [&_p]:inline">{qq.prompt.replace(/\{\{\s*\w+\s*\}\}/g, '____')}</Markdown>
                           </button>
                           {showAnswers ? <div className="mt-1 text-[12px] text-accent-soft-ink"><AnswerSummary q={qq} /></div> : null}
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap"><Badge>{TYPE_LABEL[row.type]}</Badge></td>
                         <td className="px-2 py-2 whitespace-nowrap text-[13px]">{row.card ? STATUS_LABEL[row.card.status] : '새 카드'}{row.card?.suspended ? ' · 보류' : ''}</td>
                         <td className="px-2 py-2 text-right tabular whitespace-nowrap text-[13px] text-ink-2">{row.card && row.card.status !== 'NEW' ? relativeDue(row.card.dueAt) : '—'}</td>
-                        <td className="px-2 py-2 text-right tabular text-[13px]">{row.reviewCount} / {row.card?.lapses ?? 0}</td>
-                        <td className="px-2 py-2"><div className="flex flex-wrap gap-1">{row.subjects.map((s) => <Badge key={s.id} tone={s.source === 'deck' ? 'neutral' : 'info'}>{s.name}</Badge>)}</div></td>
+                        <td className="px-2 py-2 text-right tabular text-[13px] whitespace-nowrap">{row.reviewCount} <span className="text-ink-3">/ {row.card?.lapses ?? 0}</span></td>
+                        <td className="px-2 py-2"><div className="flex flex-wrap items-center gap-1 text-[12px] text-ink-3">{row.subjects.map((s) => s.source === 'deck' ? <span key={s.id} className="whitespace-nowrap">{s.name}</span> : <Badge key={s.id} tone="info">{s.name}</Badge>)}</div></td>
                         <td className="px-2 py-2 whitespace-nowrap">{row.noteCount ? <Badge tone="info"><NotebookPen className="h-3 w-3" /> {row.noteCount}</Badge> : null}</td>
                       </tr>
                     );

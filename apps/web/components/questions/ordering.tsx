@@ -89,7 +89,7 @@ export function Ordering({ question, value, onChange, phase, grade, answerKey, s
           );
         })}
       </ol>
-      {revealed && grade ? <p className="text-[13px] text-ink-2">정확한 순서: {expected.map((id, i) => `${i + 1}. ${byId.get(id)?.text ?? id}`).join(' → ')}</p> : null}
+      {revealed && grade ? <p className="text-[15px] text-ink"><span className="font-semibold">정확한 순서</span> · {expected.map((id, i) => `${i + 1}. ${byId.get(id)?.text ?? id}`).join(' → ')}</p> : null}
     </div>
   );
 }

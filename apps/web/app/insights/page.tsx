@@ -46,21 +46,31 @@ export default function InsightsPage() {
             <Stat label="예상 기억률" value={pct(o.estimatedRetention.value)} hint={`FSRS 추정 · ${o.estimatedRetention.cards}카드`} />
           </Panel>
 
+          {/* Rows are paired by height so no card is stretched over a void (taste: cards in a row share a bottom edge). */}
           <section className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
             <Panel className="p-5">
-              <h2 className="mb-1 text-[13px] font-semibold text-ink-2">일별 복습 수 (초록 = 자동채점 정답)</h2>
-              <BarChart ariaLabel="일별 복습 수" data={o.series.map((s) => ({ label: s.day, value: s.reviews, secondary: s.correct }))} secondary labelEvery={days <= 7 ? 1 : days <= 30 ? 5 : 30} />
+              <h2 className="mb-2 text-[13px] font-semibold text-ink-2">일별 복습 수</h2>
+              <BarChart ariaLabel="일별 복습 수" data={o.series.map((s) => ({ label: s.day, value: s.reviews, secondary: s.correct }))} secondary legend={{ primary: '복습', secondary: '자동채점 정답' }} labelEvery={days <= 7 ? 1 : days <= 30 ? 5 : 30} />
             </Panel>
             <Panel className="p-5">
-              <h2 className="mb-1 text-[13px] font-semibold text-ink-2">앞으로 30일 복습 예정 (due)</h2>
+              <h2 className="mb-2 text-[13px] font-semibold text-ink-2">앞으로 30일 복습 예정 <span className="font-normal text-ink-3">· due</span></h2>
               <BarChart ariaLabel="복습 예정" data={o.forecast.map((f) => ({ label: f.day, value: f.due }))} labelEvery={5} />
             </Panel>
+          </section>
+
+          <section className="grid gap-6 lg:grid-cols-2 lg:items-start [&>*]:min-w-0">
+            <div className="min-w-0 space-y-6">
+              <Panel className="p-5">
+                <h2 className="mb-3 text-[13px] font-semibold text-ink-2">유형별 정답률 <span className="font-normal text-ink-3">· 자동채점 문항만</span></h2>
+                {o.byType.length ? <HBar rows={o.byType.map((t) => ({ label: TYPE_LABEL[t.type] ?? t.type, value: t.accuracy ?? 0, display: t.type === 'essay' || !t.gradable ? '—' : undefined, hint: t.type === 'essay' ? `${t.total}회 · 수동` : `${t.correct}/${t.gradable}`, tone: t.gradable && (t.accuracy ?? 1) < 0.6 ? 'bad' : 'accent' }))} format={(v) => pct(v)} /> : <p className="text-sm text-ink-3">아직 복습 기록이 없습니다.</p>}
+              </Panel>
+              <Panel className="p-5">
+                <h2 className="mb-3 text-[13px] font-semibold text-ink-2">가장 자주 틀린 문항 <span className="font-normal text-ink-3">· {days}일, Again 횟수</span></h2>
+                {o.hardest.length ? <ul className="space-y-1.5 text-[13px]">{o.hardest.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="bad">{h.again}</Badge><span className="line-clamp-1">{h.prompt}</span><span className="ml-auto shrink-0 text-ink-3">{TYPE_LABEL[h.type]}</span></li>)}</ul> : <p className="text-sm text-ink-3">{days}일 동안 Again으로 평가한 문항이 없습니다.</p>}
+              </Panel>
+            </div>
             <Panel className="p-5">
-              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">유형별 정답률 (자동채점 문항만)</h2>
-              {o.byType.length ? <HBar rows={o.byType.map((t) => ({ label: TYPE_LABEL[t.type] ?? t.type, value: t.accuracy ?? 0, hint: t.type === 'essay' ? `${t.total}회 · 수동` : `${t.correct}/${t.gradable}`, tone: (t.accuracy ?? 1) < 0.6 ? 'bad' : 'accent' }))} format={(v) => pct(v)} /> : <p className="text-sm text-ink-3">아직 복습 기록이 없습니다.</p>}
-            </Panel>
-            <Panel className="p-5">
-              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">평가 분포 ({days}일)</h2>
+              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">평가 분포 <span className="font-normal text-ink-3">· {days}일</span></h2>
               <HBar rows={[{ label: '다시 (Again)', value: o.gradeDistribution.again, tone: 'bad' }, { label: '어려움 (Hard)', value: o.gradeDistribution.hard, tone: 'warn' }, { label: '보통 (Good)', value: o.gradeDistribution.good }, { label: '쉬움 (Easy)', value: o.gradeDistribution.easy, tone: 'ok' }]} />
               <dl className="mt-4 grid grid-cols-2 gap-y-1 text-[13px]">
                 <dt className="text-ink-3">문항당 평균</dt><dd className="tabular">{o.window.avgSeconds ?? '—'}초 · 총 {o.window.totalMinutes}분</dd>
@@ -69,46 +79,43 @@ export default function InsightsPage() {
                 <dt className="text-ink-3">연습 모드</dt><dd className="tabular">{o.window.practiceAnswers}회 · 정답률 {pct(o.window.practiceAccuracy)}</dd>
               </dl>
             </Panel>
-            <Panel className="p-5">
-              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">카드 상태</h2>
-              <HBar rows={[{ label: '새 카드', value: o.states.new }, { label: '학습 중', value: o.states.learning, tone: 'warn' }, { label: '재학습', value: o.states.relearning, tone: 'warn' }, { label: '복습', value: o.states.review, tone: 'ok' }, { label: '보류', value: o.states.suspended }, { label: '표시', value: o.states.flagged }]} />
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                <div><h3 className="mb-1 text-[12px] text-ink-3">FSRS 난이도 분포</h3><HBar rows={o.difficultyBuckets.map((b) => ({ label: b.label, value: b.count }))} /></div>
-                <div><h3 className="mb-1 text-[12px] text-ink-3">안정성(간격) 분포</h3><HBar rows={o.stabilityBuckets.map((b) => ({ label: b.label, value: b.count }))} /></div>
-              </div>
-            </Panel>
-            <Panel className="min-w-0 overflow-hidden p-5">
-              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">최근 1년 활동</h2>
-              <ActivityHeatmap days={364} deckId={deckId || undefined} subject={subject || undefined} />
-            </Panel>
           </section>
 
-          <section className="grid gap-6 lg:grid-cols-2">
+          <Panel className="p-5">
+            <h2 className="mb-3 text-[13px] font-semibold text-ink-2">카드 상태</h2>
+            <div className="grid gap-6 sm:grid-cols-3">
+              <HBar rows={[{ label: '새 카드', value: o.states.new }, { label: '학습 중', value: o.states.learning, tone: 'warn' }, { label: '재학습', value: o.states.relearning, tone: 'warn' }, { label: '복습', value: o.states.review, tone: 'ok' }, { label: '보류', value: o.states.suspended }, { label: '표시', value: o.states.flagged }]} />
+              <div><h3 className="mb-1.5 text-[12px] text-ink-3">FSRS 난이도 분포</h3><HBar rows={o.difficultyBuckets.map((b) => ({ label: b.label, value: b.count }))} /></div>
+              <div><h3 className="mb-1.5 text-[12px] text-ink-3">안정성(간격) 분포</h3><HBar rows={o.stabilityBuckets.map((b) => ({ label: b.label, value: b.count }))} /></div>
+            </div>
+          </Panel>
+
+          <Panel className="min-w-0 p-5">
+            <h2 className="mb-3 text-[13px] font-semibold text-ink-2">최근 1년 활동</h2>
+            <ActivityHeatmap days={364} deckId={deckId || undefined} subject={subject || undefined} />
+          </Panel>
+
+          <section className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
             <Panel className="p-5">
-              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">가장 자주 틀린 문항 ({days}일, Again 횟수)</h2>
-              {o.hardest.length ? <ul className="space-y-1.5 text-[13px]">{o.hardest.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="bad">{h.again}</Badge><span className="line-clamp-1">{h.prompt}</span><span className="ml-auto shrink-0 text-ink-3">{TYPE_LABEL[h.type]}</span></li>)}</ul> : <p className="text-sm text-ink-3">없음</p>}
+              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">리치(leech) <span className="font-normal text-ink-3">· 실패가 많은 카드</span></h2>
+              {o.leeches.length ? <ul className="space-y-1.5 text-[13px]">{o.leeches.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="warn">실패 {h.lapses}</Badge><span className="line-clamp-1">{h.prompt}</span></li>)}</ul> : <p className="text-sm text-ink-3">리치 카드가 없습니다. (설정의 리치 기준 이상 실패한 카드)</p>}
+              <Link href="/study/all?mode=mistakes" className="mt-3 inline-block text-sm text-accent underline-offset-4 hover:underline">틀린 문제 다시 보기 →</Link>
             </Panel>
             <Panel className="p-5">
-              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">리치(leech) — 실패가 많은 카드</h2>
-              {o.leeches.length ? <ul className="space-y-1.5 text-[13px]">{o.leeches.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="warn">실패 {h.lapses}</Badge><span className="line-clamp-1">{h.prompt}</span></li>)}</ul> : <p className="text-sm text-ink-3">리치 카드가 없습니다. (설정의 리치 기준 이상 실패한 카드)</p>}
-              <Link href="/study/all?mode=mistakes" className="mt-3 inline-block text-sm text-accent">틀린 문제 다시 보기 →</Link>
+              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">최근 시험</h2>
+              {o.exams.length ? <ul className="space-y-1 text-sm">{o.exams.map((e) => <li key={e.id} className="flex items-center gap-3"><Link href={`/exam/result/${e.id}`} className="hover:underline">{e.title}</Link><span className="text-ink-3">{e.deck.title}</span><span className="ml-auto tabular">{pct(e.score?.objectiveAccuracy)} <span className="text-[11px] text-ink-3">({e.score?.objectiveCorrect}/{e.score?.objectiveTotal})</span></span></li>)}</ul> : <p className="text-sm text-ink-3">아직 시험 기록이 없습니다.</p>}
+              <Link href="/exam" className="mt-3 inline-block text-sm text-accent underline-offset-4 hover:underline">시험 보기 →</Link>
             </Panel>
           </section>
 
           <Panel className="overflow-x-auto p-5">
             <h2 className="mb-3 text-[13px] font-semibold text-ink-2">덱별 진행</h2>
             <table className="w-full text-sm">
-              <thead className="text-left text-[12px] text-ink-3"><tr><th className="py-1 pr-3">덱</th><th className="py-1 pr-3">과목</th><th className="py-1 pr-3 text-right">문항</th><th className="py-1 pr-3 text-right">새/학습/복습</th><th className="py-1 pr-3 text-right">오늘 due</th><th className="py-1 pr-3 text-right">{days}일 복습</th><th className="py-1 text-right">정답률</th></tr></thead>
+              <thead className="text-left text-[12px] text-ink-3"><tr><th className="py-1 pr-3 font-normal">덱</th><th className="py-1 pr-3 font-normal">과목</th><th className="py-1 pr-3 text-right font-normal">문항</th><th className="py-1 pr-3 text-right font-normal whitespace-nowrap">새/학습/복습</th><th className="py-1 pr-3 text-right font-normal whitespace-nowrap">오늘 due</th><th className="py-1 pr-3 text-right font-normal whitespace-nowrap">{days}일 복습</th><th className="py-1 text-right font-normal">정답률</th></tr></thead>
               <tbody>{o.decks.map((d) => <tr key={d.id} className="border-t border-line"><td className="py-1.5 pr-3"><Link href={`/decks/${d.id}`} className="hover:underline">{d.title}</Link></td><td className="py-1.5 pr-3 text-ink-3">{d.subject}</td><td className="py-1.5 pr-3 text-right tabular">{d.total}</td><td className="py-1.5 pr-3 text-right tabular">{d.new}/{d.learning + d.relearning}/{d.review}</td><td className="py-1.5 pr-3 text-right tabular">{d.dueToday}</td><td className="py-1.5 pr-3 text-right tabular">{d.reviewsInWindow}</td><td className="py-1.5 text-right tabular">{pct(d.accuracy)} <span className="text-[11px] text-ink-3">({d.gradable})</span></td></tr>)}</tbody>
             </table>
           </Panel>
 
-          {o.exams.length ? (
-            <Panel className="p-5">
-              <h2 className="mb-3 text-[13px] font-semibold text-ink-2">최근 시험</h2>
-              <ul className="space-y-1 text-sm">{o.exams.map((e) => <li key={e.id} className="flex items-center gap-3"><Link href={`/exam/result/${e.id}`} className="hover:underline">{e.title}</Link><span className="text-ink-3">{e.deck.title}</span><span className="ml-auto tabular">{pct(e.score?.objectiveAccuracy)} <span className="text-[11px] text-ink-3">({e.score?.objectiveCorrect}/{e.score?.objectiveTotal})</span></span></li>)}</ul>
-            </Panel>
-          ) : null}
         </div>
       ) : null}
     </div>
