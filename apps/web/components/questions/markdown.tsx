@@ -2,10 +2,22 @@
 import { Check, Copy } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
+import 'katex/contrib/mhchem';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { cn, copyToClipboard } from '@/lib/utils';
+import { MermaidBlock, SvgBlock } from './rich-blocks';
+
+const RICH_LANGS = new Set(['mermaid', 'svg']);
+
+/** Allow http(s), mailto, relative and data:image URLs (react-markdown blocks data: by default). */
+function urlTransform(url: string): string {
+  if (/^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,/i.test(url)) return url;
+  if (/^(https?:|mailto:|#|\/|\.)/i.test(url)) return url;
+  return '';
+}
 
 /** Safe Markdown (GFM + KaTeX). Raw HTML is never rendered (react-markdown default). */
 export function Markdown({ children, className, inline }: { children: string; className?: string; inline?: boolean }) {
@@ -14,9 +26,22 @@ export function Markdown({ children, className, inline }: { children: string; cl
       <ReactMarkdown
         // singleTilde: false → only ~~text~~ is strikethrough; a lone "~" (범위 표기 1~5, 오늘~내일) stays literal.
         remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkMath]}
-        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: 'ignore' }]]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: 'ignore' }], [rehypeHighlight, { detect: false, ignoreMissing: true, plainText: ['mermaid', 'svg', 'text', 'txt'] }]]}
+        urlTransform={urlTransform}
         components={{
-          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+          pre: ({ children }) => {
+            // ```mermaid / ```svg fences become diagrams; everything else is a copyable code block
+            const child = Array.isArray(children) ? children[0] : children;
+            const props = child && typeof child === 'object' && 'props' in child ? (child as { props: { className?: string; children?: ReactNode } }).props : null;
+            const lang = /language-([\w-]+)/.exec(props?.className ?? '')?.[1]?.toLowerCase();
+            if (lang && RICH_LANGS.has(lang)) {
+              const code = extractText(props?.children);
+              return lang === 'mermaid' ? <MermaidBlock code={code} /> : <SvgBlock code={code} />;
+            }
+            return <CodeBlock>{children}</CodeBlock>;
+          },
+          // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/data URLs from question content cannot go through next/image
+          img: ({ src, alt }) => (src ? <img src={typeof src === 'string' ? src : undefined} alt={alt ?? ''} loading="lazy" className="my-2 h-auto max-w-full rounded-md border border-line" /> : null),
           a: ({ href, children }) => (
             <a href={href} target="_blank" rel="noreferrer noopener">
               {children}

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://recall-studio.local/schemas/question-batch.schema.json",
   "title": "Recall Studio Question Batch",
-  "description": "Portable AI-generated deck/question import contract. Syntactic validation plus application semantic invariants. Version 1.0.0. All free-text fields accept Markdown (GFM) and LaTeX math delimited by $...$ (inline) or $$...$$ (display), rendered with KaTeX; raw HTML is never rendered.",
+  "description": "Portable AI-generated deck/question import contract. Syntactic validation plus application semantic invariants. Version 1.0.0. All free-text fields accept Markdown (GFM) and LaTeX math delimited by $...$ (inline) or $$...$$ (display), rendered with KaTeX (incl. mhchem \\\\ce{}); fenced code blocks are syntax-highlighted; ```mermaid and ```svg fences render as diagrams (sanitized); GFM tables and image URLs are supported; raw HTML is never rendered.",
   "type": "object",
   "additionalProperties": false,
   "required": [

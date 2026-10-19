@@ -17,7 +17,10 @@ export function Highlight({ question, value, onChange, phase, grade, answerKey, 
     if (next.has(id)) next.delete(id); else next.add(id);
     onChange({ type: 'highlight', segmentIds: [...next] });
   };
-  useEffect(() => { registerDigitHandler?.((n) => { const s = question.segments[n - 1]; if (s) toggle(s.id); }); });
+  useEffect(() => {
+    registerDigitHandler?.((n) => { const seg = question.segments[n - 1]; if (seg) toggle(seg.id); });
+    // toggle closes over the latest selection; re-register every render on purpose
+  });
   return (
     <div className="space-y-2">
       {!revealed ? <p className="text-[12px] text-ink-3">해당하는 조각을 모두 클릭(또는 1–9 키)해서 표시하세요.</p> : null}

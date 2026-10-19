@@ -61,6 +61,10 @@ Every question keeps one note per **review round** (round N = the N-th effective
 
 All sixteen are graded server-side with per-part feedback; `essay` and `recall_card` (without accepted answers) are self-assessed and excluded from auto-graded accuracy. Where position carries no meaning the view is shuffled every review round (choices, reasons, statements, category items, dropdown options, matching right column) so answers cannot be memorised by place; sequences and passages are never shuffled. `examples/example-extended-batch.json` shows one of each extended type. Existing JSON batches keep working unchanged.
 
+## Rich content in any text field
+
+Prompts, options, items, statements, segments, explanations, hints, model answers, rubric guidance and notes all go through one Markdown renderer: GFM (tables, lists, task lists), fenced code with syntax highlighting and a copy button, KaTeX (`$…$`, `$$…$$`, chemistry via `\ce{}`), ```` ```mermaid ```` diagrams (flowchart, sequence, state, class, ER, gantt, pie, mindmap, timeline; rendered client-side with `securityLevel: strict`), ```` ```svg ```` inline vector graphics (sanitized with DOMPurify: no scripts, no external references), and images by URL or `data:image/…;base64`. Raw HTML is never rendered. The generator prompt tells the LLM to use these only when the content is better assessed that way, never decoratively, and to keep option representations balanced.
+
 ## LaTeX
 
 Every text field (prompt, choices, choice explanations, explanation summary/steps/misconceptions, hints, model answers, rubric criteria/guidance, ordering items, matching pairs, cloze text, notes) renders Markdown + LaTeX via KaTeX: `$...$` inline, `$$...$$` display. The generator prompt tells the LLM to use exactly that notation (double-escaped backslashes inside JSON) and to write questions in the dominant language of the attached materials unless `OUTPUT_LANGUAGE` is set. `examples/example-latex-batch.json` is a six-question math deck covering all of it. Accepted answers for short-answer/cloze stay plain strings (typed by the learner, compared after normalization).

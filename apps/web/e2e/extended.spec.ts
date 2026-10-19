@@ -31,6 +31,8 @@ test.describe('extended question types', () => {
           await page.getByLabel('빈칸 1').selectOption('a');
           await page.getByLabel('빈칸 2').selectOption('b');
           await page.getByTestId('submit-btn').click();
+          // the explanation carries a Mermaid state diagram
+          await expect(page.getByTestId('explanation').getByTestId('mermaid-block').locator('svg')).toBeVisible({ timeout: 15_000 });
           break;
         case 'statement_set': {
           const rows = page.getByTestId('statement-list').locator('li');
@@ -45,6 +47,7 @@ test.describe('extended question types', () => {
           break;
         }
         case 'categorize': {
+          await expect(page.getByTestId('svg-block').locator('svg')).toBeVisible();
           const map: Record<string, string> = { 'Round Robin': 'pre', SRTF: 'pre', '다단계 피드백 큐': 'pre', FCFS: 'non', 'SJF (비선점)': 'non' };
           for (const [t, c] of Object.entries(map)) await page.getByLabel(`${t} 분류`).selectOption(c);
           await page.getByTestId('submit-btn').click();

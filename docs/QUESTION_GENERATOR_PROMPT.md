@@ -42,6 +42,18 @@ INCLUDE_SOURCE_LOCATORS: only_if_verifiable
 7. 스키마에서 지원하는 `type` 이름(핵심 8종 + 확장 8종) 외에는 쓰지 않는다.
 8. **출력 언어.** `OUTPUT_LANGUAGE`가 `auto`이면 첨부된 입력 자료(PDF·교안·본문)의 **대부분을 차지하는 언어**로 `prompt`, 선지, 해설, 힌트, 모범답안, 루브릭을 모두 작성한다. 자료가 여러 언어로 섞여 있으면 분량이 가장 많은 언어를 택하고, 전문 용어·고유명사·코드·수식 기호는 원문 표기를 유지한다. 자료가 없고 주제만 주어지면 주제 설명에 쓰인 언어를 따른다. `OUTPUT_LANGUAGE`에 특정 언어 코드가 있으면 그 언어를 우선한다. 선택한 언어를 `deck.language`에 BCP-47 코드로 기록한다.
 
+## REPRESENTATIONS (텍스트로 직렬화되는 모든 표현 — 적절할 때만)
+
+모든 텍스트 필드(`prompt`, 선지·항목·조각·진술의 `text`, `explanation.*`, `hint`, `modelAnswer`, `back`, 루브릭 `guidance`, `steps[].prompt`)는 Markdown으로 렌더링되며, 아래 표현을 **문자열 안에 그대로** 넣을 수 있다. 문자열 안의 줄바꿈은 `\n`, 백슬래시는 `\\`로 이스케이프한다.
+- **GFM Markdown**: 굵게/기울임, 목록, 번호 목록, 표(`| a | b |`), 인용, 인라인 코드, 링크. 표는 비교·사양·데이터를 보여줄 때.
+- **코드 블록**: ```` ```python ```` 처럼 언어를 지정하면 구문 강조된다(복사 버튼 제공). 코드 읽기·출력 예측·오류 찾기 문항에.
+- **수식**: `$...$`, `$$...$$` (KaTeX). 화학식은 `$\\ce{H2O}$`, `$\\ce{2H2 + O2 -> 2H2O}$` (mhchem).
+- **다이어그램**: ```` ```mermaid ```` 블록 — flowchart, sequenceDiagram, classDiagram, stateDiagram-v2, erDiagram, gantt, pie, mindmap, timeline, gitGraph. 과정·상태 전이·구조·관계·시퀀스를 묻거나 설명할 때 글보다 명확한 경우에만. 노드 레이블에 특수문자가 있으면 따옴표로 감싼다(`A["x (y)"]`).
+- **벡터 그래픽**: ```` ```svg ```` 블록에 **자기완결적 inline SVG**(`<svg viewBox=... xmlns=...>…</svg>`, 4 KB 이하, `<script>`·외부 참조·`href` 금지). 기하·회로·그래프 개형·단순 도형처럼 Mermaid로 표현하기 어려운 시각 자료에. 색은 2~3가지, 텍스트는 `<text>`로.
+- **이미지**: 자료에 공개 URL이 있을 때만 `![설명](https://...)`. 존재하지 않는 URL이나 "그림 참조" 식 언급을 지어내지 않는다.
+
+**사용 원칙 (매우 중요):** 이런 표현은 평가하려는 내용이 **그 표현으로 더 정확하게 전달·측정될 때만** 쓴다. 모든 덱이나 모든 문항에 골고루 넣을 필요가 전혀 없으며, 장식용 도식이나 내용 없는 표는 금지다. 글로 충분한 것은 글로 쓴다. 도식이 답을 누설하지 않는지(예: 상태 전이를 묻는 문항의 prompt에 정답 전이가 그려진 Mermaid) 반드시 확인한다. 선지(`text`)에 넣을 때는 선지들끼리 표현 방식이 비슷해야 한다(한 선지만 도식이면 단서가 된다).
+
 ## PEDAGOGY / QUESTION QUALITY
 
 - 단순 재인(recognition)이 아니라 장기 기억 인출(retrieval), 개념 간 구별, 메커니즘 이해, 반례 판단, 계산·적용·문제 해결을 평가한다.
@@ -111,6 +123,7 @@ A. 메커니즘 교체 — 개념 A의 정확한 메커니즘을 개념 B에 귀
 - 확장 유형을 썼다면: 그 유형이 아니면 묻기 어려운 내용인지 다시 확인하고, 억지스러우면 핵심 유형으로 바꾼다. `cloze_select` placeholder=blanks, `categorize` categoryId 유효, `two_tier` choiceId/reasonId 유효, `highlight` segmentIds ⊂ segments.
 - 시험 문제의 정답이 `prompt`/보기에 무심코 누출되지 않는지 점검.
 - 모든 LaTeX가 `$`/`$$`로 감싸져 있고, JSON 안에서 백슬래시가 이중 이스케이프되어 있으며, KaTeX 미지원 명령이 없는지 점검.
+- Mermaid/SVG/표/코드 블록을 썼다면: 그 표현이 꼭 필요한지, 문법이 유효한지(Mermaid는 첫 줄에 다이어그램 종류, SVG는 `viewBox`와 `xmlns`), 정답을 누설하지 않는지, 선지 간 표현이 균형 잡혔는지 점검.
 - JSON parser가 읽을 수 있는 순수 JSON, 추가 텍스트 없음.
 - `question-batch.schema.json` 검증 통과를 내부적으로 다시 확인.
 
