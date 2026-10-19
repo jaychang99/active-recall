@@ -27,6 +27,7 @@ If you already run MySQL locally, create the database/user yourself and set `DAT
 ## Generating questions with an LLM
 
 1. Press **LLM 프롬프트** in the top bar (any page) → *프롬프트 + 스키마* copies `docs/QUESTION_GENERATOR_PROMPT.md` with the JSON Schema attached.
+   Deck id/title/subject default to `auto` (the LLM derives them from the materials or topic; an unknown id becomes a new deck on import). Two modes: **제공된 자료 모드** (attach PDFs/notes with the prompt) and **일반 지식 모드** (no materials: enter a main topic, subtopics one per line, and an optional audience level on `/prompt`).
    The prompt's CONFIG block (question count, output language, difficulty and type mix, choice count, …) is filled from your saved defaults (**설정 → LLM 프롬프트 기본값**, stored as `Settings.promptDefaults`; only values that differ from the document are saved). For a one-off change, open **프롬프트** (`/prompt`, or *옵션 조정해서 복사…* in the same menu): adjust with sliders and fields, see the resulting CONFIG, copy, and optionally save those values as the new defaults.
 2. Paste it into your LLM together with a PDF / lecture notes / topic. The LLM must answer with one JSON object.
 3. Open **가져오기** (`/import`), paste the JSON, **검증** (client schema check → server schema + semantic + diff preview), then **가져오기 확정**.

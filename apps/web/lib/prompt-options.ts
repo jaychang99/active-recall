@@ -23,6 +23,10 @@ export interface PromptOptions {
   outputLanguage: string;
   numberOfQuestions: number;
   sourceMode: (typeof SOURCE_MODES)[number];
+  /** general_knowledge mode only: what to generate from. Empty strings / empty list print as '-' in CONFIG. */
+  mainTopic: string;
+  subtopics: string[];
+  audienceLevel: string;
   coverage: (typeof COVERAGES)[number];
   difficulty: { easy: number; medium: number; hard: number };
   typeTarget: Record<CoreType, number>;
@@ -37,6 +41,18 @@ export interface PromptOptions {
 
 export const LIMITS = { numberOfQuestions: { min: 1, max: 200 }, mcqChoiceCount: { min: 2, max: 8 } } as const;
 
+/** `-` in the CONFIG block means "not set". */
+const UNSET = '-';
+const fromUnset = (v: string | undefined) => (!v || v === UNSET ? '' : v);
+const toUnset = (v: string) => (v.trim() ? v.trim() : UNSET);
+
+/** Per-copy fields: never written into saved defaults. */
+export const ONE_OFF_KEYS: readonly (keyof PromptOptions)[] = ['mainTopic', 'subtopics', 'audienceLevel'];
+
+export function parseSubtopics(raw: string): string[] {
+  return raw.split(/[;\n]/).map((s) => s.trim()).filter(Boolean);
+}
+
 /** Key in the prompt's CONFIG block for every option (SCHEMA_VERSION is fixed and never edited). */
 const KEYS: Record<keyof PromptOptions, string> = {
   deckId: 'DECK_ID',
@@ -45,6 +61,9 @@ const KEYS: Record<keyof PromptOptions, string> = {
   outputLanguage: 'OUTPUT_LANGUAGE',
   numberOfQuestions: 'NUMBER_OF_QUESTIONS',
   sourceMode: 'SOURCE_MODE',
+  mainTopic: 'MAIN_TOPIC',
+  subtopics: 'SUBTOPICS',
+  audienceLevel: 'AUDIENCE_LEVEL',
   coverage: 'COVERAGE',
   difficulty: 'DIFFICULTY_DISTRIBUTION',
   typeTarget: 'QUESTION_TYPE_TARGET',
@@ -98,6 +117,9 @@ function parseOptions(values: Record<string, string>): PromptOptions {
     outputLanguage: values.OUTPUT_LANGUAGE || 'auto',
     numberOfQuestions: clampInt(values.NUMBER_OF_QUESTIONS, LIMITS.numberOfQuestions.min, LIMITS.numberOfQuestions.max, 24),
     sourceMode: oneOf(SOURCE_MODES, values.SOURCE_MODE, 'provided_materials'),
+    mainTopic: fromUnset(values.MAIN_TOPIC),
+    subtopics: parseSubtopics(fromUnset(values.SUBTOPICS)),
+    audienceLevel: fromUnset(values.AUDIENCE_LEVEL),
     coverage: oneOf(COVERAGES, values.COVERAGE, 'balanced_across_topics'),
     difficulty: { easy: diff.easy ?? 25, medium: diff.medium ?? 50, hard: diff.hard ?? 25 },
     typeTarget,
@@ -116,7 +138,7 @@ export const PROMPT_DEFAULTS: PromptOptions = parseOptions(readConfigValues(gene
 
 /** Saved defaults are stored as a partial object; anything missing or invalid falls back to the prompt's values. */
 export function resolvePromptOptions(saved: unknown, base: PromptOptions = PROMPT_DEFAULTS): PromptOptions {
-  if (!saved || typeof saved !== 'object') return { ...base, difficulty: { ...base.difficulty }, typeTarget: { ...base.typeTarget } };
+  if (!saved || typeof saved !== 'object') return { ...base, difficulty: { ...base.difficulty }, typeTarget: { ...base.typeTarget }, subtopics: [...base.subtopics] };
   const s = saved as Partial<Record<keyof PromptOptions, unknown>>;
   const str = (v: unknown, fb: string) => (typeof v === 'string' ? v : fb);
   const bool = (v: unknown, fb: boolean) => (typeof v === 'boolean' ? v : fb);
@@ -130,6 +152,9 @@ export function resolvePromptOptions(saved: unknown, base: PromptOptions = PROMP
     outputLanguage: str(s.outputLanguage, base.outputLanguage) || 'auto',
     numberOfQuestions: clampInt(s.numberOfQuestions, LIMITS.numberOfQuestions.min, LIMITS.numberOfQuestions.max, base.numberOfQuestions),
     sourceMode: oneOf(SOURCE_MODES, str(s.sourceMode, ''), base.sourceMode),
+    mainTopic: str(s.mainTopic, base.mainTopic),
+    subtopics: Array.isArray(s.subtopics) ? (s.subtopics as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean) : [...base.subtopics],
+    audienceLevel: str(s.audienceLevel, base.audienceLevel),
     coverage: oneOf(COVERAGES, str(s.coverage, ''), base.coverage),
     difficulty: { easy: pct(d.easy, base.difficulty.easy), medium: pct(d.medium, base.difficulty.medium), hard: pct(d.hard, base.difficulty.hard) },
     typeTarget: Object.fromEntries(CORE_TYPES.map((k) => [k, pct(t[k], base.typeTarget[k])])) as Record<CoreType, number>,
@@ -150,6 +175,9 @@ export function configValue(key: keyof PromptOptions, o: PromptOptions): string 
     case 'typeTarget': return CORE_TYPES.map((t) => `${t}=${o.typeTarget[t]}%`).join(', ');
     case 'requireAllEightTypes': case 'allowExtendedTypes': case 'allowOutOfScopeInformation': return String(o[key]);
     case 'numberOfQuestions': case 'mcqChoiceCount': return String(o[key]);
+    case 'subtopics': return o.subtopics.length ? o.subtopics.join('; ') : UNSET;
+    case 'mainTopic': case 'audienceLevel': return toUnset(o[key]);
+    case 'deckId': case 'deckTitle': case 'subject': return o[key].trim() || 'auto';
     default: return String(o[key]);
   }
 }
@@ -186,7 +214,7 @@ export function changedKeys(a: PromptOptions, b: PromptOptions): (keyof PromptOp
 /** Only the fields that differ from the prompt document are saved, so the document stays the default for everything else. */
 export function toSavedDefaults(o: PromptOptions): Partial<PromptOptions> | null {
   const diff: Partial<PromptOptions> = {};
-  for (const k of changedKeys(o, PROMPT_DEFAULTS)) (diff as Record<string, unknown>)[k] = o[k];
+  for (const k of changedKeys(o, PROMPT_DEFAULTS)) { if (!ONE_OFF_KEYS.includes(k)) (diff as Record<string, unknown>)[k] = o[k]; }
   return Object.keys(diff).length ? diff : null;
 }
 

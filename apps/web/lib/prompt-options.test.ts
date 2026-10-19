@@ -12,6 +12,23 @@ describe('prompt options', () => {
     expect(sumDifficulty(PROMPT_DEFAULTS)).toBe(100);
     expect(sumTypeTarget(PROMPT_DEFAULTS)).toBe(100);
     expect(PROMPT_DEFAULTS.typeTarget.single_choice).toBe(35);
+    expect(PROMPT_DEFAULTS.deckId).toBe('auto');
+    expect(PROMPT_DEFAULTS.mainTopic).toBe('');
+    expect(PROMPT_DEFAULTS.subtopics).toEqual([]);
+  });
+
+  it('writes topics for general-knowledge mode and dashes when unset', () => {
+    const o = { ...PROMPT_DEFAULTS, sourceMode: 'general_knowledge' as const, mainTopic: '운영체제', subtopics: ['프로세스 스케줄링', '교착 상태'], audienceLevel: '학부 2학년', deckId: '' };
+    const out = applyPromptOptions(generatorPrompt, o);
+    expect(out).toMatch(/^SOURCE_MODE: general_knowledge\s+#/m);
+    expect(out).toMatch(/^MAIN_TOPIC: 운영체제\s+#/m);
+    expect(out).toMatch(/^SUBTOPICS: 프로세스 스케줄링; 교착 상태\s+#/m);
+    expect(out).toMatch(/^AUDIENCE_LEVEL: 학부 2학년\s+#/m);
+    expect(out).toMatch(/^DECK_ID: auto\s+#/m); // empty deck id falls back to auto
+    expect(applyPromptOptions(generatorPrompt, PROMPT_DEFAULTS)).toMatch(/^MAIN_TOPIC: -\s+#/m);
+    // topics are per copy, never saved as defaults
+    expect(toSavedDefaults({ ...PROMPT_DEFAULTS, mainTopic: 'x', subtopics: ['y'] })).toBeNull();
+    expect(resolvePromptOptions({ subtopics: ['a', 3, ' b '] }).subtopics).toEqual(['a', 'b']);
   });
 
   it('rewrites only the CONFIG lines and keeps comments and the rest of the document', () => {

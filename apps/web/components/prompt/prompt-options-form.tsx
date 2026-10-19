@@ -2,13 +2,14 @@
 import { RotateCcw } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 import type { Deck } from '@/lib/api';
-import { Input, Label, Select } from '@/components/ui/input';
+import { Input, Label, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { CORE_TYPES, COVERAGES, EXPLANATION_DEPTHS, LANGUAGE_PRESETS, LIMITS, MATH_NOTATIONS, PROMPT_DEFAULTS, SOURCE_LOCATORS, SOURCE_MODES, TYPE_LABEL_KO, changedKeys, rebalancePercentages, sumDifficulty, sumTypeTarget, type PromptOptions } from '@/lib/prompt-options';
+import { CORE_TYPES, COVERAGES, EXPLANATION_DEPTHS, LANGUAGE_PRESETS, LIMITS, MATH_NOTATIONS, PROMPT_DEFAULTS, SOURCE_LOCATORS, SOURCE_MODES, TYPE_LABEL_KO, changedKeys, parseSubtopics, rebalancePercentages, sumDifficulty, sumTypeTarget, type PromptOptions } from '@/lib/prompt-options';
 import { cn } from '@/lib/utils';
 
-const SOURCE_MODE_KO: Record<(typeof SOURCE_MODES)[number], string> = { provided_materials: '첨부 자료만', general_knowledge: '일반 지식 허용' };
+const SOURCE_MODE_KO: Record<(typeof SOURCE_MODES)[number], string> = { provided_materials: '제공된 자료 모드', general_knowledge: '일반 지식 모드' };
+const SOURCE_MODE_HINT: Record<(typeof SOURCE_MODES)[number], string> = { provided_materials: '복사한 프롬프트와 함께 PDF·교안·본문을 첨부하면 그 자료만으로 출제합니다.', general_knowledge: '자료 없이 아래 대주제·소주제에 대한 일반 지식으로 출제합니다.' };
 const COVERAGE_KO: Record<(typeof COVERAGES)[number], string> = { balanced_across_topics: '범위 전체를 균등하게', follow_material_order: '자료 순서대로' };
 const DEPTH_KO: Record<(typeof EXPLANATION_DEPTHS)[number], string> = { brief: '간략', standard: '보통', detailed: '상세' };
 const MATH_KO: Record<(typeof MATH_NOTATIONS)[number], string> = { latex: 'LaTeX ($…$, KaTeX)', plain: '일반 텍스트' };
@@ -73,10 +74,12 @@ export interface PromptOptionsFormProps {
   decks?: Pick<Deck, 'id' | 'title' | 'subject'>[];
   /** Hide the deck identity section (Settings: defaults rarely carry a specific deck). */
   hideDeck?: boolean;
+  /** Show the per-copy fields (topics, audience) that are never saved as defaults. */
+  oneOff?: boolean;
 }
 
 /** Every CONFIG option of the generator prompt as a form. Used on /prompt (one-off copy) and in Settings (defaults). */
-export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, decks, hideDeck }: PromptOptionsFormProps) {
+export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, decks, hideDeck, oneOff }: PromptOptionsFormProps) {
   const uid = useId();
   const id = (k: string) => `${uid}-${k}`;
   const set = <K extends keyof PromptOptions>(k: K, v: PromptOptions[K]) => onChange({ ...o, [k]: v });
@@ -87,15 +90,47 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
   const [customLang, setCustomLang] = useState(() => !(LANGUAGE_PRESETS as readonly string[]).includes(o.outputLanguage));
   const diffSum = sumDifficulty(o);
   const typeSum = sumTypeTarget(o);
+  const general = o.sourceMode === 'general_knowledge';
+  const [subtopicsText, setSubtopicsText] = useState(() => o.subtopics.join('\n'));
+  // keep the textarea in sync when the value is replaced from outside (reset, defaults arriving)
+  const joined = o.subtopics.join('\n');
+  const [lastJoined, setLastJoined] = useState(joined);
+  if (joined !== lastJoined) { setLastJoined(joined); if (parseSubtopics(subtopicsText).join('\n') !== joined) setSubtopicsText(joined); }
 
   return (
     <div className="space-y-6">
+      <section>
+        <h3 className="mb-1 text-[13px] font-semibold text-ink-2">출제 모드</h3>
+        <Row label="자료" hint={SOURCE_MODE_HINT[o.sourceMode]} {...row('sourceMode')}>
+          <div role="radiogroup" aria-label="출제 모드" className="grid grid-cols-2 gap-1 rounded-md border border-line bg-sunken p-1" data-testid="prompt-source-mode">
+            {SOURCE_MODES.map((m) => (
+              <button key={m} type="button" role="radio" aria-checked={o.sourceMode === m} data-mode={m} onClick={() => set('sourceMode', m)} className={cn('h-8 rounded px-2 text-[13px] font-medium transition-colors', o.sourceMode === m ? 'bg-elevated text-ink shadow-[inset_0_0_0_1px_var(--line)]' : 'text-ink-2 hover:text-ink')}>
+                {SOURCE_MODE_KO[m]}
+              </button>
+            ))}
+          </div>
+        </Row>
+        {general && oneOff ? (
+          <>
+            <Row label="대주제" hint="예: 운영체제, 컴퓨터네트워크 전송 계층. 덱 ID·제목·과목이 auto면 여기서 정해집니다." {...row('mainTopic')} htmlFor={id('topic')}>
+              <Input id={id('topic')} value={o.mainTopic} onChange={(e) => set('mainTopic', e.target.value)} placeholder="대주제" data-testid="prompt-main-topic" />
+            </Row>
+            <Row label="소주제" hint="줄마다 하나. 문항을 소주제별로 고르게 배분하고 각 문항의 태그로 붙습니다. 비우면 대주제 전체." {...row('subtopics')} htmlFor={id('subtopics')}>
+              <Textarea id={id('subtopics')} rows={4} value={subtopicsText} onChange={(e) => { setSubtopicsText(e.target.value); const next = parseSubtopics(e.target.value); setLastJoined(next.join('\n')); set('subtopics', next); }} placeholder={'프로세스 스케줄링\n교착 상태\n가상 메모리'} data-testid="prompt-subtopics" />
+            </Row>
+            <Row label="대상 학습자·수준" hint="선택. 난이도·용어·전제 지식의 기준이 됩니다." {...row('audienceLevel')} htmlFor={id('audience')}>
+              <Input id={id('audience')} value={o.audienceLevel} onChange={(e) => set('audienceLevel', e.target.value)} placeholder="예: 학부 2학년 운영체제 수강생" data-testid="prompt-audience" />
+            </Row>
+          </>
+        ) : null}
+      </section>
+
       {!hideDeck ? (
         <section>
           <h3 className="mb-1 text-[13px] font-semibold text-ink-2">덱</h3>
-          <Row label="덱 ID" hint="영문·숫자·밑줄. 같은 ID로 다시 가져오면 기존 덱이 갱신됩니다." {...row('deckId')} htmlFor={id('deckId')}>
+          <Row label="덱 ID" hint="auto = LLM이 자료/주제에서 영문 ID를 새로 만듭니다 (새 덱). 기존 덱 ID를 넣으면 그 덱에 추가·갱신됩니다." {...row('deckId')} htmlFor={id('deckId')}>
             <div className="flex gap-2">
-              <Input id={id('deckId')} value={o.deckId} onChange={(e) => set('deckId', e.target.value)} className="font-mono text-[13px]" spellCheck={false} />
+              <Input id={id('deckId')} value={o.deckId} onChange={(e) => set('deckId', e.target.value)} placeholder="auto" className="font-mono text-[13px]" spellCheck={false} />
               {decks?.length ? (
                 <Select aria-label="기존 덱에서 채우기" value="" onChange={(e) => { const d = decks.find((x) => x.id === e.target.value); if (d) onChange({ ...o, deckId: d.id, deckTitle: d.title, subject: d.subject }); }} className="w-32 shrink-0">
                   <option value="">기존 덱…</option>
@@ -104,8 +139,8 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
               ) : null}
             </div>
           </Row>
-          <Row label="덱 제목" {...row('deckTitle')} htmlFor={id('deckTitle')}><Input id={id('deckTitle')} value={o.deckTitle} onChange={(e) => set('deckTitle', e.target.value)} /></Row>
-          <Row label="과목" hint="가져올 때 덱 과목으로 자동 부여됩니다." {...row('subject')} htmlFor={id('subject')}><Input id={id('subject')} value={o.subject} onChange={(e) => set('subject', e.target.value)} /></Row>
+          <Row label="덱 제목" hint="auto = LLM이 정합니다." {...row('deckTitle')} htmlFor={id('deckTitle')}><Input id={id('deckTitle')} value={o.deckTitle} onChange={(e) => set('deckTitle', e.target.value)} placeholder="auto" /></Row>
+          <Row label="과목" hint="auto = LLM이 정합니다. 가져올 때 덱 과목으로 부여되며, 가져오기 화면에서 바꿀 수 있습니다." {...row('subject')} htmlFor={id('subject')}><Input id={id('subject')} value={o.subject} onChange={(e) => set('subject', e.target.value)} placeholder="auto" /></Row>
         </section>
       ) : null}
 
@@ -135,19 +170,20 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
       </section>
 
       <section>
-        <h3 className="mb-1 text-[13px] font-semibold text-ink-2">자료</h3>
-        <Row label="출제 범위" {...row('sourceMode')} htmlFor={id('src')}>
-          <Select id={id('src')} className="w-full" value={o.sourceMode} onChange={(e) => set('sourceMode', e.target.value as PromptOptions['sourceMode'])}>{SOURCE_MODES.map((m) => <option key={m} value={m}>{SOURCE_MODE_KO[m]}</option>)}</Select>
-        </Row>
+        <h3 className="mb-1 text-[13px] font-semibold text-ink-2">{general ? '범위' : '자료'}</h3>
         <Row label="범위 배분" {...row('coverage')} htmlFor={id('cov')}>
           <Select id={id('cov')} className="w-full" value={o.coverage} onChange={(e) => set('coverage', e.target.value as PromptOptions['coverage'])}>{COVERAGES.map((c) => <option key={c} value={c}>{COVERAGE_KO[c]}</option>)}</Select>
         </Row>
-        <Row label="자료 밖 정보 허용" hint="끄면 첨부 자료에 없는 사실은 출제하지 않습니다." {...row('allowOutOfScopeInformation')} htmlFor={id('oos')}>
-          <Switch id={id('oos')} checked={o.allowOutOfScopeInformation} onCheckedChange={(v) => set('allowOutOfScopeInformation', v)} />
-        </Row>
-        <Row label="출처 위치 표기" hint="문항마다 자료의 페이지·슬라이드 등을 기록합니다." {...row('includeSourceLocators')} htmlFor={id('loc')}>
-          <Select id={id('loc')} className="w-full" value={o.includeSourceLocators} onChange={(e) => set('includeSourceLocators', e.target.value as PromptOptions['includeSourceLocators'])}>{SOURCE_LOCATORS.map((l) => <option key={l} value={l}>{LOCATOR_KO[l]}</option>)}</Select>
-        </Row>
+        {!general ? (
+          <>
+            <Row label="자료 밖 정보 허용" hint="끄면 첨부 자료에 없는 사실은 출제하지 않습니다." {...row('allowOutOfScopeInformation')} htmlFor={id('oos')}>
+              <Switch id={id('oos')} checked={o.allowOutOfScopeInformation} onCheckedChange={(v) => set('allowOutOfScopeInformation', v)} />
+            </Row>
+            <Row label="출처 위치 표기" hint="문항마다 자료의 페이지·슬라이드 등을 기록합니다." {...row('includeSourceLocators')} htmlFor={id('loc')}>
+              <Select id={id('loc')} className="w-full" value={o.includeSourceLocators} onChange={(e) => set('includeSourceLocators', e.target.value as PromptOptions['includeSourceLocators'])}>{SOURCE_LOCATORS.map((l) => <option key={l} value={l}>{LOCATOR_KO[l]}</option>)}</Select>
+            </Row>
+          </>
+        ) : <p className="py-2 text-[12px] text-ink-3">일반 지식 모드에서는 출처·위치 표기를 넣지 않고, 자료 밖 정보 제한도 적용되지 않습니다.</p>}
       </section>
 
       <section>
@@ -183,7 +219,8 @@ export function PromptOptionsWarnings({ value: o, className }: { value: PromptOp
   if (sumDifficulty(o) !== 100) items.push(`난이도 분포 합계가 ${sumDifficulty(o)}%입니다.`);
   if (sumTypeTarget(o) !== 100) items.push(`유형별 비율 합계가 ${sumTypeTarget(o)}%입니다.`);
   if (o.requireAllEightTypes && o.numberOfQuestions < CORE_TYPES.length) items.push(`문항 수가 ${o.numberOfQuestions}개라 8종을 모두 넣을 수 없습니다 (8개 미만이면 이 조건은 무시됩니다).`);
-  if (!/^[a-z0-9_]+$/i.test(o.deckId)) items.push('덱 ID는 영문·숫자·밑줄만 쓸 수 있습니다.');
+  if (o.deckId.trim() && o.deckId.trim() !== 'auto' && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(o.deckId.trim())) items.push('덱 ID는 영문·숫자로 시작하고 영문·숫자·밑줄·하이픈만 쓸 수 있습니다 (또는 auto).');
+  if (o.sourceMode === 'general_knowledge' && !o.mainTopic.trim()) items.push('일반 지식 모드: 대주제를 입력하세요.');
   if (!items.length) return null;
   return (
     <ul className={cn('space-y-1 text-[12px] text-warn-ink', className)} role="status">

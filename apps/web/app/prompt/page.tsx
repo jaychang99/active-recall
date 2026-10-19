@@ -49,12 +49,12 @@ export default function PromptPage() {
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="LLM 프롬프트"
-        description="문제 생성 프롬프트의 CONFIG 값을 이 자리에서 조정해 복사합니다. 여기서 바꾼 값은 복사에만 쓰이고 저장되지 않습니다."
+        description="문제 생성 프롬프트의 CONFIG 값을 이 자리에서 조정해 복사합니다. 제공된 자료 모드는 복사한 프롬프트와 자료를 함께 붙여넣고, 일반 지식 모드는 대주제·소주제만으로 출제합니다. 여기서 바꾼 값은 복사에만 쓰이고 저장되지 않습니다."
         actions={<Link href="/settings#prompt-defaults" className="text-sm text-accent underline-offset-4 hover:underline">기본값은 설정에서</Link>}
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)] lg:items-start">
         <Panel className="px-5 py-2">
-          <PromptOptionsForm value={value} onChange={update} base={saved} decks={decks.data} />
+          <PromptOptionsForm value={value} onChange={update} base={saved} decks={decks.data} oneOff />
         </Panel>
 
         <div className="space-y-4 lg:sticky lg:top-20">

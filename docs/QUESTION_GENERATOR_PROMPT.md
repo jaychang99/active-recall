@@ -7,13 +7,16 @@
 ## CONFIG (필요한 값만 수정)
 
 ```text
-DECK_ID: computer_networks_midterm_01
-DECK_TITLE: 컴퓨터네트워크 중간고사 대비
-SUBJECT: Computer Networks
+DECK_ID: auto                        # auto = 자료/주제에서 영문 snake_case ID를 새로 만든다 (새 덱) | 직접 지정
+DECK_TITLE: auto                     # auto = 자료/주제에서 제목 생성 | 직접 지정
+SUBJECT: auto                        # auto = 과목명 생성 (예: Computer Networks) | 직접 지정
 OUTPUT_LANGUAGE: auto                # auto = 입력 자료의 대부분을 차지하는 언어 | ko | en | ...
 NUMBER_OF_QUESTIONS: 24
 SCHEMA_VERSION: 1.0.0
-SOURCE_MODE: provided_materials      # provided_materials | general_knowledge
+SOURCE_MODE: provided_materials      # provided_materials = 첨부 자료만 | general_knowledge = 아래 주제로 일반 지식에서 출제
+MAIN_TOPIC: -                        # general_knowledge 모드의 대주제 (provided_materials면 -)
+SUBTOPICS: -                         # general_knowledge 모드의 소주제 목록, 세미콜론(;)으로 구분 (문항을 소주제별로 고르게 배분)
+AUDIENCE_LEVEL: -                    # 선택: 대상 학습자·수준 (예: 학부 2학년 운영체제 수강생). -면 자료/주제 수준을 따른다
 COVERAGE: balanced_across_topics     # material order를 따르지 않고 범위를 균등하게
 DIFFICULTY_DISTRIBUTION: easy=25%, medium=50%, hard=25%
 QUESTION_TYPE_TARGET: single_choice=35%, multiple_choice=20%, true_false=10%, short_answer=10%, essay=10%, cloze=5%, ordering=5%, matching=5%   # 지침(대략). 내용에 맞지 않는 유형을 억지로 채우지 않는다
@@ -40,6 +43,8 @@ INCLUDE_SOURCE_LOCATORS: only_if_verifiable
 5-1. **수식은 LaTeX로 작성한다.** 모든 텍스트 필드(`prompt`, `choices[].text`, `choices[].explanation`, `explanation.summary/steps/misconceptions`, `hint`, `answer.modelAnswer`, `rubric[].criterion/guidance`, `items[].text`, `left/right[].text`, cloze `prompt`)에서 인라인 수식은 `$...$`, 블록 수식은 `$$...$$`를 사용한다. `\(`, `\[`, `\begin{equation}` 금지. JSON 문자열 안의 백슬래시는 반드시 두 번 쓴다 (`"$\\frac{a}{b}$"`, `"$x^2 + \\sqrt{y}$"`). 수식이 아닌 달러 기호는 `\\$`로 이스케이프한다. 렌더러는 KaTeX이므로 KaTeX가 지원하는 명령만 사용한다 (`\\frac`, `\\sum`, `\\int`, `\\binom`, `\\mathbb`, `\\text{}`, `\\begin{aligned}`, `\\begin{pmatrix}` 등). `short_answer`/`cloze`의 `acceptedAnswers`는 채점용 **문자열**이므로 LaTeX가 아닌 사람이 입력하는 그대로의 표기(예: `"1/2"`, `"0.5"`, `"x^2"`)를 넣는다.
 6. **자료에 없는 페이지 번호·문서명·URL·논문·출처를 절대 꾸며내지 않는다.** 자료가 제공되면 근거를 정확히 확인한 경우에만 `source`와 `explanation.references` 사용. `general_knowledge` 모드라면 근거를 지어내지 말고 생략한다.
 7. 스키마에서 지원하는 `type` 이름(핵심 8종 + 확장 8종) 외에는 쓰지 않는다.
+7-1. **덱 메타데이터.** `DECK_ID`·`DECK_TITLE`·`SUBJECT`가 `auto`이면 자료(또는 `MAIN_TOPIC`)에서 정한다: `deck.id`는 내용을 요약한 영문 소문자 snake_case(예: `os_process_scheduling_01`, 2~5 단어, 끝에 `_01`), `deck.title`은 출력 언어로 쓴 사람이 읽는 제목, `deck.subject`는 과목·분야명(예: `Operating Systems`). 값이 직접 지정되어 있으면 그대로 쓴다. 어느 경우든 Import 시 그 `deck.id`가 없으면 새 덱으로 만들어지고, 있으면 그 덱에 추가·갱신된다.
+7-2. **출제 모드.** `SOURCE_MODE`가 `provided_materials`이면 첨부 자료(PDF·교안·본문)만을 근거로 출제하고, 자료가 전혀 없으면 JSON 대신 자료를 요청한다. `general_knowledge`이면 자료 없이 **`MAIN_TOPIC`과 `SUBTOPICS`에 대한 일반적·교과서적 지식**으로 출제한다: 소주제가 여럿이면 문항을 소주제별로 최대한 고르게 배분하고(각 문항의 `tags`에 해당 소주제를 넣는다), 논쟁적·버전 의존적·최신 사실은 피하며 널리 합의된 내용만 묻는다. 이 모드에서는 `source`·`references`·위치 표기를 넣지 않는다(규칙 6). `AUDIENCE_LEVEL`이 지정되면 난이도·용어·전제 지식의 기준으로 삼고, `-`이면 자료/주제가 전제하는 수준을 따른다.
 8. **출력 언어.** `OUTPUT_LANGUAGE`가 `auto`이면 첨부된 입력 자료(PDF·교안·본문)의 **대부분을 차지하는 언어**로 `prompt`, 선지, 해설, 힌트, 모범답안, 루브릭을 모두 작성한다. 자료가 여러 언어로 섞여 있으면 분량이 가장 많은 언어를 택하고, 전문 용어·고유명사·코드·수식 기호는 원문 표기를 유지한다. 자료가 없고 주제만 주어지면 주제 설명에 쓰인 언어를 따른다. `OUTPUT_LANGUAGE`에 특정 언어 코드가 있으면 그 언어를 우선한다. 선택한 언어를 `deck.language`에 BCP-47 코드로 기록한다.
 
 ## REPRESENTATIONS (텍스트로 직렬화되는 모든 표현 — 적절할 때만)
@@ -129,4 +134,4 @@ A. 메커니즘 교체 — 개념 A의 정확한 메커니즘을 개념 B에 귀
 - JSON parser가 읽을 수 있는 순수 JSON, 추가 텍스트 없음.
 - `question-batch.schema.json` 검증 통과를 내부적으로 다시 확인.
 
-이제 입력한 교안/주제만 이용하여, 위 출력 언어 규칙에 따른 언어로 `schemaVersion`, `deck`, `questions`를 갖는 JSON을 출력하라. 최종 응답 첫 글자는 `{`이고 마지막 글자는 `}`이어야 한다.
+이제 입력한 교안/주제만 이용하여(`general_knowledge` 모드면 `MAIN_TOPIC`·`SUBTOPICS`에 대한 일반 지식으로), 위 출력 언어 규칙에 따른 언어로 `schemaVersion`, `deck`, `questions`를 갖는 JSON을 출력하라. 최종 응답 첫 글자는 `{`이고 마지막 글자는 `}`이어야 한다.
