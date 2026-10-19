@@ -154,4 +154,20 @@ test.describe('study flow (keyboard-first)', () => {
     });
     await expect(page.getByTestId('study-screen')).toHaveAttribute('data-phase', 'answering');
   });
+
+  test('the current card survives a reload and a refetch; progress is kept', async ({ page }) => {
+    await gotoStudy(page, 'computer_networks_01', 'cram');
+    const screen = page.getByTestId('study-screen');
+    const first = await screen.getAttribute('data-question-id');
+    await page.getByTestId('reveal-btn').click();
+    await expect(screen).toHaveAttribute('data-phase', 'submitted');
+    await page.locator('[data-rating="3"]').click();
+    await expect(screen).toHaveAttribute('data-phase', 'answering');
+    const second = await screen.getAttribute('data-question-id');
+    expect(second).not.toBe(first);
+    await page.reload();
+    await expect(page.getByTestId('study-screen')).toBeVisible();
+    expect(await page.getByTestId('study-screen').getAttribute('data-question-id')).toBe(second);
+    await expect(page.getByText('1 / 8 완료')).toBeVisible();
+  });
 });

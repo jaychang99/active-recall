@@ -35,6 +35,25 @@ export interface StudyParams {
 
 type CardState = 'answering' | 'submitted' | 'rated';
 
+interface Snapshot { items: QueueItem[]; queue: Queue; index: number; done: Done[]; extraItems: QueueItem[]; skipped: string[]; savedAt: number }
+const SNAPSHOT_TTL_MS = 6 * 60 * 60 * 1000;
+function readSnapshot(key: string): Snapshot | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const snap = JSON.parse(raw) as Snapshot;
+    if (!snap.items || Date.now() - snap.savedAt > SNAPSHOT_TTL_MS) { window.sessionStorage.removeItem(key); return null; }
+    return snap;
+  } catch { return null; }
+}
+function writeSnapshot(key: string, snap: Snapshot) {
+  try { window.sessionStorage.setItem(key, JSON.stringify(snap)); } catch { /* storage unavailable or full */ }
+}
+function clearSnapshot(key: string) {
+  try { window.sessionStorage.removeItem(key); } catch { /* ignore */ }
+}
+
 interface Done { questionId: string; rating?: number; isCorrect: boolean | null; reviewId?: string }
 
 const MODE_LABEL: Record<StudyParams['mode'], string> = { scheduled: '예정된 학습', cram: '전체 훑기 (cram)', mistakes: '틀린 문제', flagged: '표시한 문제', practice: '연습 (스케줄 영향 없음)' };
@@ -55,8 +74,23 @@ function queueUrl(p: StudyParams) {
 export function StudyScreen({ params }: { params: StudyParams }) {
   const qc = useQueryClient();
   const { settings } = useSettings();
-  const queue = useQuery({ queryKey: ['queue', params], queryFn: () => api<Queue>(queueUrl(params)), staleTime: Infinity, refetchOnMount: 'always' });
-  const [index, setIndex] = useState(0);
+  const storageKey = `rs-study:${JSON.stringify(params)}`;
+  const restored = useMemo(() => readSnapshot(storageKey), [storageKey]);
+  // The queue is fetched once per session and then frozen: refetches (reconnect, focus, HMR) must never
+  // reorder or drop cards under the learner. A reload within 6 hours resumes from the saved snapshot.
+  const queue = useQuery({
+    queryKey: ['queue', params],
+    queryFn: () => api<Queue>(queueUrl(params)),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    enabled: !restored,
+  });
+  const [baseItems, setBaseItems] = useState<QueueItem[] | null>(restored?.items ?? null);
+  const [queueMeta, setQueueMeta] = useState<Queue | null>(restored?.queue ?? null);
+  const [index, setIndex] = useState(restored?.index ?? 0);
   const [phase, setPhase] = useState<CardState>('answering');
   const [answer, setAnswer] = useState<AnswerPayload | null>(null);
   const [grade, setGrade] = useState<GradeResponse | null>(null);
@@ -64,32 +98,44 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const [hintUsed, setHintUsed] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [showExplanation, setShowExplanation] = useState(true);
-  const [done, setDone] = useState<Done[]>([]);
+  const [done, setDone] = useState<Done[]>(restored?.done ?? []);
   const [lastReview, setLastReview] = useState<{ reviewId: string; questionId: string; index: number; rating: 1 | 2 | 3 | 4; interval: string | null } | null>(null);
   const [pendingRating, setPendingRating] = useState<1 | 2 | 3 | 4 | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [notesFocus, setNotesFocus] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [extraItems, setExtraItems] = useState<QueueItem[]>([]);
-  const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  const [extraItems, setExtraItems] = useState<QueueItem[]>(restored?.extraItems ?? []);
+  const [skipped, setSkipped] = useState<Set<string>>(new Set(restored?.skipped ?? []));
+  useEffect(() => {
+    if (queue.data && !baseItems) {
+      setBaseItems(queue.data.items);
+      setQueueMeta(queue.data);
+    }
+  }, [queue.data, baseItems]);
   const startedAt = useRef<number>(0);
   const digitHandler = useRef<((n: number) => void) | null>(null);
   const submitLock = useRef(false);
   const [shuffleSeed] = useState(() => uid());
 
-  const items = useMemo(() => [...(queue.data?.items ?? []), ...extraItems].filter((i) => !skipped.has(i.questionId)), [queue.data, extraItems, skipped]);
+  const items = useMemo(() => [...(baseItems ?? []), ...extraItems].filter((i) => !skipped.has(i.questionId)), [baseItems, extraItems, skipped]);
   const item = items[index] ?? null;
-  const finished = queue.isSuccess && (items.length === 0 || index >= items.length);
+  const finished = !!baseItems && (items.length === 0 || index >= items.length);
+  // persist progress so a reload (or dev hot reload) resumes at the same card
+  useEffect(() => {
+    if (!baseItems || !queueMeta) return;
+    if (finished) { clearSnapshot(storageKey); return; }
+    writeSnapshot(storageKey, { items: baseItems, queue: queueMeta, index, done, extraItems, skipped: [...skipped], savedAt: Date.now() });
+  }, [storageKey, baseItems, queueMeta, index, done, extraItems, skipped, finished]);
   const isPractice = params.mode === 'practice';
 
   // session bookkeeping
   useEffect(() => {
-    if (!queue.data || sessionId) return;
-    api<{ id: string }>('/study/sessions', { method: 'POST', json: { scope: params.scope, subject: params.subject, mode: params.mode, queueSize: queue.data.items.length } })
+    if (!baseItems || sessionId || restored) return;
+    api<{ id: string }>('/study/sessions', { method: 'POST', json: { scope: params.scope, subject: params.subject, mode: params.mode, queueSize: baseItems.length } })
       .then((s) => setSessionId(s.id))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queue.data]);
+  }, [baseItems]);
   useEffect(() => {
     if (finished && sessionId) api(`/study/sessions/${sessionId}/end`, { method: 'PATCH' }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -282,21 +328,21 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     shortcutsOn && !finished && !!item,
   );
 
-  if (queue.isLoading) return <div className="mx-auto max-w-[840px] space-y-4"><Skeleton className="h-6 w-40" /><Skeleton className="h-40" /><Skeleton className="h-12" /></div>;
+  if (!baseItems && !queue.isError) return <div className="mx-auto max-w-[840px] space-y-4"><Skeleton className="h-6 w-40" /><Skeleton className="h-40" /><Skeleton className="h-12" /></div>;
   if (queue.isError) return <div className="mx-auto max-w-[840px]"><ErrorState message={(queue.error as Error).message} onRetry={() => queue.refetch()} /></div>;
-  if (finished || !item) return <SessionSummary params={params} done={done} queue={queue.data!} onRestart={() => { setIndex(0); setDone([]); setExtraItems([]); setSkipped(new Set()); resetCard(); void queue.refetch(); }} />;
+  if (finished || !item) return <SessionSummary params={params} done={done} queue={queueMeta ?? queue.data!} onRestart={async () => { clearSnapshot(storageKey); setIndex(0); setDone([]); setExtraItems([]); setSkipped(new Set()); resetCard(); setBaseItems(null); setQueueMeta(null); const r = await queue.refetch(); if (r.data) { setBaseItems(r.data.items); setQueueMeta(r.data); } }} />;
 
   const progress = done.length;
   const total = items.length;
 
   return (
-    <div className="mx-auto w-full max-w-[840px]" data-testid="study-screen" data-phase={phase} data-type={item.type} data-round={item.reviewRound}>
+    <div className="mx-auto w-full max-w-[840px]" data-testid="study-screen" data-phase={phase} data-type={item.type} data-round={item.reviewRound} data-question-id={item.questionId}>
       {/* progress strip */}
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-3">
-        <span className="font-medium text-ink">{queue.data?.deck?.title ?? (params.subject ? `과목: ${params.subject}` : '모든 덱')}</span>
+        <span className="font-medium text-ink">{queueMeta?.deck?.title ?? (params.subject ? `과목: ${params.subject}` : '모든 덱')}</span>
         <Badge tone={isPractice ? 'warn' : 'neutral'}>{MODE_LABEL[params.mode]}</Badge>
         <span className="tabular">{progress} / {total} 완료</span>
-        {params.mode === 'scheduled' ? <span className="tabular">오늘 복습 {queue.data?.counts.reviewedToday ?? 0} / 목표 {settings.dailyReviewGoal}</span> : null}
+        {params.mode === 'scheduled' ? <span className="tabular">오늘 복습 {queueMeta?.counts.reviewedToday ?? 0} / 목표 {settings.dailyReviewGoal}</span> : null}
         {lastReview && phase === 'answering' ? <span className="flex items-center gap-1 tabular" data-testid="last-rating">직전 <span className={cn('font-medium', RATINGS[lastReview.rating - 1]!.cls.split(' ')[1])}>{RATINGS[lastReview.rating - 1]!.ko}</span>{lastReview.interval ? ` · ${lastReview.interval}` : ''} <kbd className="kbd" aria-hidden>U</kbd></span> : null}
         <span className="ml-auto flex items-center gap-1"><kbd className="kbd">?</kbd> 단축키</span>
       </div>
