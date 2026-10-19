@@ -162,13 +162,13 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
             <div className="pt-1"><SumBadge sum={diffSum} /></div>
           </div>
         </Row>
-        <Row label="유형별 목표 비율" hint="핵심 8종의 목표 비율. 합이 100%여야 합니다." {...row('typeTarget')}>
+        <Row label="유형별 목표 비율" hint="핵심 8종의 대략적 목표 비율(지침). 합이 100%여야 하지만, 내용에 맞지 않는 유형을 억지로 채우지는 않습니다." {...row('typeTarget')}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
             {CORE_TYPES.map((t) => <PercentInput key={t} id={id(`t-${t}`)} label={TYPE_LABEL_KO[t]} value={o.typeTarget[t]} onChange={(v) => set('typeTarget', { ...o.typeTarget, [t]: v })} />)}
             <div className="col-span-2 pt-1"><SumBadge sum={typeSum} /></div>
           </div>
         </Row>
-        <Row label="핵심 8종 모두 포함" hint="문항이 8개 이상이면 각 유형을 최소 1개씩 만듭니다." {...row('requireAllEightTypes')} htmlFor={id('all8')}>
+        <Row label="핵심 8종 모두 포함" hint="문항이 8개 이상이면 각 유형을 최소 1개씩 만듭니다. 자연스럽게 맞는 내용이 없는 유형은 뺍니다." {...row('requireAllEightTypes')} htmlFor={id('all8')}>
           <Switch id={id('all8')} checked={o.requireAllEightTypes} onCheckedChange={(v) => set('requireAllEightTypes', v)} />
         </Row>
         <Row label="확장 8종 허용" hint="숫자형·빈칸 선택·진술 판단·분류·답+근거·회상 카드·단계별·구간 선택. 내용에 맞을 때만 쓰입니다." {...row('allowExtendedTypes')} htmlFor={id('ext')}>
