@@ -93,7 +93,7 @@ export default function SettingsPage() {
           <Link href="/prompt" className="text-[13px] text-accent underline-offset-4 hover:underline">일회성으로 조정해 복사 →</Link>
         </div>
         <p className="mb-1 text-[12px] text-ink-3">상단 「LLM 프롬프트」 버튼으로 복사할 때 쓰이는 CONFIG 값입니다. 프롬프트 문서의 값과 다른 항목만 저장되며, 저장 버튼으로 반영됩니다.</p>
-        <PromptOptionsForm value={promptOpts} onChange={(next) => set('promptDefaults', toSavedDefaults(next))} changed={promptChanged} hideDeck />
+        <PromptOptionsForm value={promptOpts} onChange={(next) => set('promptDefaults', toSavedDefaults(next))} base={PROMPT_DEFAULTS} hideDeck />
         {promptChanged.size ? <div className="py-3"><Button size="sm" variant="ghost" onClick={() => set('promptDefaults', null)}>문서 원본 값으로 되돌리기</Button></div> : null}
       </Panel>
       <Panel className="px-5 py-4">

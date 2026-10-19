@@ -1,10 +1,11 @@
 'use client';
-import { useId, useState } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
 import type { Deck } from '@/lib/api';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { CORE_TYPES, COVERAGES, EXPLANATION_DEPTHS, LANGUAGE_PRESETS, LIMITS, MATH_NOTATIONS, SOURCE_LOCATORS, SOURCE_MODES, TYPE_LABEL_KO, sumDifficulty, sumTypeTarget, type PromptOptions } from '@/lib/prompt-options';
+import { CORE_TYPES, COVERAGES, EXPLANATION_DEPTHS, LANGUAGE_PRESETS, LIMITS, MATH_NOTATIONS, PROMPT_DEFAULTS, SOURCE_LOCATORS, SOURCE_MODES, TYPE_LABEL_KO, changedKeys, sumDifficulty, sumTypeTarget, type PromptOptions } from '@/lib/prompt-options';
 import { cn } from '@/lib/utils';
 
 const SOURCE_MODE_KO: Record<(typeof SOURCE_MODES)[number], string> = { provided_materials: '첨부 자료만', general_knowledge: '일반 지식 허용' };
@@ -14,12 +15,19 @@ const MATH_KO: Record<(typeof MATH_NOTATIONS)[number], string> = { latex: 'LaTeX
 const LOCATOR_KO: Record<(typeof SOURCE_LOCATORS)[number], string> = { always: '항상', only_if_verifiable: '확인 가능할 때만', never: '넣지 않음' };
 const LANG_KO: Record<(typeof LANGUAGE_PRESETS)[number], string> = { auto: '자동 (자료의 주 언어)', ko: '한국어 (ko)', en: 'English (en)', ja: '日本語 (ja)', zh: '中文 (zh)' };
 
-/** One field row: label (+ hint) on the left, control on the right. `changed` marks a value that differs from the base. */
-function Row({ label, hint, changed, htmlFor, children }: { label: string; hint?: string; changed?: boolean; htmlFor?: string; children: React.ReactNode }) {
+/** One field row: label (+ hint) on the left, control on the right. When the value differs from the base, a per-field reset button appears beside the label. */
+function Row({ label, hint, changed, onReset, htmlFor, children }: { label: string; hint?: string; changed?: boolean; onReset?: () => void; htmlFor?: string; children: React.ReactNode }) {
   return (
     <div className="grid gap-2 border-b border-line py-3 last:border-0 sm:grid-cols-[minmax(0,1fr)_minmax(14rem,18rem)] sm:items-center">
       <div className="min-w-0">
-        <Label htmlFor={htmlFor} className="flex items-center gap-2">{label}{changed ? <Badge tone="accent">변경됨</Badge> : null}</Label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Label htmlFor={htmlFor}>{label}</Label>
+          {changed ? (
+            <button type="button" onClick={onReset} aria-label={`${label} 기본값으로 되돌리기`} data-testid="prompt-field-reset" className="inline-flex h-6 items-center gap-1 rounded-md border border-accent/40 bg-accent-soft px-1.5 text-[11px] font-medium text-accent-soft-ink hover:brightness-105">
+              <RotateCcw className="h-3 w-3" /> 기본값으로
+            </button>
+          ) : null}
+        </div>
         {hint ? <p className="text-[12px] text-ink-3">{hint}</p> : null}
       </div>
       <div className="min-w-0">{children}</div>
@@ -57,8 +65,8 @@ function SumBadge({ sum }: { sum: number }) {
 export interface PromptOptionsFormProps {
   value: PromptOptions;
   onChange: (next: PromptOptions) => void;
-  /** Keys that differ from the base (saved defaults or the prompt document) — marked in the UI. */
-  changed?: ReadonlySet<keyof PromptOptions>;
+  /** Reference values (saved defaults on /prompt, the prompt document in Settings). Fields that differ get a per-field reset button. */
+  base?: PromptOptions;
   /** Decks offered by the "덱에서 채우기" picker. */
   decks?: Pick<Deck, 'id' | 'title' | 'subject'>[];
   /** Hide the deck identity section (Settings: defaults rarely carry a specific deck). */
@@ -66,11 +74,14 @@ export interface PromptOptionsFormProps {
 }
 
 /** Every CONFIG option of the generator prompt as a form. Used on /prompt (one-off copy) and in Settings (defaults). */
-export function PromptOptionsForm({ value: o, onChange, changed, decks, hideDeck }: PromptOptionsFormProps) {
+export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, decks, hideDeck }: PromptOptionsFormProps) {
   const uid = useId();
   const id = (k: string) => `${uid}-${k}`;
   const set = <K extends keyof PromptOptions>(k: K, v: PromptOptions[K]) => onChange({ ...o, [k]: v });
-  const isChanged = (k: keyof PromptOptions) => !!changed?.has(k);
+  const changed = useMemo(() => new Set(changedKeys(o, base)), [o, base]);
+  const isChanged = (k: keyof PromptOptions) => changed.has(k);
+  /** Props shared by every Row: the changed mark and the reset to the base value for that one key. */
+  const row = (k: keyof PromptOptions) => ({ changed: isChanged(k), onReset: () => { const v = base[k]; onChange({ ...o, [k]: typeof v === 'object' && v !== null ? { ...(v as object) } : v }); if (k === 'outputLanguage') setCustomLang(!(LANGUAGE_PRESETS as readonly string[]).includes(base.outputLanguage)); } });
   const [customLang, setCustomLang] = useState(() => !(LANGUAGE_PRESETS as readonly string[]).includes(o.outputLanguage));
   const diffSum = sumDifficulty(o);
   const typeSum = sumTypeTarget(o);
@@ -80,7 +91,7 @@ export function PromptOptionsForm({ value: o, onChange, changed, decks, hideDeck
       {!hideDeck ? (
         <section>
           <h3 className="mb-1 text-[13px] font-semibold text-ink-2">덱</h3>
-          <Row label="덱 ID" hint="영문·숫자·밑줄. 같은 ID로 다시 가져오면 기존 덱이 갱신됩니다." changed={isChanged('deckId')} htmlFor={id('deckId')}>
+          <Row label="덱 ID" hint="영문·숫자·밑줄. 같은 ID로 다시 가져오면 기존 덱이 갱신됩니다." {...row('deckId')} htmlFor={id('deckId')}>
             <div className="flex gap-2">
               <Input id={id('deckId')} value={o.deckId} onChange={(e) => set('deckId', e.target.value)} className="font-mono text-[13px]" spellCheck={false} />
               {decks?.length ? (
@@ -91,17 +102,17 @@ export function PromptOptionsForm({ value: o, onChange, changed, decks, hideDeck
               ) : null}
             </div>
           </Row>
-          <Row label="덱 제목" changed={isChanged('deckTitle')} htmlFor={id('deckTitle')}><Input id={id('deckTitle')} value={o.deckTitle} onChange={(e) => set('deckTitle', e.target.value)} /></Row>
-          <Row label="과목" hint="가져올 때 덱 과목으로 자동 부여됩니다." changed={isChanged('subject')} htmlFor={id('subject')}><Input id={id('subject')} value={o.subject} onChange={(e) => set('subject', e.target.value)} /></Row>
+          <Row label="덱 제목" {...row('deckTitle')} htmlFor={id('deckTitle')}><Input id={id('deckTitle')} value={o.deckTitle} onChange={(e) => set('deckTitle', e.target.value)} /></Row>
+          <Row label="과목" hint="가져올 때 덱 과목으로 자동 부여됩니다." {...row('subject')} htmlFor={id('subject')}><Input id={id('subject')} value={o.subject} onChange={(e) => set('subject', e.target.value)} /></Row>
         </section>
       ) : null}
 
       <section>
         <h3 className="mb-1 text-[13px] font-semibold text-ink-2">출력</h3>
-        <Row label="문항 수" hint={`${LIMITS.numberOfQuestions.min}–${LIMITS.numberOfQuestions.max}. 한 번에 1,000문항까지 가져올 수 있습니다.`} changed={isChanged('numberOfQuestions')} htmlFor={id('n')}>
+        <Row label="문항 수" hint={`${LIMITS.numberOfQuestions.min}–${LIMITS.numberOfQuestions.max}. 한 번에 1,000문항까지 가져올 수 있습니다.`} {...row('numberOfQuestions')} htmlFor={id('n')}>
           <NumberRange id={id('n')} value={o.numberOfQuestions} min={LIMITS.numberOfQuestions.min} max={LIMITS.numberOfQuestions.max} unit="문항" onChange={(v) => set('numberOfQuestions', v)} />
         </Row>
-        <Row label="출력 언어" hint="자동이면 첨부 자료의 주 언어를 따릅니다. BCP-47 코드를 직접 입력할 수도 있습니다." changed={isChanged('outputLanguage')} htmlFor={id('lang')}>
+        <Row label="출력 언어" hint="자동이면 첨부 자료의 주 언어를 따릅니다. BCP-47 코드를 직접 입력할 수도 있습니다." {...row('outputLanguage')} htmlFor={id('lang')}>
           <div className="flex gap-2">
             <Select id={id('lang')} className="min-w-0 flex-1" value={customLang ? '__custom' : o.outputLanguage} onChange={(e) => { if (e.target.value === '__custom') { setCustomLang(true); } else { setCustomLang(false); set('outputLanguage', e.target.value); } }}>
               {LANGUAGE_PRESETS.map((l) => <option key={l} value={l}>{LANG_KO[l]}</option>)}
@@ -110,36 +121,36 @@ export function PromptOptionsForm({ value: o, onChange, changed, decks, hideDeck
             {customLang ? <Input aria-label="언어 코드" value={o.outputLanguage} onChange={(e) => set('outputLanguage', e.target.value.trim() || 'auto')} placeholder="de, fr, es…" className="w-24 shrink-0 font-mono text-[13px]" /> : null}
           </div>
         </Row>
-        <Row label="객관식 선지 수" changed={isChanged('mcqChoiceCount')} htmlFor={id('mcq')}>
+        <Row label="객관식 선지 수" {...row('mcqChoiceCount')} htmlFor={id('mcq')}>
           <NumberRange id={id('mcq')} value={o.mcqChoiceCount} min={LIMITS.mcqChoiceCount.min} max={LIMITS.mcqChoiceCount.max} unit="개" onChange={(v) => set('mcqChoiceCount', v)} />
         </Row>
-        <Row label="해설 깊이" changed={isChanged('explanationDepth')} htmlFor={id('depth')}>
+        <Row label="해설 깊이" {...row('explanationDepth')} htmlFor={id('depth')}>
           <Select id={id('depth')} className="w-full" value={o.explanationDepth} onChange={(e) => set('explanationDepth', e.target.value as PromptOptions['explanationDepth'])}>{EXPLANATION_DEPTHS.map((d) => <option key={d} value={d}>{DEPTH_KO[d]}</option>)}</Select>
         </Row>
-        <Row label="수식 표기" changed={isChanged('mathNotation')} htmlFor={id('math')}>
+        <Row label="수식 표기" {...row('mathNotation')} htmlFor={id('math')}>
           <Select id={id('math')} className="w-full" value={o.mathNotation} onChange={(e) => set('mathNotation', e.target.value as PromptOptions['mathNotation'])}>{MATH_NOTATIONS.map((m) => <option key={m} value={m}>{MATH_KO[m]}</option>)}</Select>
         </Row>
       </section>
 
       <section>
         <h3 className="mb-1 text-[13px] font-semibold text-ink-2">자료</h3>
-        <Row label="출제 범위" changed={isChanged('sourceMode')} htmlFor={id('src')}>
+        <Row label="출제 범위" {...row('sourceMode')} htmlFor={id('src')}>
           <Select id={id('src')} className="w-full" value={o.sourceMode} onChange={(e) => set('sourceMode', e.target.value as PromptOptions['sourceMode'])}>{SOURCE_MODES.map((m) => <option key={m} value={m}>{SOURCE_MODE_KO[m]}</option>)}</Select>
         </Row>
-        <Row label="범위 배분" changed={isChanged('coverage')} htmlFor={id('cov')}>
+        <Row label="범위 배분" {...row('coverage')} htmlFor={id('cov')}>
           <Select id={id('cov')} className="w-full" value={o.coverage} onChange={(e) => set('coverage', e.target.value as PromptOptions['coverage'])}>{COVERAGES.map((c) => <option key={c} value={c}>{COVERAGE_KO[c]}</option>)}</Select>
         </Row>
-        <Row label="자료 밖 정보 허용" hint="끄면 첨부 자료에 없는 사실은 출제하지 않습니다." changed={isChanged('allowOutOfScopeInformation')} htmlFor={id('oos')}>
+        <Row label="자료 밖 정보 허용" hint="끄면 첨부 자료에 없는 사실은 출제하지 않습니다." {...row('allowOutOfScopeInformation')} htmlFor={id('oos')}>
           <Switch id={id('oos')} checked={o.allowOutOfScopeInformation} onCheckedChange={(v) => set('allowOutOfScopeInformation', v)} />
         </Row>
-        <Row label="출처 위치 표기" hint="문항마다 자료의 페이지·슬라이드 등을 기록합니다." changed={isChanged('includeSourceLocators')} htmlFor={id('loc')}>
+        <Row label="출처 위치 표기" hint="문항마다 자료의 페이지·슬라이드 등을 기록합니다." {...row('includeSourceLocators')} htmlFor={id('loc')}>
           <Select id={id('loc')} className="w-full" value={o.includeSourceLocators} onChange={(e) => set('includeSourceLocators', e.target.value as PromptOptions['includeSourceLocators'])}>{SOURCE_LOCATORS.map((l) => <option key={l} value={l}>{LOCATOR_KO[l]}</option>)}</Select>
         </Row>
       </section>
 
       <section>
         <h3 className="mb-1 text-[13px] font-semibold text-ink-2">문항 구성</h3>
-        <Row label="난이도 분포" hint="세 값의 합이 100%여야 합니다." changed={isChanged('difficulty')}>
+        <Row label="난이도 분포" hint="세 값의 합이 100%여야 합니다." {...row('difficulty')}>
           <div className="space-y-1.5">
             {(['easy', 'medium', 'hard'] as const).map((k) => (
               <div key={k} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-2 text-[13px]">
@@ -151,16 +162,16 @@ export function PromptOptionsForm({ value: o, onChange, changed, decks, hideDeck
             <div className="pt-1"><SumBadge sum={diffSum} /></div>
           </div>
         </Row>
-        <Row label="유형별 목표 비율" hint="핵심 8종의 목표 비율. 합이 100%여야 합니다." changed={isChanged('typeTarget')}>
+        <Row label="유형별 목표 비율" hint="핵심 8종의 목표 비율. 합이 100%여야 합니다." {...row('typeTarget')}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
             {CORE_TYPES.map((t) => <PercentInput key={t} id={id(`t-${t}`)} label={TYPE_LABEL_KO[t]} value={o.typeTarget[t]} onChange={(v) => set('typeTarget', { ...o.typeTarget, [t]: v })} />)}
             <div className="col-span-2 pt-1"><SumBadge sum={typeSum} /></div>
           </div>
         </Row>
-        <Row label="핵심 8종 모두 포함" hint="문항이 8개 이상이면 각 유형을 최소 1개씩 만듭니다." changed={isChanged('requireAllEightTypes')} htmlFor={id('all8')}>
+        <Row label="핵심 8종 모두 포함" hint="문항이 8개 이상이면 각 유형을 최소 1개씩 만듭니다." {...row('requireAllEightTypes')} htmlFor={id('all8')}>
           <Switch id={id('all8')} checked={o.requireAllEightTypes} onCheckedChange={(v) => set('requireAllEightTypes', v)} />
         </Row>
-        <Row label="확장 8종 허용" hint="숫자형·빈칸 선택·진술 판단·분류·답+근거·회상 카드·단계별·구간 선택. 내용에 맞을 때만 쓰입니다." changed={isChanged('allowExtendedTypes')} htmlFor={id('ext')}>
+        <Row label="확장 8종 허용" hint="숫자형·빈칸 선택·진술 판단·분류·답+근거·회상 카드·단계별·구간 선택. 내용에 맞을 때만 쓰입니다." {...row('allowExtendedTypes')} htmlFor={id('ext')}>
           <Switch id={id('ext')} checked={o.allowExtendedTypes} onCheckedChange={(v) => set('allowExtendedTypes', v)} />
         </Row>
       </section>
