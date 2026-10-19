@@ -179,7 +179,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
           {notes.data?.length === 0 ? <EmptyState title="아직 메모가 없습니다" body="학습 화면에서 M 키로 회차별 메모를 남길 수 있습니다." /> : null}
           {notes.data?.map((n) => (
             <Panel key={n.id} className="p-3">
-              <div className="mb-1 text-[12px] text-ink-3"><span className="mr-1.5">{n.question.externalId}</span><Badge>{TYPE_LABEL[n.question.type]}</Badge> <span className="ml-1 line-clamp-1">{n.question.prompt}</span></div>
+              <div className="mb-1 text-[12px] text-ink-3"><span className="mr-1.5">{n.question.externalId}</span><Badge>{TYPE_LABEL[n.question.type]}</Badge> <Markdown inline className="ml-1 line-clamp-1 [&_p]:inline">{n.question.prompt}</Markdown></div>
               <ul><NoteHistoryItem note={n} /></ul>
             </Panel>
           ))}

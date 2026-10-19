@@ -15,6 +15,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { CardsModule } from './cards/cards.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { ExportsModule } from './exports/exports.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ExportsModule } from './exports/exports.module';
     AnalyticsModule,
     CardsModule,
     ExportsModule,
+    AdminModule,
   ],
   controllers: [HealthController, SchemasController],
 })

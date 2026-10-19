@@ -89,7 +89,7 @@ export function Ordering({ question, value, onChange, phase, grade, answerKey, s
           );
         })}
       </ol>
-      {revealed && grade ? <p className="text-[15px] text-ink"><span className="font-semibold">정확한 순서</span> · {expected.map((id, i) => `${i + 1}. ${byId.get(id)?.text ?? id}`).join(' → ')}</p> : null}
+      {revealed && grade ? <div className="text-[15px] text-ink"><span className="font-semibold">정확한 순서</span> · {expected.map((id, i) => <span key={id} className="mr-1">{i + 1}. <Markdown inline className="prose-sm">{byId.get(id)?.text ?? id}</Markdown>{i < expected.length - 1 ? ' →' : ''}</span>)}</div> : null}
     </div>
   );
 }

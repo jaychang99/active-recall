@@ -10,7 +10,7 @@
 DECK_ID: computer_networks_midterm_01
 DECK_TITLE: 컴퓨터네트워크 중간고사 대비
 SUBJECT: Computer Networks
-OUTPUT_LANGUAGE: ko
+OUTPUT_LANGUAGE: auto                # auto = 입력 자료의 대부분을 차지하는 언어 | ko | en | ...
 NUMBER_OF_QUESTIONS: 24
 SCHEMA_VERSION: 1.0.0
 SOURCE_MODE: provided_materials      # provided_materials | general_knowledge
@@ -20,6 +20,7 @@ QUESTION_TYPE_TARGET: single_choice=35%, multiple_choice=20%, true_false=10%, sh
 REQUIRE_ALL_EIGHT_TYPES: true
 MCQ_CHOICE_COUNT: 5
 EXPLANATION_DEPTH: detailed
+MATH_NOTATION: latex                 # 수식은 $...$ / $$...$$ (KaTeX)
 ALLOW_OUT_OF_SCOPE_INFORMATION: false
 INCLUDE_SOURCE_LOCATORS: only_if_verifiable
 ```
@@ -35,8 +36,10 @@ INCLUDE_SOURCE_LOCATORS: only_if_verifiable
 3. `schemaVersion`은 반드시 `"1.0.0"`. `deck.id`는 영어 숫자 언더스코어/하이픈 기반 불변 식별자. 같은 내용을 다시 생성하면 같은 question.id가 유지되도록 `q001`…`qNNN` 형식 사용. 기존 deck에 문제를 추가하는 경우 기존 ID를 덮어쓰지 않는다.
 4. 각 질문의 필수 공통 키는 `id`, `type`, `prompt`, `explanation`, `difficulty`(1~5), `tags`이다. `explanation.summary`는 빈 문자열이 될 수 없다.
 5. `prompt`와 `explanation`의 본문은 Markdown 텍스트로 작성해도 된다. HTML/script/MDX 사용 금지. 문자열 내부 줄바꿈은 JSON escape로 표기한다.
+5-1. **수식은 LaTeX로 작성한다.** 모든 텍스트 필드(`prompt`, `choices[].text`, `choices[].explanation`, `explanation.summary/steps/misconceptions`, `hint`, `answer.modelAnswer`, `rubric[].criterion/guidance`, `items[].text`, `left/right[].text`, cloze `prompt`)에서 인라인 수식은 `$...$`, 블록 수식은 `$$...$$`를 사용한다. `\(`, `\[`, `\begin{equation}` 금지. JSON 문자열 안의 백슬래시는 반드시 두 번 쓴다 (`"$\\frac{a}{b}$"`, `"$x^2 + \\sqrt{y}$"`). 수식이 아닌 달러 기호는 `\\$`로 이스케이프한다. 렌더러는 KaTeX이므로 KaTeX가 지원하는 명령만 사용한다 (`\\frac`, `\\sum`, `\\int`, `\\binom`, `\\mathbb`, `\\text{}`, `\\begin{aligned}`, `\\begin{pmatrix}` 등). `short_answer`/`cloze`의 `acceptedAnswers`는 채점용 **문자열**이므로 LaTeX가 아닌 사람이 입력하는 그대로의 표기(예: `"1/2"`, `"0.5"`, `"x^2"`)를 넣는다.
 6. **자료에 없는 페이지 번호·문서명·URL·논문·출처를 절대 꾸며내지 않는다.** 자료가 제공되면 근거를 정확히 확인한 경우에만 `source`와 `explanation.references` 사용. `general_knowledge` 모드라면 근거를 지어내지 말고 생략한다.
 7. 스키마에서 지원하는 8개의 `type` 이름 외에는 쓰지 않는다.
+8. **출력 언어.** `OUTPUT_LANGUAGE`가 `auto`이면 첨부된 입력 자료(PDF·교안·본문)의 **대부분을 차지하는 언어**로 `prompt`, 선지, 해설, 힌트, 모범답안, 루브릭을 모두 작성한다. 자료가 여러 언어로 섞여 있으면 분량이 가장 많은 언어를 택하고, 전문 용어·고유명사·코드·수식 기호는 원문 표기를 유지한다. 자료가 없고 주제만 주어지면 주제 설명에 쓰인 언어를 따른다. `OUTPUT_LANGUAGE`에 특정 언어 코드가 있으면 그 언어를 우선한다. 선택한 언어를 `deck.language`에 BCP-47 코드로 기록한다.
 
 ## PEDAGOGY / QUESTION QUALITY
 
@@ -72,7 +75,8 @@ INCLUDE_SOURCE_LOCATORS: only_if_verifiable
 - 클로즈 placeholder와 blanks 완전 일치. ordering은 정확한 permutation. matching은 완전한 bijection.
 - 서술형 루브릭 총합 == maxScore.
 - 시험 문제의 정답이 `prompt`/보기에 무심코 누출되지 않는지 점검.
+- 모든 LaTeX가 `$`/`$$`로 감싸져 있고, JSON 안에서 백슬래시가 이중 이스케이프되어 있으며, KaTeX 미지원 명령이 없는지 점검.
 - JSON parser가 읽을 수 있는 순수 JSON, 추가 텍스트 없음.
 - `question-batch.schema.json` 검증 통과를 내부적으로 다시 확인.
 
-이제 입력한 교안/주제만 이용하여 지정된 언어로 `schemaVersion`, `deck`, `questions`를 갖는 JSON을 출력하라. 최종 응답 첫 글자는 `{`이고 마지막 글자는 `}`이어야 한다.
+이제 입력한 교안/주제만 이용하여, 위 출력 언어 규칙에 따른 언어로 `schemaVersion`, `deck`, `questions`를 갖는 JSON을 출력하라. 최종 응답 첫 글자는 `{`이고 마지막 글자는 `}`이어야 한다.

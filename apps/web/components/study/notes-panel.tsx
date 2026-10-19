@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatDateTime } from '@/lib/utils';
 import { RATINGS } from './rating-bar';
+import { Markdown } from '@/components/questions/markdown';
 
 /**
  * Per-question notes, one per review round. The current round's note is editable;
@@ -121,7 +122,7 @@ export function NoteHistoryItem({ note }: { note: Note }) {
         {note.review?.isCorrect === true ? <span className="text-ok-ink">정답</span> : note.review?.isCorrect === false ? <span className="text-bad-ink">오답</span> : null}
         <span>{formatDateTime(note.review?.reviewedAt ?? note.updatedAt)}</span>
       </div>
-      <div className="whitespace-pre-wrap text-sm">{note.body}</div>
+      <Markdown className="prose-sm">{note.body}</Markdown>
     </li>
   );
 }

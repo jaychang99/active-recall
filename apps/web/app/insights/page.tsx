@@ -10,6 +10,7 @@ import { ErrorState, PageHeader, Panel, Skeleton, Stat } from '@/components/ui/m
 import { ActivityHeatmap } from '@/components/insights/heatmap';
 import { BarChart, HBar } from '@/components/insights/charts';
 import { TYPE_LABEL, pct } from '@/lib/utils';
+import { Markdown } from '@/components/questions/markdown';
 
 export default function InsightsPage() {
   const sp = useSearchParams();
@@ -66,7 +67,7 @@ export default function InsightsPage() {
               </Panel>
               <Panel className="p-5">
                 <h2 className="mb-3 text-[13px] font-semibold text-ink-2">가장 자주 틀린 문항 <span className="font-normal text-ink-3">· {days}일, Again 횟수</span></h2>
-                {o.hardest.length ? <ul className="space-y-1.5 text-[13px]">{o.hardest.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="bad">{h.again}</Badge><span className="line-clamp-1">{h.prompt}</span><span className="ml-auto shrink-0 text-ink-3">{TYPE_LABEL[h.type]}</span></li>)}</ul> : <p className="text-sm text-ink-3">{days}일 동안 Again으로 평가한 문항이 없습니다.</p>}
+                {o.hardest.length ? <ul className="space-y-1.5 text-[13px]">{o.hardest.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="bad">{h.again}</Badge><Markdown inline className="line-clamp-1 [&_p]:inline">{h.prompt}</Markdown><span className="ml-auto shrink-0 text-ink-3">{TYPE_LABEL[h.type]}</span></li>)}</ul> : <p className="text-sm text-ink-3">{days}일 동안 Again으로 평가한 문항이 없습니다.</p>}
               </Panel>
             </div>
             <Panel className="p-5">
@@ -98,7 +99,7 @@ export default function InsightsPage() {
           <section className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
             <Panel className="p-5">
               <h2 className="mb-3 text-[13px] font-semibold text-ink-2">리치(leech) <span className="font-normal text-ink-3">· 실패가 많은 카드</span></h2>
-              {o.leeches.length ? <ul className="space-y-1.5 text-[13px]">{o.leeches.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="warn">실패 {h.lapses}</Badge><span className="line-clamp-1">{h.prompt}</span></li>)}</ul> : <p className="text-sm text-ink-3">리치 카드가 없습니다. (설정의 리치 기준 이상 실패한 카드)</p>}
+              {o.leeches.length ? <ul className="space-y-1.5 text-[13px]">{o.leeches.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="warn">실패 {h.lapses}</Badge><Markdown inline className="line-clamp-1 [&_p]:inline">{h.prompt}</Markdown></li>)}</ul> : <p className="text-sm text-ink-3">리치 카드가 없습니다. (설정의 리치 기준 이상 실패한 카드)</p>}
               <Link href="/study/all?mode=mistakes" className="mt-3 inline-block text-sm text-accent underline-offset-4 hover:underline">틀린 문제 다시 보기 →</Link>
             </Panel>
             <Panel className="p-5">

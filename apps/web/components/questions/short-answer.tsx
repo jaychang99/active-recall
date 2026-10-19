@@ -3,6 +3,7 @@ import { Check, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
 import { Input } from '@/components/ui/input';
+import { Markdown } from './markdown';
 import { isComposing } from '@/lib/shortcuts/manager';
 import type { RendererProps } from './types';
 
@@ -43,6 +44,7 @@ export function ShortAnswer({ value, onChange, onSubmit, phase, grade, answerKey
             {text ? <span className="text-ink-3">· 입력: <span className="text-ink">{text}</span></span> : <span className="text-ink-3">· 입력 없음</span>}
           </div>
           <div className="mt-1 text-ink-2">인정 답안: {accepted.map((a) => <code key={a} className="mr-1 rounded bg-elevated px-1.5 py-0.5 text-[13px]">{a}</code>)}</div>
+          {accepted.some((a) => a.includes('$')) ? <div className="mt-1 text-ink-2">수식 표기: {accepted.map((a) => <Markdown key={a} inline className="mr-2">{a}</Markdown>)}</div> : null}
           <p className="mt-1 text-[12px] text-ink-3">문자열 정규화(공백·대소문자·NFKC) 후 정확히 일치해야 자동 정답입니다. 의미상 맞다면 평가 단계에서 직접 판단하세요.</p>
         </div>
       ) : null}

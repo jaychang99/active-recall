@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0.0",
+  "deck": {
+    "id": "calculus_latex_demo",
+    "title": "미적분 LaTeX 데모",
+    "description": "모든 텍스트 영역에서 LaTeX 수식($...$, $$...$$)이 렌더링되는지 확인하는 덱",
+    "subject": "Mathematics",
+    "language": "ko",
+    "tags": ["수학", "LaTeX", "데모"]
+  },
+  "questions": [
+    {
+      "id": "calc-q001",
+      "type": "single_choice",
+      "prompt": "$f(x) = x^2 \\sin x$ 일 때 $f'(x)$는?",
+      "explanation": {
+        "summary": "곱의 미분법 $(uv)' = u'v + uv'$ 를 적용한다.",
+        "steps": ["$u = x^2,\\; v = \\sin x$ 로 둔다.", "$u' = 2x,\\; v' = \\cos x$", "$$f'(x) = 2x\\sin x + x^2\\cos x$$"],
+        "misconceptions": ["$\\sin x$ 의 도함수를 $-\\cos x$ 로 혼동하는 경우가 많다."]
+      },
+      "difficulty": 2,
+      "tags": ["미분"],
+      "hint": "곱의 미분법: $(uv)' = u'v + uv'$",
+      "choices": [
+        { "id": "a", "text": "$2x\\sin x + x^2\\cos x$", "explanation": "곱의 미분법을 정확히 적용한 결과" },
+        { "id": "b", "text": "$2x\\cos x$", "explanation": "$x^2$ 만 미분하고 $\\sin x$ 를 상수처럼 취급한 오답" },
+        { "id": "c", "text": "$x^2\\cos x$", "explanation": "$u'v$ 항이 빠졌다" },
+        { "id": "d", "text": "$2x\\sin x - x^2\\cos x$", "explanation": "부호 오류" }
+      ],
+      "answer": { "choiceId": "a" }
+    },
+    {
+      "id": "calc-q002",
+      "type": "cloze",
+      "prompt": "$\\displaystyle\\int_0^1 x^2\\,dx = $ {{b1}} 이고, $\\displaystyle\\sum_{k=1}^{n} k = $ {{b2}} 이다.",
+      "explanation": { "summary": "$$\\int_0^1 x^2\\,dx = \\left[\\frac{x^3}{3}\\right]_0^1 = \\frac{1}{3},\\qquad \\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}$$" },
+      "difficulty": 2,
+      "tags": ["적분", "급수"],
+      "blanks": [
+        { "id": "b1", "acceptedAnswers": ["1/3", "0.333", "1÷3"] },
+        { "id": "b2", "acceptedAnswers": ["n(n+1)/2", "n*(n+1)/2", "(n^2+n)/2"] }
+      ]
+    },
+    {
+      "id": "calc-q003",
+      "type": "ordering",
+      "prompt": "$\\lim_{x\\to 0}\\frac{\\sin x}{x} = 1$ 을 증명하는 단계를 순서대로 배열하시오.",
+      "explanation": { "summary": "단위원에서 넓이 비교로 $\\cos x \\le \\frac{\\sin x}{x} \\le 1$ 을 얻고 조임 정리를 적용한다." },
+      "difficulty": 3,
+      "tags": ["극한"],
+      "items": [
+        { "id": "s1", "text": "단위원에서 넓이 부등식 $\\tfrac{1}{2}\\sin x \\le \\tfrac{1}{2}x \\le \\tfrac{1}{2}\\tan x$ 를 세운다" },
+        { "id": "s2", "text": "양변을 $\\tfrac{1}{2}\\sin x$ 로 나누어 $1 \\le \\tfrac{x}{\\sin x} \\le \\tfrac{1}{\\cos x}$ 를 얻는다" },
+        { "id": "s3", "text": "역수를 취해 $\\cos x \\le \\tfrac{\\sin x}{x} \\le 1$" },
+        { "id": "s4", "text": "$x\\to 0$ 에서 $\\cos x \\to 1$ 이므로 조임 정리로 결론" }
+      ],
+      "answer": { "orderedIds": ["s1", "s2", "s3", "s4"] }
+    },
+    {
+      "id": "calc-q004",
+      "type": "matching",
+      "prompt": "함수와 도함수를 연결하시오.",
+      "explanation": { "summary": "기본 도함수 공식: $(e^x)' = e^x$, $(\\ln x)' = 1/x$, $(\\tan x)' = \\sec^2 x$" },
+      "difficulty": 1,
+      "tags": ["미분"],
+      "left": [ { "id": "l1", "text": "$e^x$" }, { "id": "l2", "text": "$\\ln x$" }, { "id": "l3", "text": "$\\tan x$" } ],
+      "right": [ { "id": "r1", "text": "$\\dfrac{1}{x}$" }, { "id": "r2", "text": "$\\sec^2 x$" }, { "id": "r3", "text": "$e^x$" } ],
+      "answer": { "pairs": [ { "leftId": "l1", "rightId": "r3" }, { "leftId": "l2", "rightId": "r1" }, { "leftId": "l3", "rightId": "r2" } ] }
+    },
+    {
+      "id": "calc-q005",
+      "type": "essay",
+      "prompt": "테일러 급수 $e^x = \\sum_{n=0}^{\\infty} \\frac{x^n}{n!}$ 가 모든 실수 $x$ 에서 수렴함을 설명하시오.",
+      "explanation": { "summary": "비율 판정법으로 $\\lim_{n\\to\\infty}\\left|\\frac{a_{n+1}}{a_n}\\right| = \\lim \\frac{|x|}{n+1} = 0 < 1$ 이므로 수렴 반경은 $\\infty$ 이다." },
+      "difficulty": 4,
+      "tags": ["급수"],
+      "answer": {
+        "modelAnswer": "일반항 $a_n = \\frac{x^n}{n!}$ 에 비율 판정법을 적용하면 $$\\left|\\frac{a_{n+1}}{a_n}\\right| = \\frac{|x|}{n+1} \\xrightarrow{n\\to\\infty} 0$$ 이므로 모든 $x\\in\\mathbb{R}$ 에서 절대수렴한다.",
+        "maxScore": 10,
+        "rubric": [
+          { "criterion": "비율 판정법 선택", "maxPoints": 3, "guidance": "$\\lim |a_{n+1}/a_n|$ 을 계산하겠다고 명시한다." },
+          { "criterion": "극한 계산", "maxPoints": 4, "guidance": "$\\frac{|x|}{n+1}\\to 0$ 을 정확히 유도한다." },
+          { "criterion": "결론", "maxPoints": 3, "guidance": "$0<1$ 이므로 모든 실수에서 수렴(절대수렴)함을 밝힌다." }
+        ]
+      }
+    },
+    {
+      "id": "calc-q006",
+      "type": "true_false",
+      "prompt": "행렬 $A = \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}$ 의 행렬식은 $\\det A = -2$ 이다.",
+      "explanation": { "summary": "$\\det A = 1\\cdot 4 - 2\\cdot 3 = -2$ 이므로 참이다." },
+      "difficulty": 1,
+      "tags": ["선형대수"],
+      "answer": { "value": true }
+    }
+  ]
+}

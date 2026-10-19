@@ -18,6 +18,8 @@ Monorepo (pnpm workspaces): `apps/web` (Next.js 16 App Router, React 19, Tailwin
 - Notes are one per `(questionId, reviewRound)`; round = effective (non-undone) reviews + 1.
 - Keyboard shortcuts go through `apps/web/lib/shortcuts` (single listener, scopes, IME/editable guards). Don't add ad-hoc `keydown` listeners.
 - Design tokens: `apps/web/app/globals.css`; see `DESIGN.md` and `PRODUCT.md`.
+- All text surfaces render through `components/questions/markdown.tsx` (GFM + KaTeX). Never print question text as a raw string.
+- The generic data manager is metadata-driven: `apps/api/src/admin/entities.ts` (fields, filterable/editable/sortable flags) + `apps/web/components/data/data-manager.tsx`. Add a field there instead of hand-writing CRUD screens.
 
 ## Gotchas
 - Prisma 7 `prisma-client` generator emits TS into `apps/api/src/generated` (gitignored) — run `pnpm db:generate` after schema changes; `prisma migrate dev` needs CREATE privilege (shadow DB; granted in `docker/init.sql`).

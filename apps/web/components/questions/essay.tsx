@@ -53,8 +53,8 @@ export function Essay({ question, value, onChange, onSubmit, phase, answerKey, r
               {rubric.map((r, i) => (
                 <li key={r.criterion} className="grid gap-1 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div>
-                    <div className="text-sm font-medium">{r.criterion} <span className="text-ink-3">({r.maxPoints}점)</span></div>
-                    <div className="text-[13px] text-ink-2">{r.guidance}</div>
+                    <div className="text-sm font-medium"><Markdown inline className="prose-sm">{r.criterion}</Markdown> <span className="text-ink-3">({r.maxPoints}점)</span></div>
+                    <Markdown className="prose-sm text-[13px] text-ink-2">{r.guidance}</Markdown>
                   </div>
                   <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={`${r.criterion} 점수`}>
                     {Array.from({ length: r.maxPoints + 1 }, (_, p) => (

@@ -54,7 +54,7 @@ export function Cloze({ question, value, onChange, onSubmit, phase, grade, answe
               {revealed ? (
                 <span className={cn('ml-1 inline-flex items-center gap-0.5 text-[12px] font-medium', p?.correct ? 'text-ok-ink' : 'text-bad-ink')}>
                   {p?.correct ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-                  {!p?.correct ? <span>정답: {key.get(s.id)?.[0]}</span> : null}
+                  {!p?.correct ? <span>정답: <Markdown inline>{key.get(s.id)?.[0] ?? ''}</Markdown></span> : null}
                 </span>
               ) : null}
             </span>

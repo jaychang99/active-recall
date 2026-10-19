@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Eye, Flag, Info, Lightbulb, PauseCircle, SkipForward, Undo2 } from 'lucide-react';
 import Link from 'next/link';
+import { Markdown } from '@/components/questions/markdown';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { AnswerPayload } from '@recall/contracts';
@@ -323,7 +324,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
           </div>
         </header>
 
-        {hint ? <div className="flex items-start gap-2 rounded-md border border-warn/40 bg-warn-soft/50 px-3 py-2 text-sm"><Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-warn" /><span>{hint}</span></div> : null}
+        {hint ? <div className="flex items-start gap-2 rounded-md border border-warn/40 bg-warn-soft/50 px-3 py-2 text-sm"><Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-warn" /><Markdown className="prose-sm">{hint}</Markdown></div> : null}
 
         <QuestionRenderer
           question={item.question}

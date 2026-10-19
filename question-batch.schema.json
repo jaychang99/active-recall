@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://recall-studio.local/schemas/question-batch.schema.json",
   "title": "Recall Studio Question Batch",
-  "description": "Portable AI-generated deck/question import contract. Syntactic validation plus application semantic invariants. Version 1.0.0.",
+  "description": "Portable AI-generated deck/question import contract. Syntactic validation plus application semantic invariants. Version 1.0.0. All free-text fields accept Markdown (GFM) and LaTeX math delimited by $...$ (inline) or $$...$$ (display), rendered with KaTeX; raw HTML is never rendered.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -1527,5 +1527,5 @@
       }
     }
   },
-  "$comment": "Semantic validation outside JSON Schema: Within a deck, question IDs are unique. | IDs within each choices/items/left/right/blanks array must be unique. | single_choice.answer.choiceId must occur in choices. | multiple_choice.answer.choiceIds must all occur in choices, include >=2 and be a proper subset of choices. | cloze prompt placeholders {{id}} and blank IDs must be exactly equal. | ordering.answer.orderedIds must be a permutation of items[].id. | matching.answer.pairs must create a bijection of left and right IDs. | essay.answer.rubric[].maxPoints must sum to answer.maxScore. | Every answer must be verifiably supported by explanatory rationale."
+  "$comment": "Semantic validation outside JSON Schema: Within a deck, question IDs are unique. | IDs within each choices/items/left/right/blanks array must be unique. | single_choice.answer.choiceId must occur in choices. | multiple_choice.answer.choiceIds must all occur in choices, include >=2 and be a proper subset of choices. | cloze prompt placeholders {{id}} and blank IDs must be exactly equal. | ordering.answer.orderedIds must be a permutation of items[].id. | matching.answer.pairs must create a bijection of left and right IDs. | essay.answer.rubric[].maxPoints must sum to answer.maxScore. | Every answer must be verifiably supported by explanatory rationale. | Text fields may contain Markdown and LaTeX ($...$, $$...$$). acceptedAnswers are plain strings compared after normalization, never LaTeX."
 }

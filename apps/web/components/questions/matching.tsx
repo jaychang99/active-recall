@@ -70,9 +70,9 @@ export function Matching({ question, value, onChange, onSubmit, phase, grade, an
                   <div className="text-sm">
                     <div className={cn('flex items-center gap-1 font-medium', p?.correct ? 'text-ok-ink' : 'text-bad-ink')}>
                       {p?.correct ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-                      {cur ? rightText(cur) : '선택 없음'}
+                      {cur ? <Markdown inline className="prose-sm">{rightText(cur)}</Markdown> : '선택 없음'}
                     </div>
-                    {!p?.correct ? <div className="text-[13px] text-ink-2">정답: {rightText(expected.get(l.id))}</div> : null}
+                    {!p?.correct ? <div className="text-[13px] text-ink-2">정답: <Markdown inline className="prose-sm">{rightText(expected.get(l.id))}</Markdown></div> : null}
                   </div>
                 )}
               </li>
