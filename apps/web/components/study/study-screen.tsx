@@ -185,6 +185,14 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       case 'cloze': return Object.values(p.blanks).some((v) => v.trim().length > 0);
       case 'ordering': return p.orderedIds.length > 0;
       case 'matching': return p.pairs.some((x) => x.rightId);
+      case 'numeric': return p.value !== null;
+      case 'cloze_select': return Object.values(p.blanks).some(Boolean);
+      case 'statement_set': return Object.values(p.values).some((v) => v !== null && v !== undefined);
+      case 'categorize': return Object.values(p.assignments).some(Boolean);
+      case 'two_tier': return p.choiceId !== null && p.reasonId !== null;
+      case 'recall_card': return (p.text ?? '').trim().length > 0 || typeof p.selfCorrect === 'boolean';
+      case 'stepwise': return Object.values(p.answers).some((v) => v.trim().length > 0);
+      case 'highlight': return p.segmentIds.length > 0;
     }
   };
 
@@ -293,7 +301,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
   const phaseForRenderer: Phase = phase === 'answering' ? 'answering' : revealedBeforeAnswer ? 'revealed' : 'submitted';
   const shortcutsOn = settings.shortcutsEnabled;
-  const typing = item?.type === 'essay' || item?.type === 'short_answer' || item?.type === 'cloze';
+  const typing = item?.type === 'essay' || item?.type === 'short_answer' || item?.type === 'cloze' || item?.type === 'numeric' || item?.type === 'stepwise' || item?.type === 'recall_card';
 
   useShortcuts(
     'study',

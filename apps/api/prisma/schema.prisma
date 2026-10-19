@@ -23,6 +23,15 @@ enum QuestionType {
   cloze
   ordering
   matching
+  // extended types (additive)
+  numeric
+  cloze_select
+  statement_set
+  categorize
+  two_tier
+  recall_card
+  stepwise
+  highlight
 }
 
 enum CardStatus {

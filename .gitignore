@@ -12,3 +12,4 @@ apps/web/playwright-report
 .turbo
 .DS_Store
 .taste-skill
+*.tsbuildinfo

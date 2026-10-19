@@ -53,6 +53,14 @@ Shortcuts never fire inside inputs, textareas or during Korean IME composition.
 ### Notes per review round
 Every question keeps one note per **review round** (round N = the N-th effective review). Press `M` while studying; earlier rounds are listed with the rating they were written under, and the deck page has a notes tab.
 
+## Question types (8 core + 8 extended)
+
+| Core (unchanged since v1.0.0) | Extended (additive; the LLM uses them only when the content fits) |
+|---|---|
+| `single_choice`, `multiple_choice`, `true_false`, `short_answer`, `essay`, `cloze`, `ordering`, `matching` | `numeric` (value ± tolerance, unit), `cloze_select` (dropdown blanks), `statement_set` (several T/F statements), `categorize` (items → categories), `two_tier` (answer + reason), `recall_card` (front/back self-check, optional auto-grade), `stepwise` (chained sub-answers graded per step), `highlight` (select passage segments) |
+
+All sixteen are graded server-side with per-part feedback; `essay` and `recall_card` (without accepted answers) are self-assessed and excluded from auto-graded accuracy. Where position carries no meaning the view is shuffled every review round (choices, reasons, statements, category items, dropdown options, matching right column) so answers cannot be memorised by place; sequences and passages are never shuffled. `examples/example-extended-batch.json` shows one of each extended type. Existing JSON batches keep working unchanged.
+
 ## LaTeX
 
 Every text field (prompt, choices, choice explanations, explanation summary/steps/misconceptions, hints, model answers, rubric criteria/guidance, ordering items, matching pairs, cloze text, notes) renders Markdown + LaTeX via KaTeX: `$...$` inline, `$$...$$` display. The generator prompt tells the LLM to use exactly that notation (double-escaped backslashes inside JSON) and to write questions in the dominant language of the attached materials unless `OUTPUT_LANGUAGE` is set. `examples/example-latex-batch.json` is a six-question math deck covering all of it. Accepted answers for short-answer/cloze stay plain strings (typed by the learner, compared after normalization).

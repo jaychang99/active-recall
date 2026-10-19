@@ -203,6 +203,14 @@ function AnswerSummary({ q }: { q: Question }) {
     case 'cloze': return <>{q.blanks.map((b) => `${b.id}=${b.acceptedAnswers[0]}`).join(', ')}</>;
     case 'ordering': return <>순서: {q.answer.orderedIds.map((id) => q.items.find((i) => i.id === id)?.text).join(' → ')}</>;
     case 'matching': return <>{q.answer.pairs.map((p) => `${q.left.find((l) => l.id === p.leftId)?.text} ↔ ${q.right.find((r) => r.id === p.rightId)?.text}`).join(' · ')}</>;
+    case 'numeric': return <>정답: {q.answer.value}{q.answer.unit ? ` ${q.answer.unit}` : ''}{q.answer.tolerance ? ` ±${q.answer.tolerance}` : ''}{q.answer.relativeTolerance ? ` ±${q.answer.relativeTolerance * 100}%` : ''}</>;
+    case 'cloze_select': return <>{q.blanks.map((b) => `${b.id}=${b.options.find((o) => o.id === b.answerOptionId)?.text}`).join(', ')}</>;
+    case 'statement_set': return <>{q.statements.map((s) => `${s.value ? 'O' : 'X'} ${s.text.slice(0, 30)}`).join(' · ')}</>;
+    case 'categorize': return <>{q.categories.map((c) => `${c.label}: ${q.items.filter((i) => i.categoryId === c.id).map((i) => i.text).join(', ')}`).join(' | ')}</>;
+    case 'two_tier': return <>정답: {q.choices.find((c) => c.id === q.answer.choiceId)?.text} · 근거: {q.reasons.find((r) => r.id === q.answer.reasonId)?.text}</>;
+    case 'recall_card': return <>뒷면: {q.back.slice(0, 120)}{q.answer?.acceptedAnswers?.length ? ` · 인정: ${q.answer.acceptedAnswers.join(' / ')}` : ''}</>;
+    case 'stepwise': return <>{q.steps.map((s, i) => `${i + 1}) ${s.acceptedAnswers[0]}`).join(' → ')}</>;
+    case 'highlight': return <>선택: {q.answer.segmentIds.map((id) => q.segments.find((s) => s.id === id)?.text).join(' / ')}</>;
   }
 }
 

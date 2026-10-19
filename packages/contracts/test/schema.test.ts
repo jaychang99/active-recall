@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateBatch, validateBatchSchema, parseBatchJson, IMPORT_LIMITS } from '../src/index';
+import { validateBatch, validateBatchSchema, parseBatchJson, IMPORT_LIMITS, CORE_QUESTION_TYPES } from '../src/index';
 import { clone, invalidFixtures, validBatch } from './fixtures/invalid-batches';
 
 describe('question-batch schema', () => {
@@ -8,7 +8,7 @@ describe('question-batch schema', () => {
     expect(r.issues).toEqual([]);
     expect(r.ok).toBe(true);
     expect(r.summary?.total).toBe(8);
-    expect(Object.values(r.summary!.byType).every((n) => n === 1)).toBe(true);
+    expect(CORE_QUESTION_TYPES.every((t) => r.summary!.byType[t] === 1)).toBe(true);
   });
 
   for (const f of invalidFixtures) {

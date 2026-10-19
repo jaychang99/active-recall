@@ -43,7 +43,7 @@ const stamps: FieldMeta[] = [
   { name: 'deletedAt', label: '삭제', type: 'datetime', filterable: true, sortable: true },
 ];
 
-const QUESTION_TYPES = ['single_choice', 'multiple_choice', 'true_false', 'short_answer', 'essay', 'cloze', 'ordering', 'matching'];
+const QUESTION_TYPES = ['single_choice', 'multiple_choice', 'true_false', 'short_answer', 'essay', 'cloze', 'ordering', 'matching', 'numeric', 'cloze_select', 'statement_set', 'categorize', 'two_tier', 'recall_card', 'stepwise', 'highlight'];
 const CARD_STATUS = ['NEW', 'LEARNING', 'REVIEW', 'RELEARNING'];
 const SESSION_MODES = ['study', 'cram', 'practice', 'exam'];
 

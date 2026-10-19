@@ -1,7 +1,7 @@
 import { IMPORT_LIMITS } from './json';
 import { validateBatchSchema, type ValidationIssue } from './schema';
 import { validateBatchSemantics } from './semantic';
-import type { QuestionBatch, QuestionType } from './types';
+import { QUESTION_TYPES, type QuestionBatch, type QuestionType } from './types';
 
 export interface FullValidationResult {
   ok: boolean;
@@ -32,9 +32,7 @@ export function validateBatch(input: unknown): FullValidationResult {
   }
   const batch = input as QuestionBatch;
   const semantic = validateBatchSemantics(batch);
-  const byType = Object.fromEntries(
-    ['single_choice', 'multiple_choice', 'true_false', 'short_answer', 'essay', 'cloze', 'ordering', 'matching'].map((t) => [t, 0]),
-  ) as Record<QuestionType, number>;
+  const byType = Object.fromEntries(QUESTION_TYPES.map((t) => [t, 0])) as Record<QuestionType, number>;
   for (const q of batch.questions) byType[q.type]++;
   return {
     ok: semantic.length === 0,

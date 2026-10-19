@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0.0",
+  "deck": {
+    "id": "extended_types_demo",
+    "title": "확장 문항 8종 데모",
+    "description": "numeric, cloze_select, statement_set, categorize, two_tier, recall_card, stepwise, highlight",
+    "subject": "Operating Systems",
+    "language": "ko",
+    "tags": ["운영체제", "데모", "확장유형"]
+  },
+  "questions": [
+    {
+      "id": "ext-q001",
+      "type": "numeric",
+      "prompt": "페이지 크기가 4 KiB이고 가상 주소가 32비트일 때, 페이지 테이블 엔트리 수는 몇 개인가? (2의 거듭제곱 수를 십진수로)",
+      "explanation": { "summary": "$2^{32} / 2^{12} = 2^{20} = 1{,}048{,}576$ 개." },
+      "difficulty": 3,
+      "tags": ["메모리"],
+      "answer": { "value": 1048576, "tolerance": 0, "unit": "개" }
+    },
+    {
+      "id": "ext-q002",
+      "type": "cloze_select",
+      "prompt": "프로세스가 I/O를 요청하면 {{s1}} 상태로 바뀌고, I/O가 끝나면 {{s2}} 상태가 된다.",
+      "explanation": { "summary": "실행(running) → 대기(blocked/waiting) → 준비(ready) 순서다." },
+      "difficulty": 2,
+      "tags": ["프로세스"],
+      "blanks": [
+        { "id": "s1", "options": [ { "id": "a", "text": "대기(blocked)" }, { "id": "b", "text": "준비(ready)" }, { "id": "c", "text": "종료(terminated)" } ], "answerOptionId": "a" },
+        { "id": "s2", "options": [ { "id": "a", "text": "실행(running)" }, { "id": "b", "text": "준비(ready)" }, { "id": "c", "text": "대기(blocked)" } ], "answerOptionId": "b" }
+      ]
+    },
+    {
+      "id": "ext-q003",
+      "type": "statement_set",
+      "prompt": "교착 상태(deadlock)에 대한 다음 진술의 참/거짓을 각각 판단하시오.",
+      "explanation": { "summary": "Coffman의 4조건(상호 배제, 점유 대기, 비선점, 순환 대기)이 모두 성립해야 교착이 발생할 수 있다." },
+      "difficulty": 3,
+      "tags": ["동기화"],
+      "statements": [
+        { "id": "t1", "text": "상호 배제는 교착 상태의 필요조건이다.", "value": true },
+        { "id": "t2", "text": "순환 대기가 없어도 교착 상태가 발생할 수 있다.", "value": false, "explanation": "순환 대기는 필요조건이다." },
+        { "id": "t3", "text": "자원에 전순서를 부여하면 순환 대기를 예방할 수 있다.", "value": true },
+        { "id": "t4", "text": "은행원 알고리즘은 교착 상태를 탐지 후 회복하는 기법이다.", "value": false, "explanation": "은행원 알고리즘은 회피(avoidance) 기법이다." }
+      ]
+    },
+    {
+      "id": "ext-q004",
+      "type": "categorize",
+      "prompt": "다음 스케줄링 알고리즘을 선점형과 비선점형으로 분류하시오.",
+      "explanation": { "summary": "RR, SRTF, 다단계 피드백 큐는 선점형이고, FCFS와 SJF(비선점)는 비선점형이다." },
+      "difficulty": 2,
+      "tags": ["스케줄링"],
+      "categories": [ { "id": "pre", "label": "선점형" }, { "id": "non", "label": "비선점형" } ],
+      "items": [
+        { "id": "rr", "text": "Round Robin", "categoryId": "pre" },
+        { "id": "srtf", "text": "SRTF", "categoryId": "pre" },
+        { "id": "mlfq", "text": "다단계 피드백 큐", "categoryId": "pre" },
+        { "id": "fcfs", "text": "FCFS", "categoryId": "non" },
+        { "id": "sjf", "text": "SJF (비선점)", "categoryId": "non" }
+      ]
+    },
+    {
+      "id": "ext-q005",
+      "type": "two_tier",
+      "prompt": "스레드 간 공유 변수 `count++`가 원자적이지 않은 이유로 가장 적절한 것과 그 근거를 고르시오.",
+      "explanation": { "summary": "`count++`는 load-add-store 세 명령으로 번역되어 중간에 문맥 교환이 일어나면 갱신이 유실된다." },
+      "difficulty": 3,
+      "tags": ["동기화"],
+      "choices": [
+        { "id": "a", "text": "여러 기계 명령으로 번역되기 때문" },
+        { "id": "b", "text": "변수가 힙에 있기 때문" },
+        { "id": "c", "text": "컴파일러 최적화 때문" }
+      ],
+      "reasons": [
+        { "id": "r1", "text": "load → add → store 사이에 선점이 일어나 갱신이 유실될 수 있다" },
+        { "id": "r2", "text": "힙 메모리는 캐시되지 않는다" },
+        { "id": "r3", "text": "최적화가 변수를 레지스터에만 두기 때문" }
+      ],
+      "answer": { "choiceId": "a", "reasonId": "r1" }
+    },
+    {
+      "id": "ext-q006",
+      "type": "recall_card",
+      "prompt": "문맥 교환(context switch)이란?",
+      "back": "CPU가 한 프로세스(또는 스레드)에서 다른 프로세스로 전환할 때 **현재 실행 상태(레지스터, PC, 스택 포인터 등)를 PCB에 저장하고** 다음 프로세스의 상태를 복원하는 작업. 순수 오버헤드이며 캐시/TLB 오염을 동반한다.",
+      "explanation": { "summary": "핵심 키워드: 상태 저장/복원, PCB, 오버헤드." },
+      "difficulty": 1,
+      "tags": ["프로세스"]
+    },
+    {
+      "id": "ext-q007",
+      "type": "stepwise",
+      "prompt": "FCFS 스케줄링에서 프로세스 P1(도착 0, 실행 8), P2(도착 1, 실행 4), P3(도착 2, 실행 1)의 평균 대기 시간을 단계별로 구하시오.",
+      "explanation": { "summary": "P1=0, P2=8-1=7, P3=12-2=10 → 평균 $17/3 \\approx 5.67$." },
+      "difficulty": 3,
+      "tags": ["스케줄링"],
+      "steps": [
+        { "id": "st1", "prompt": "P2의 대기 시간은?", "acceptedAnswers": ["7"] },
+        { "id": "st2", "prompt": "P3의 대기 시간은?", "acceptedAnswers": ["10"] },
+        { "id": "st3", "prompt": "평균 대기 시간은? (소수 둘째 자리까지)", "acceptedAnswers": ["5.67", "17/3"], "explanation": "(0+7+10)/3" }
+      ]
+    },
+    {
+      "id": "ext-q008",
+      "type": "highlight",
+      "prompt": "다음 설명에서 **잘못된** 단어(구)를 모두 선택하시오.",
+      "explanation": { "summary": "페이지 교체 알고리즘 중 LRU는 과거 참조를 보고, OPT(최적)는 미래 참조를 본다. FIFO는 Belady 이상이 발생할 수 있다." },
+      "difficulty": 3,
+      "tags": ["메모리"],
+      "segments": [
+        { "id": "w1", "text": "LRU는" }, { "id": "w2", "text": "가장 오래전에" }, { "id": "w3", "text": "참조된 페이지를 교체하고," },
+        { "id": "w4", "text": "OPT는" }, { "id": "w5", "text": "과거에" }, { "id": "w6", "text": "가장 오래 참조되지 않을 페이지를 교체한다." },
+        { "id": "w7", "text": "FIFO에서는" }, { "id": "w8", "text": "Belady 이상이" }, { "id": "w9", "text": "발생하지 않는다." }
+      ],
+      "answer": { "segmentIds": ["w5", "w9"] }
+    }
+  ]
+}

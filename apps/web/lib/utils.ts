@@ -37,6 +37,14 @@ export const TYPE_LABEL: Record<string, string> = {
   cloze: '빈칸',
   ordering: '순서배열',
   matching: '연결형',
+  numeric: '숫자형',
+  cloze_select: '빈칸 선택',
+  statement_set: '진술 판단',
+  categorize: '분류',
+  two_tier: '답+근거',
+  recall_card: '회상 카드',
+  stepwise: '단계별',
+  highlight: '구간 선택',
 };
 
 export const STATUS_LABEL: Record<string, string> = { NEW: '새 카드', LEARNING: '학습 중', REVIEW: '복습', RELEARNING: '재학습' };

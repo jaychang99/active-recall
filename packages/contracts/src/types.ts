@@ -11,18 +11,20 @@ export type QuestionType =
   | 'essay'
   | 'cloze'
   | 'ordering'
-  | 'matching';
+  | 'matching'
+  // extended types (additive since 1.0.0; the original eight are unchanged)
+  | 'numeric'
+  | 'cloze_select'
+  | 'statement_set'
+  | 'categorize'
+  | 'two_tier'
+  | 'recall_card'
+  | 'stepwise'
+  | 'highlight';
 
-export const QUESTION_TYPES: readonly QuestionType[] = [
-  'single_choice',
-  'multiple_choice',
-  'true_false',
-  'short_answer',
-  'essay',
-  'cloze',
-  'ordering',
-  'matching',
-] as const;
+export const CORE_QUESTION_TYPES: readonly QuestionType[] = ['single_choice', 'multiple_choice', 'true_false', 'short_answer', 'essay', 'cloze', 'ordering', 'matching'] as const;
+export const EXTENDED_QUESTION_TYPES: readonly QuestionType[] = ['numeric', 'cloze_select', 'statement_set', 'categorize', 'two_tier', 'recall_card', 'stepwise', 'highlight'] as const;
+export const QUESTION_TYPES: readonly QuestionType[] = [...CORE_QUESTION_TYPES, ...EXTENDED_QUESTION_TYPES];
 
 export interface SourceRef {
   document: string;
@@ -123,6 +125,71 @@ export interface MatchingQuestion extends QuestionBase {
   answer: { pairs: { leftId: string; rightId: string }[] };
 }
 
+// ---- extended types ----
+
+export interface NumericQuestion extends QuestionBase {
+  type: 'numeric';
+  answer: { value: number; tolerance?: number; relativeTolerance?: number; unit?: string };
+}
+
+export interface ClozeSelectBlank {
+  id: string;
+  options: TextItem[];
+  answerOptionId: string;
+}
+export interface ClozeSelectQuestion extends QuestionBase {
+  type: 'cloze_select';
+  blanks: ClozeSelectBlank[];
+}
+
+export interface Statement {
+  id: string;
+  text: string;
+  value: boolean;
+  explanation?: string;
+}
+export interface StatementSetQuestion extends QuestionBase {
+  type: 'statement_set';
+  statements: Statement[];
+}
+
+export interface CategorizeQuestion extends QuestionBase {
+  type: 'categorize';
+  categories: { id: string; label: string }[];
+  items: { id: string; text: string; categoryId: string }[];
+}
+
+export interface TwoTierQuestion extends QuestionBase {
+  type: 'two_tier';
+  choices: Choice[];
+  reasons: Choice[];
+  answer: { choiceId: string; reasonId: string };
+}
+
+export interface RecallCardQuestion extends QuestionBase {
+  type: 'recall_card';
+  back: string;
+  answer?: { acceptedAnswers?: string[]; normalization?: Normalization };
+}
+
+export interface Step {
+  id: string;
+  prompt: string;
+  acceptedAnswers: string[];
+  normalization?: Normalization;
+  explanation?: string;
+}
+export interface StepwiseQuestion extends QuestionBase {
+  type: 'stepwise';
+  steps: Step[];
+}
+
+export interface HighlightQuestion extends QuestionBase {
+  type: 'highlight';
+  segments: TextItem[];
+  answer: { segmentIds: string[] };
+}
+
 export type Question =
   | SingleChoiceQuestion
   | MultipleChoiceQuestion
@@ -131,7 +198,15 @@ export type Question =
   | EssayQuestion
   | ClozeQuestion
   | OrderingQuestion
-  | MatchingQuestion;
+  | MatchingQuestion
+  | NumericQuestion
+  | ClozeSelectQuestion
+  | StatementSetQuestion
+  | CategorizeQuestion
+  | TwoTierQuestion
+  | RecallCardQuestion
+  | StepwiseQuestion
+  | HighlightQuestion;
 
 export interface DeckMeta {
   id: string;
@@ -162,7 +237,15 @@ export type PublicQuestion =
   | (Omit<EssayQuestion, 'answer'> & { answer: { maxScore: number } })
   | (Omit<ClozeQuestion, 'blanks'> & { blanks: { id: string }[] })
   | (Omit<OrderingQuestion, 'answer'> & { answer?: undefined })
-  | (Omit<MatchingQuestion, 'answer'> & { answer?: undefined });
+  | (Omit<MatchingQuestion, 'answer'> & { answer?: undefined })
+  | (Omit<NumericQuestion, 'answer'> & { answer: { unit?: string } })
+  | (Omit<ClozeSelectQuestion, 'blanks'> & { blanks: { id: string; options: TextItem[] }[] })
+  | (Omit<StatementSetQuestion, 'statements'> & { statements: { id: string; text: string }[] })
+  | (Omit<CategorizeQuestion, 'items'> & { items: { id: string; text: string }[] })
+  | (Omit<TwoTierQuestion, 'answer'> & { answer?: undefined })
+  | (Omit<RecallCardQuestion, 'back' | 'answer'> & { back?: undefined; answer?: undefined; hasAcceptedAnswers: boolean })
+  | (Omit<StepwiseQuestion, 'steps'> & { steps: { id: string; prompt: string }[] })
+  | (Omit<HighlightQuestion, 'answer'> & { answer?: undefined });
 
 // ---------------------------------------------------------------------------
 // Answer payloads submitted by the learner (candidate answers).
@@ -176,7 +259,15 @@ export type AnswerPayload =
   | { type: 'essay'; text: string; selfScores?: number[] }
   | { type: 'cloze'; blanks: Record<string, string> }
   | { type: 'ordering'; orderedIds: string[] }
-  | { type: 'matching'; pairs: { leftId: string; rightId: string | null }[] };
+  | { type: 'matching'; pairs: { leftId: string; rightId: string | null }[] }
+  | { type: 'numeric'; value: number | null }
+  | { type: 'cloze_select'; blanks: Record<string, string> }
+  | { type: 'statement_set'; values: Record<string, boolean | null> }
+  | { type: 'categorize'; assignments: Record<string, string> }
+  | { type: 'two_tier'; choiceId: string | null; reasonId: string | null }
+  | { type: 'recall_card'; text?: string; selfCorrect?: boolean | null }
+  | { type: 'stepwise'; answers: Record<string, string> }
+  | { type: 'highlight'; segmentIds: string[] };
 
 export interface GradeDetail {
   /** Per-element verdicts for rich feedback (ids depend on the type). */

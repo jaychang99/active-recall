@@ -39,6 +39,16 @@ export function answerKeyOf(q: Question): Record<string, unknown> {
   switch (q.type) {
     case 'cloze':
       return { type: q.type, blanks: q.blanks };
+    case 'cloze_select':
+      return { type: q.type, blanks: q.blanks.map((b) => ({ id: b.id, answerOptionId: b.answerOptionId })) };
+    case 'statement_set':
+      return { type: q.type, statements: q.statements.map((s) => ({ id: s.id, value: s.value, explanation: s.explanation })) };
+    case 'categorize':
+      return { type: q.type, items: q.items.map((i) => ({ id: i.id, categoryId: i.categoryId })) };
+    case 'recall_card':
+      return { type: q.type, back: q.back, answer: q.answer ?? {} };
+    case 'stepwise':
+      return { type: q.type, steps: q.steps.map((s) => ({ id: s.id, acceptedAnswers: s.acceptedAnswers, explanation: s.explanation })) };
     default:
       return { type: q.type, answer: q.answer };
   }

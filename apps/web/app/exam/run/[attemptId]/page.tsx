@@ -53,7 +53,7 @@ export default function ExamRunPage({ params }: { params: Promise<{ attemptId: s
   const answered = questions.filter((q) => answers[q.questionId]).length;
   const go = useCallback((i: number) => setIndex(Math.max(0, Math.min(questions.length - 1, i))), [questions.length]);
   const registerDigitHandler = useCallback((fn: ((n: number) => void) | null) => { digit.current = fn; }, []);
-  const typing = current?.type === 'essay' || current?.type === 'short_answer' || current?.type === 'cloze';
+  const typing = current?.type === 'essay' || current?.type === 'short_answer' || current?.type === 'cloze' || current?.type === 'numeric' || current?.type === 'stepwise' || current?.type === 'recall_card';
 
   useShortcuts('study', [
     { keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9'], description: '보기 선택', group: '시험', handler: (e) => { digit.current?.(Number(e.key)); } },
