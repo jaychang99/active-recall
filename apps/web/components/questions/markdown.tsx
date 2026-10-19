@@ -4,6 +4,9 @@ import { useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
+import { sanitizeSchema } from './sanitize-schema';
 import 'katex/contrib/mhchem';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -19,14 +22,15 @@ function urlTransform(url: string): string {
   return '';
 }
 
-/** Safe Markdown (GFM + KaTeX). Raw HTML is never rendered (react-markdown default). */
+/** Markdown (GFM + KaTeX + raw HTML). Raw HTML is parsed (rehype-raw) and then sanitized against an allowlist
+ *  (rehype-sanitize, see sanitize-schema.ts) BEFORE KaTeX/highlighting add their own markup. */
 export function Markdown({ children, className, inline }: { children: string; className?: string; inline?: boolean }) {
   return (
     <div className={cn(inline ? 'prose-q inline [&>p]:inline' : 'prose-q', className)}>
       <ReactMarkdown
         // singleTilde: false → only ~~text~~ is strikethrough; a lone "~" (범위 표기 1~5, 오늘~내일) stays literal.
         remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkMath]}
-        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: 'ignore' }], [rehypeHighlight, { detect: false, ignoreMissing: true, plainText: ['mermaid', 'svg', 'text', 'txt'] }]]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], [rehypeKatex, { throwOnError: false, strict: 'ignore' }], [rehypeHighlight, { detect: false, ignoreMissing: true, plainText: ['mermaid', 'svg', 'text', 'txt'] }]]}
         urlTransform={urlTransform}
         components={{
           pre: ({ children }) => {

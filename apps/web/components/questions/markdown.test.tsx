@@ -35,4 +35,29 @@ describe('Markdown renderer', () => {
     const { container } = render(<Markdown>{'$\\ce{H2O}$'}</Markdown>);
     expect(container.querySelector('.katex')).not.toBeNull();
   });
+
+  it('renders raw HTML (mark, details, rowspan table, inline svg) but strips scripts, handlers and iframes', () => {
+    const html = '<p>중요: <mark>핵심</mark> <sup>2</sup></p><details open><summary>힌트</summary>숨긴 내용</details>' +
+      '<table><tr><td rowspan="2">a</td><td>b</td></tr><tr><td>c</td></tr></table>' +
+      '<svg viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><circle cx="5" cy="5" r="4" fill="red" onclick="x()"/></svg>' +
+      '<script>alert(1)</script><iframe src="https://evil"></iframe><img src="javascript:alert(1)"><a href="javascript:alert(2)" onclick="y()">x</a><span style="color:red">styled</span>';
+    const { container } = render(<Markdown>{html}</Markdown>);
+    expect(container.querySelector('mark')?.textContent).toBe('핵심');
+    expect(container.querySelector('details summary')?.textContent).toBe('힌트');
+    expect(container.querySelector('td')?.getAttribute('rowspan')).toBe('2');
+    expect(container.querySelector('svg circle')).not.toBeNull();
+    expect(container.querySelector('circle')?.getAttribute('onclick')).toBeNull();
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(container.querySelector('img')?.getAttribute('src') ?? '').not.toContain('javascript');
+    expect(container.querySelector('a')?.getAttribute('href') ?? '').not.toContain('javascript');
+    expect(container.querySelector('a')?.getAttribute('onclick')).toBeNull();
+    expect((container.querySelector('span[style]') as HTMLElement | null)?.style.color).toBe('red');
+  });
+  it('still renders math and GFM next to raw HTML', () => {
+    const { container } = render(<Markdown>{'<b>bold</b> and $x^2$ and ~~gone~~'}</Markdown>);
+    expect(container.querySelector('b')?.textContent).toBe('bold');
+    expect(container.querySelector('.katex')).not.toBeNull();
+    expect(container.querySelector('del')?.textContent).toBe('gone');
+  });
 });

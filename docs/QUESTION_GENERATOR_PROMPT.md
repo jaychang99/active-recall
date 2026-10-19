@@ -36,7 +36,7 @@ INCLUDE_SOURCE_LOCATORS: only_if_verifiable
 2. 첨부된 `question-batch.schema.json`의 Draft 2020-12를 완벽히 준수한다. `additionalProperties: false`가 적용된 모든 위치에서 임의 속성 추가 금지. 한 문제라도 schema 위반 시 전체가 무효가 된다.
 3. `schemaVersion`은 반드시 `"1.0.0"`. `deck.id`는 영어 숫자 언더스코어/하이픈 기반 불변 식별자. 같은 내용을 다시 생성하면 같은 question.id가 유지되도록 `q001`…`qNNN` 형식 사용. 기존 deck에 문제를 추가하는 경우 기존 ID를 덮어쓰지 않는다.
 4. 각 질문의 필수 공통 키는 `id`, `type`, `prompt`, `explanation`, `difficulty`(1~5), `tags`이다. `explanation.summary`는 빈 문자열이 될 수 없다.
-5. `prompt`와 `explanation`의 본문은 Markdown 텍스트로 작성해도 된다. HTML/script/MDX 사용 금지. 문자열 내부 줄바꿈은 JSON escape로 표기한다.
+5. `prompt`와 `explanation`의 본문은 Markdown 텍스트로 작성해도 된다(REPRESENTATIONS 절의 HTML·도식·수식 허용). `<script>`·MDX·외부 스크립트 금지. 문자열 내부 줄바꿈은 JSON escape로 표기한다.
 5-1. **수식은 LaTeX로 작성한다.** 모든 텍스트 필드(`prompt`, `choices[].text`, `choices[].explanation`, `explanation.summary/steps/misconceptions`, `hint`, `answer.modelAnswer`, `rubric[].criterion/guidance`, `items[].text`, `left/right[].text`, cloze `prompt`)에서 인라인 수식은 `$...$`, 블록 수식은 `$$...$$`를 사용한다. `\(`, `\[`, `\begin{equation}` 금지. JSON 문자열 안의 백슬래시는 반드시 두 번 쓴다 (`"$\\frac{a}{b}$"`, `"$x^2 + \\sqrt{y}$"`). 수식이 아닌 달러 기호는 `\\$`로 이스케이프한다. 렌더러는 KaTeX이므로 KaTeX가 지원하는 명령만 사용한다 (`\\frac`, `\\sum`, `\\int`, `\\binom`, `\\mathbb`, `\\text{}`, `\\begin{aligned}`, `\\begin{pmatrix}` 등). `short_answer`/`cloze`의 `acceptedAnswers`는 채점용 **문자열**이므로 LaTeX가 아닌 사람이 입력하는 그대로의 표기(예: `"1/2"`, `"0.5"`, `"x^2"`)를 넣는다.
 6. **자료에 없는 페이지 번호·문서명·URL·논문·출처를 절대 꾸며내지 않는다.** 자료가 제공되면 근거를 정확히 확인한 경우에만 `source`와 `explanation.references` 사용. `general_knowledge` 모드라면 근거를 지어내지 말고 생략한다.
 7. 스키마에서 지원하는 `type` 이름(핵심 8종 + 확장 8종) 외에는 쓰지 않는다.
@@ -51,6 +51,7 @@ INCLUDE_SOURCE_LOCATORS: only_if_verifiable
 - **다이어그램**: ```` ```mermaid ```` 블록 — flowchart, sequenceDiagram, classDiagram, stateDiagram-v2, erDiagram, gantt, pie, mindmap, timeline, gitGraph. 과정·상태 전이·구조·관계·시퀀스를 묻거나 설명할 때 글보다 명확한 경우에만. 노드 레이블에 특수문자가 있으면 따옴표로 감싼다(`A["x (y)"]`).
 - **벡터 그래픽**: ```` ```svg ```` 블록에 **자기완결적 inline SVG**(`<svg viewBox=... xmlns=...>…</svg>`, 4 KB 이하, `<script>`·외부 참조·`href` 금지). 기하·회로·그래프 개형·단순 도형처럼 Mermaid로 표현하기 어려운 시각 자료에. 색은 2~3가지, 텍스트는 `<text>`로.
 - **이미지**: 자료에 공개 URL이 있을 때만 `![설명](https://...)`. 존재하지 않는 URL이나 "그림 참조" 식 언급을 지어내지 않는다.
+- **HTML**: Markdown으로 표현하기 어려운 것(셀 병합 표 `rowspan/colspan`, `<mark>` 강조, `<sup>/<sub>`, `<details><summary>` 접기, `<ruby>` 독음, 색/정렬을 위한 `style` 속성, inline `<svg>`)은 HTML을 문자열에 직접 써도 된다. 앱이 허용 목록으로 sanitize하므로 `<script>`, `<iframe>`, `on*` 이벤트 핸들러, `javascript:` URL, 폼 요소는 제거된다 — 넣어도 소용없으니 쓰지 않는다. 가능하면 Markdown을 우선하고, HTML은 꼭 필요한 부분에만 최소로 쓴다.
 
 **사용 원칙 (매우 중요):** 이런 표현은 평가하려는 내용이 **그 표현으로 더 정확하게 전달·측정될 때만** 쓴다. 모든 덱이나 모든 문항에 골고루 넣을 필요가 전혀 없으며, 장식용 도식이나 내용 없는 표는 금지다. 글로 충분한 것은 글로 쓴다. 도식이 답을 누설하지 않는지(예: 상태 전이를 묻는 문항의 prompt에 정답 전이가 그려진 Mermaid) 반드시 확인한다. 선지(`text`)에 넣을 때는 선지들끼리 표현 방식이 비슷해야 한다(한 선지만 도식이면 단서가 된다).
 
