@@ -334,7 +334,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
           phase={phaseForRenderer}
           grade={grade?.grade ?? null}
           answerKey={grade?.answerKey ?? null}
-          shuffleSeed={settings.shuffleChoices ? shuffleSeed : null}
+          shuffleSeed={settings.shuffleChoices ? `${shuffleSeed}:${item.reviewRound}` : null}
           showKeyHints={shortcutsOn}
           registerDigitHandler={registerDigitHandler}
         />
