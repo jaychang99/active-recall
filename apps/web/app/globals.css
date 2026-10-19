@@ -201,7 +201,7 @@ input[type='checkbox'] {
 .prose-q {
   font-size: 1.0625rem;
   line-height: 1.7;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .prose-q > * + * { margin-top: 0.75em; }
 .prose-q p { margin: 0; }

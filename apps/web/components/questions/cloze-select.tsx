@@ -32,7 +32,7 @@ export function ClozeSelect({ question, value, onChange, onSubmit, phase, grade,
             <span key={s.id} className="mx-0.5 inline-flex items-center gap-1 align-baseline">
               {!revealed ? (
                 <select ref={(el) => { selects.current[my] = el; }} value={chosen[s.id] ?? ''} disabled={readOnly} aria-label={`빈칸 ${my + 1}`} data-blank-id={s.id}
-                  className="h-8 rounded-md border border-line-strong bg-elevated px-2 text-[0.95rem]"
+                  className="h-8 max-w-full truncate rounded-md border border-line-strong bg-elevated px-2 text-[0.95rem]"
                   onChange={(e) => onChange({ type: 'cloze_select', blanks: { ...chosen, [s.id]: e.target.value } })}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const next = selects.current[my + 1]; if (next && !chosen[next.dataset.blankId ?? '']) next.focus(); else onSubmit(); } }}>
                   <option value="">— 선택 —</option>
