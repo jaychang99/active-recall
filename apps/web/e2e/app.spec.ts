@@ -45,6 +45,20 @@ test.describe('app surfaces', () => {
     await expect(page.getByTestId('report')).toContainText('동일 8');
   });
 
+  test('import: one-click validate + commit, and it refuses invalid batches', async ({ page }) => {
+    await page.goto('/import');
+    const bad = exampleBatch();
+    (bad.questions[0] as { answer: { choiceId: string } }).answer.choiceId = 'zzz';
+    await page.getByTestId('import-textarea').fill(JSON.stringify(bad));
+    await page.getByTestId('validate-and-commit-btn').click();
+    await expect(page.getByText(/원클릭 가져오기 중단/)).toBeVisible();
+    await expect(page.getByTestId('issues')).toContainText('net-q001');
+    await page.getByTestId('load-example').click();
+    await page.getByTestId('import-textarea').focus();
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter');
+    await expect(page.getByTestId('report')).toContainText('동일 8');
+  });
+
   test('deck detail: answer-key review mode and question drawer', async ({ page }) => {
     await page.goto('/decks/computer_networks_01');
     await expect(page.getByTestId('question-table')).toBeVisible();
@@ -97,5 +111,21 @@ test.describe('app surfaces', () => {
     await expect(page.getByTestId('study-screen')).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
+  });
+});
+
+test.describe('deck subject', () => {
+  test.beforeEach(async ({ request }) => { await seedDeck(request); });
+  test('replace the whole deck subject with an existing subject from the deck page', async ({ page, request }) => {
+    await request.post(`${API}/subjects`, { data: { name: 'Networking 101' } });
+    await page.goto('/decks/computer_networks_01');
+    await page.getByTestId('deck-subject-btn').click();
+    await page.getByTestId('deck-subject-options').getByRole('button', { name: /Networking 101/ }).click();
+    await page.getByTestId('deck-subject-apply').click();
+    await expect(page.getByText(/과목을 "Networking 101"\(으\)로 변경했습니다/)).toBeVisible();
+    await expect(page.getByTestId('deck-subject-btn')).toContainText('Networking 101');
+    const subjects = (await (await request.get(`${API}/subjects`)).json()) as { name: string; questionCount: number }[];
+    expect(subjects.find((s) => s.name === 'Networking 101')?.questionCount).toBe(8);
+    expect(subjects.find((s) => s.name === 'Computer Networks')?.questionCount).toBe(0);
   });
 });

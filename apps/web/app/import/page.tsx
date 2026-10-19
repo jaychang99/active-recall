@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, ClipboardPaste, FileJson, FileUp, Play, XCircle } from 'lucide-react';
+import { CheckCircle2, ClipboardPaste, FileJson, FileUp, Play, XCircle, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -65,6 +65,32 @@ export default function ImportPage() {
     },
   });
 
+  /** 검증 → (문제 없으면) 즉시 가져오기 확정. */
+  const validateAndCommit = useMutation({
+    mutationFn: async () => {
+      const value = parsed();
+      if (value === null) throw new Error('JSON을 파싱할 수 없습니다');
+      const local = validateBatch(value);
+      setClientIssues(local.issues);
+      if (!local.ok) throw new Error(`클라이언트 검증 실패 (${local.issues.length}개 문제) — 아래 목록을 확인하세요`);
+      const p = await api<ImportPlan>('/imports/validate', { method: 'POST', json: { batch: value, strategy } });
+      setPlan(p);
+      if (!p.ok) throw new Error(`서버 검증 실패 (${p.issues.length}개 문제) — 아래 목록을 확인하세요`);
+      return api<ImportPlan>('/imports/commit', { method: 'POST', json: { batch: value, strategy } });
+    },
+    onSuccess: (r) => {
+      setReport(r);
+      setPlan(null);
+      void qc.invalidateQueries({ queryKey: ['decks'] });
+      void qc.invalidateQueries({ queryKey: ['subjects'] });
+      toast.success(`검증 통과 → 덱 "${r.deckId}" 가져오기 완료`, { description: `생성 ${r.counts.created} · 수정 ${r.counts.updated} · 동일 ${r.counts.unchanged} · 스케줄 초기화 ${r.counts.resetSchedule}` });
+    },
+    onError: (e: Error & { details?: { issues?: ValidationIssue[] } }) => {
+      toast.error('원클릭 가져오기 중단 — 아무것도 저장되지 않았습니다', { description: e.message });
+      if (e.details?.issues) setClientIssues(e.details.issues);
+    },
+  });
+
   const loadFile = async (f: File) => {
     if (f.size > 5 * 1024 * 1024) { toast.error('파일이 5 MB를 초과합니다'); return; }
     setText(await f.text());
@@ -87,6 +113,7 @@ export default function ImportPage() {
             <textarea
               value={text}
               onChange={(e) => { setText(e.target.value); setPlan(null); setReport(null); setClientIssues(null); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && text.trim() && !report) { e.preventDefault(); validateAndCommit.mutate(); } }}
               spellCheck={false}
               aria-label="JSON 입력"
               data-testid="import-textarea"
@@ -112,6 +139,7 @@ export default function ImportPage() {
             {strategy === 'replace_deck' ? <p className="order-last basis-full text-[12px] text-warn-ink">덱 교체: JSON에 없는 기존 문항은 비활성화됩니다 (복습 기록은 보존).</p> : null}
             <Button variant={plan?.ok ? 'secondary' : 'primary'} onClick={() => validate.mutate()} disabled={!text.trim() || validate.isPending} data-testid="validate-btn"><CheckCircle2 className="h-4 w-4" /> {validate.isPending ? '검증 중…' : '검증'}</Button>
             <Button variant="primary" onClick={() => commit.mutate()} disabled={!plan?.ok || commit.isPending || !!report} data-testid="commit-btn"><Play className="h-4 w-4" /> {commit.isPending ? '저장 중…' : '가져오기 확정'}</Button>
+            <Button variant="soft" onClick={() => validateAndCommit.mutate()} disabled={!text.trim() || validateAndCommit.isPending || !!report} data-testid="validate-and-commit-btn" title="검증을 통과하면 바로 가져옵니다 (⌘/Ctrl+Enter)"><Zap className="h-4 w-4" /> {validateAndCommit.isPending ? '검증 + 저장 중…' : '검증 + 가져오기 (원클릭)'}</Button>
           </div>
         </div>
 
@@ -165,6 +193,7 @@ export default function ImportPage() {
                 <li>LLM이 출력한 JSON 전체를 왼쪽에 붙여넣습니다.</li>
                 <li><strong>검증</strong>: 브라우저에서 즉시 스키마 검사 → 서버에서 스키마·의미(참조 무결성)·변경 미리보기.</li>
                 <li><strong>가져오기 확정</strong>: 트랜잭션으로 저장됩니다. 같은 JSON을 다시 가져와도 중복되지 않습니다.</li>
+                <li>급하면 <strong>검증 + 가져오기 (원클릭)</strong> 또는 입력창에서 ⌘/Ctrl+Enter: 검증을 통과할 때만 바로 저장됩니다.</li>
               </ol>
             </Panel>
           ) : null}

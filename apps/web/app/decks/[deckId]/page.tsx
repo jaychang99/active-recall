@@ -15,6 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, Skeleton } from '@/components/ui/misc';
 import { Markdown } from '@/components/questions/markdown';
 import { NoteHistoryItem } from '@/components/study/notes-panel';
+import { DeckSubjectDialog } from '@/components/decks/deck-subject-dialog';
 import { STATUS_LABEL, TYPE_LABEL, cn, formatDate, relativeDue } from '@/lib/utils';
 
 const TYPES = Object.keys(TYPE_LABEL);
@@ -80,6 +81,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
             <Link href={`/study/${d.id}?mode=cram`}><Button><PlayCircle className="h-4 w-4" /> 훑기</Button></Link>
             <Link href={`/study/${d.id}?mode=practice`}><Button>연습</Button></Link>
             <Link href={`/exam?deckId=${d.id}`}><Button><GraduationCap className="h-4 w-4" /> 시험</Button></Link>
+            <DeckSubjectDialog deckId={d.id} currentSubject={d.subject} questionCount={d.progress.total} onChanged={invalidate} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="덱 더 보기"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent>

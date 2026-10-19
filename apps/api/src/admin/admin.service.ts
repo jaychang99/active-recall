@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ApiError } from '../common/api-error';
 import { toJson } from '../common/json';
 import { FsrsService, serializeCard } from '../fsrs/fsrs.service';
+import { SubjectsService } from '../subjects/subjects.service';
 import { ENTITIES, ENTITY_BY_KEY, type EntityMeta, type FieldMeta } from './entities';
 import { CardStatus, Prisma } from '../generated/prisma/client';
 
@@ -29,6 +30,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly fsrs: FsrsService,
+    private readonly subjects: SubjectsService,
   ) {}
 
   entities() {
@@ -275,6 +277,14 @@ export class AdminService {
       });
       return { ...(await this.get(key, row.id)), resetSchedule: answerChanged };
     }
+    if (meta.key === 'decks' && typeof payload.subject === 'string' && payload.subject.trim() && payload.subject.trim() !== current.subject) {
+      const newName = payload.subject.trim();
+      await this.prisma.$transaction(async (tx) => {
+        await tx.deck.update({ where: { id: String(current.id) }, data: { ...payload, subject: newName } });
+        await this.subjects.relinkDeckSubject(tx, current.id, current.subject, newName);
+      });
+      return this.get(key, id);
+    }
     if (meta.key === 'cards') payload.version = { increment: 1 };
     if (meta.key === 'subjects' && payload.name !== undefined) {
       const clash = await this.prisma.subject.findUnique({ where: { name: String(payload.name) } });
@@ -332,7 +342,7 @@ export class AdminService {
 
   /** Lightweight option lists for reference fields (id + label). */
   async options(key: string, search?: string, limit = 30) {
-    const meta = this.meta(key);
+    this.meta(key); // validates the entity key
     const rows = await this.list(key, { page: 1, pageSize: limit, search, deleted: 'live' });
     return rows.items.map((r: any) => ({ id: r._id, label: r._label }));
   }

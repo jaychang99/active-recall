@@ -49,6 +49,26 @@ export class SubjectsService {
     if (toRestore.length) await tx.questionSubject.updateMany({ where: { subjectId: subject.id, questionId: { in: toRestore } }, data: { deletedAt: null } });
   }
 
+  /**
+   * Move a deck's primary subject: deck-sourced links to `oldName` are soft-deleted and every live
+   * question of the deck gets a deck-sourced link to `newName` (created on demand). Manual links stay.
+   */
+  async relinkDeckSubject(tx: Prisma.TransactionClient, deckId: string, oldName: string | null, newName: string) {
+    const live = await tx.question.findMany({ where: { deckId, deletedAt: null }, select: { id: true } });
+    const ids = live.map((q) => q.id);
+    if (oldName && oldName.trim() !== newName.trim()) {
+      const old = await tx.subject.findUnique({ where: { name: oldName.trim() } });
+      if (old) await tx.questionSubject.updateMany({ where: { subjectId: old.id, source: 'deck', questionId: { in: ids }, deletedAt: null }, data: { deletedAt: new Date() } });
+    }
+    await this.assignDeckSubject(tx, ids, newName);
+  }
+
+  /** Add `name` as an extra (manual) subject to every live question of the deck. */
+  async addSubjectToDeck(deckId: string, name: string) {
+    const live = await this.prisma.question.findMany({ where: { deckId, deletedAt: null }, select: { id: true } });
+    return this.bulkAssign(live.map((q) => q.id), name);
+  }
+
   async list(): Promise<SubjectSummary[]> {
     const settings = await this.settings.get();
     const dayEnd = endOfDayInTz(new Date(), settings.timezone);

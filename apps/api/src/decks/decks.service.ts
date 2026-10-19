@@ -5,6 +5,7 @@ import { ApiError } from '../common/api-error';
 import { SettingsService } from '../settings/settings.service';
 import { endOfDayInTz } from '../common/time';
 import { CardStatus, Prisma, type QuestionType } from '../generated/prisma/client';
+import { SubjectsService } from '../subjects/subjects.service';
 
 export interface DeckProgress {
   total: number;
@@ -26,6 +27,7 @@ export class DecksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
+    private readonly subjectsService: SubjectsService,
   ) {}
 
   async progressByDeck(deckIds?: string[]): Promise<Map<string, DeckProgress>> {
@@ -75,11 +77,24 @@ export class DecksService {
   }
 
   async update(id: string, data: { title?: string; description?: string | null; subject?: string; language?: string; tags?: string[] }) {
-    const deck = await this.prisma.deck.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+    const deck = await this.prisma.deck.findFirst({ where: { id, deletedAt: null }, select: { id: true, subject: true } });
     if (!deck) throw ApiError.notFound('Deck', id);
     const { tags, ...rest } = data;
-    const updated = await this.prisma.deck.update({ where: { id }, data: { ...rest, ...(tags ? { tagsJson: tags } : {}) } });
+    if (rest.subject !== undefined && !rest.subject.trim()) throw ApiError.badRequest('subject must not be empty');
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.deck.update({ where: { id }, data: { ...rest, ...(rest.subject ? { subject: rest.subject.trim() } : {}), ...(tags ? { tagsJson: tags } : {}) } });
+      // Changing the primary subject moves every question's deck-sourced subject link along with it.
+      if (rest.subject && rest.subject.trim() !== deck.subject) await this.subjectsService.relinkDeckSubject(tx, id, deck.subject, rest.subject.trim());
+      return row;
+    });
     return { ...updated, tags: updated.tagsJson as string[] };
+  }
+
+  /** Give every question of the deck an additional subject (keeps the primary subject). */
+  async addSubject(id: string, name: string) {
+    const deck = await this.prisma.deck.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+    if (!deck) throw ApiError.notFound('Deck', id);
+    return this.subjectsService.addSubjectToDeck(id, name);
   }
 
   async restore(id: string) {

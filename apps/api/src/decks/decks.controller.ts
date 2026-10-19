@@ -25,6 +25,9 @@ class ListQuestionsQuery {
   @IsOptional() @Transform(bool) @IsBoolean() flagged?: boolean;
   @IsOptional() @Transform(bool) @IsBoolean() suspended?: boolean;
 }
+class AddSubjectDto {
+  @IsString() @MaxLength(200) name!: string;
+}
 class UpdateDeckDto {
   @IsOptional() @IsString() @MaxLength(200) title?: string;
   @IsOptional() @IsString() @MaxLength(2000) description?: string | null;
@@ -73,6 +76,11 @@ export class DecksController {
       flagged: q.flagged,
       suspended: q.suspended,
     });
+  }
+
+  /** Add an extra subject to all questions of the deck (primary subject unchanged). To replace the primary subject use PATCH /decks/:id { subject }. */
+  @Post(':id/subjects') addSubject(@Param('id') id: string, @Body() dto: AddSubjectDto) {
+    return this.decks.addSubject(id, dto.name);
   }
 
   @Get(':id/notes') notesForDeck(@Param('id') id: string) {

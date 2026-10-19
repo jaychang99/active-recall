@@ -146,3 +146,45 @@ describe('reviews / FSRS / undo / queue / notes', () => {
     expect(s2.body.map((x: { name: string }) => x.name)).toEqual(['Computer Networks']);
   });
 });
+
+describe('deck subject reassignment', () => {
+  let ctx: Awaited<ReturnType<typeof createApp>>;
+  beforeAll(async () => { ctx = await createApp(); });
+  afterAll(async () => { await ctx.app.close(); });
+  beforeEach(async () => {
+    await resetDb(ctx.prisma);
+    await request(ctx.server).post('/imports/commit').send({ batch: exampleBatch() }).expect(200);
+  });
+
+  it('replacing the deck subject moves all deck-sourced links to an existing subject, keeps manual ones', async () => {
+    await request(ctx.server).post('/subjects').send({ name: 'Networking 101' }).expect(201);
+    const q = await ctx.prisma.question.findFirstOrThrow({ where: { externalId: 'net-q001' } });
+    await request(ctx.server).put(`/questions/${q.id}/subjects`).send({ names: ['Computer Networks', 'Manual Tag'] }).expect(200);
+    const r = await request(ctx.server).patch('/decks/computer_networks_01').send({ subject: 'Networking 101' }).expect(200);
+    expect(r.body.subject).toBe('Networking 101');
+    const subjects = (await request(ctx.server).get('/subjects').expect(200)).body as { name: string; questionCount: number }[];
+    const by = Object.fromEntries(subjects.map((s) => [s.name, s.questionCount]));
+    expect(by['Networking 101']).toBe(8);
+    expect(by['Computer Networks']).toBe(0);
+    expect(by['Manual Tag']).toBe(1);
+    const mine = await request(ctx.server).get(`/questions/${q.id}/subjects`).expect(200);
+    expect(mine.body.map((s: { name: string; source: string }) => `${s.name}:${s.source}`).sort()).toEqual(['Manual Tag:manual', 'Networking 101:deck']);
+    // decks grouped by subject follows
+    const grouped = await request(ctx.server).get('/decks/by-subject').expect(200);
+    expect(grouped.body[0].subject).toBe('Networking 101');
+    // and the admin path does the same relink
+    await request(ctx.server).patch('/admin/decks/computer_networks_01').send({ subject: 'Computer Networks' }).expect(200);
+    const again = Object.fromEntries(((await request(ctx.server).get('/subjects').expect(200)).body as { name: string; questionCount: number }[]).map((s) => [s.name, s.questionCount]));
+    expect(again['Computer Networks']).toBe(8);
+    expect(again['Networking 101']).toBe(0);
+  });
+
+  it('adding a subject to a whole deck keeps the primary subject', async () => {
+    const r = await request(ctx.server).post('/decks/computer_networks_01/subjects').send({ name: '중간고사 범위' }).expect(201);
+    expect(r.body.assigned).toBe(8);
+    const by = Object.fromEntries(((await request(ctx.server).get('/subjects').expect(200)).body as { name: string; questionCount: number }[]).map((s) => [s.name, s.questionCount]));
+    expect(by['중간고사 범위']).toBe(8);
+    expect(by['Computer Networks']).toBe(8);
+    await request(ctx.server).post('/decks/computer_networks_01/subjects').send({ name: '   ' }).expect(400);
+  });
+});
