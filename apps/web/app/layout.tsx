@@ -6,6 +6,10 @@ import { Shell } from '@/components/layout/shell';
 export const metadata: Metadata = {
   title: { default: 'Recall Studio', template: '%s · Recall Studio' },
   description: 'Keyboard-first active recall workstation with FSRS spaced repetition.',
+  applicationName: 'Recall Studio',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Recall Studio' },
+  icons: { icon: [{ url: '/icons/icon.svg', type: 'image/svg+xml' }, { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }], apple: '/icons/apple-touch-icon.png' },
 };
 
 // Local-first app: every page reads live API data / search params, so nothing is statically prerendered.

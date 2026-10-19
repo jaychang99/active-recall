@@ -6,6 +6,7 @@ import { Toaster } from 'sonner';
 import { ShortcutProvider } from '@/lib/shortcuts/provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SettingsProvider } from '@/components/layout/settings-context';
+import { PwaProvider } from '@/components/layout/pwa';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 5_000, refetchOnWindowFocus: false } } }));
@@ -13,9 +14,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={client}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
         <SettingsProvider>
-          <ShortcutGate>
-            <TooltipProvider>{children}</TooltipProvider>
-          </ShortcutGate>
+          <PwaProvider>
+            <ShortcutGate>
+              <TooltipProvider>{children}</TooltipProvider>
+            </ShortcutGate>
+          </PwaProvider>
         </SettingsProvider>
         <Toaster position="bottom-right" richColors closeButton />
       </ThemeProvider>

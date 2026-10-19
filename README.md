@@ -61,6 +61,16 @@ Every question keeps one note per **review round** (round N = the N-th effective
 
 All sixteen are graded server-side with per-part feedback; `essay` and `recall_card` (without accepted answers) are self-assessed and excluded from auto-graded accuracy. Where position carries no meaning the view is shuffled every review round (choices, reasons, statements, category items, dropdown options, matching right column) so answers cannot be memorised by place; sequences and passages are never shuffled. `examples/example-extended-batch.json` shows one of each extended type. Existing JSON batches keep working unchanged.
 
+## Desktop app (PWA)
+
+The web app is an installable Progressive Web App: web manifest (`app/manifest.ts`), icons in `public/icons` (regenerate with `node scripts/gen-icons.mjs` inside `apps/web`), a service worker (`public/sw.js`: app shell + static assets cached, navigations network-first with an `/offline` fallback, **API responses never cached**) and an install button in the header/Settings that uses the browser's `beforeinstallprompt`. The service worker registers only in production builds, so install from a production server:
+
+```bash
+pnpm --filter @recall/web build && pnpm --filter @recall/web start   # http://localhost:3000 (stop `pnpm dev:web` first, or use `next start -p 3001`)
+```
+
+Then use Chrome/Edge's address-bar install icon (or Settings → "앱으로 설치"). The installed app still talks to the local API on port 4000.
+
 ## Rich content in any text field
 
 Prompts, options, items, statements, segments, explanations, hints, model answers, rubric guidance and notes all go through one Markdown renderer: GFM (tables, lists, task lists), fenced code with syntax highlighting and a copy button, KaTeX (`$…$`, `$$…$$`, chemistry via `\ce{}`), ```` ```mermaid ```` diagrams (flowchart, sequence, state, class, ER, gantt, pie, mindmap, timeline; rendered client-side with `securityLevel: strict`), ```` ```svg ```` inline vector graphics (sanitized with DOMPurify: no scripts, no external references), images by URL or `data:image/…;base64`, and raw HTML sanitized against an allowlist (`apps/web/components/questions/sanitize-schema.ts`: tables with row/col spans, `mark`, `sup/sub`, `details/summary`, `ruby`, `style` attributes, inline SVG; scripts, iframes, forms, event handlers and `javascript:` URLs are stripped). The generator prompt tells the LLM to use these only when the content is better assessed that way, never decoratively, and to keep option representations balanced.

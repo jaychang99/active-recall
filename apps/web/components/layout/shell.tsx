@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useShortcuts } from '@/lib/shortcuts/provider';
 import { ThemeToggle } from './theme-toggle';
+import { InstallAppButton } from './pwa';
 import { CopyPromptButton } from './copy-prompt-button';
 import { CommandPalette } from './command-palette';
 import { ShortcutHelp } from './shortcut-help';
@@ -116,6 +117,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" size="icon" aria-label="단축키 도움말" onClick={() => setHelpOpen(true)}>
               <Keyboard className="h-4 w-4" />
             </Button>
+            <InstallAppButton size="sm" />
             <ThemeToggle />
           </div>
         </header>

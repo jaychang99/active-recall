@@ -11,8 +11,14 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   app.useBodyParser('json', { limit: '6mb' });
   app.useBodyParser('urlencoded', { extended: true, limit: '1mb' });
+  // Local-first: accept any localhost / 127.0.0.1 origin (dev :3000, production build :3001, installed PWA)
+  // plus an explicit WEB_ORIGIN. Never expose this API publicly — it has no auth.
   const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
-  app.enableCors({ origin: [webOrigin, 'http://127.0.0.1:3000'], credentials: false });
+  const localOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+  app.enableCors({
+    origin: (origin, cb) => cb(null, !origin || origin === webOrigin || localOrigin.test(origin)),
+    credentials: false,
+  });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, transformOptions: { enableImplicitConversion: true } }));
   app.useGlobalFilters(new ApiExceptionFilter());
 

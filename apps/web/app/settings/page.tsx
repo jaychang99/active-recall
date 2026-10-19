@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
 import { ErrorState, PageHeader, Panel, Skeleton } from '@/components/ui/misc';
+import { InstallAppButton, usePwa } from '@/components/layout/pwa';
 
 function Row({ label, hint, children, id }: { label: string; hint?: string; children: React.ReactNode; id?: string }) {
   return (
@@ -26,6 +27,7 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pwa = usePwa();
   useEffect(() => setMounted(true), []);
   useEffect(() => { if (q.data) setForm(q.data); }, [q.data]);
   const save = useMutation({
@@ -74,6 +76,11 @@ export default function SettingsPage() {
         <Row label="목표 기억률 (request retention)" hint="0.70–0.98. 높을수록 복습이 잦아집니다." id="requestRetention"><Input id="requestRetention" type="number" step={0.01} min={0.7} max={0.98} value={form.requestRetention ?? 0.9} onChange={num('requestRetention')} /></Row>
         <Row label="최대 간격 (일)" id="maximumInterval"><Input id="maximumInterval" type="number" min={1} max={36500} value={form.maximumInterval ?? 36500} onChange={num('maximumInterval')} /></Row>
         <Row label="간격 퍼지(fuzz)" hint="같은 날 몰리지 않도록 간격을 약간 흔듭니다." id="enableFuzz"><Switch id="enableFuzz" checked={form.enableFuzz ?? false} onCheckedChange={(v) => set('enableFuzz', v)} /></Row>
+      </Panel>
+      <Panel className="mb-6 px-5 py-4">
+        <h2 className="text-[13px] font-semibold text-ink-2">데스크톱 앱 (PWA)</h2>
+        <p className="mt-1 text-[12px] text-ink-3">Chrome·Edge에서 주소창의 설치 아이콘 또는 아래 버튼으로 독립 창 앱으로 설치할 수 있습니다. 설치 후에도 데이터는 로컬 API(포트 4000)에서 옵니다. {pwa.installed ? '지금 앱 창에서 실행 중입니다.' : pwa.canInstall ? '' : '설치 버튼이 보이지 않으면 프로덕션 빌드(pnpm build && pnpm --filter @recall/web start)에서 열거나 브라우저 메뉴의 "앱 설치"를 사용하세요.'}</p>
+        <div className="mt-3"><InstallAppButton /></div>
       </Panel>
       <Panel className="px-5 py-4">
         <h2 className="text-[13px] font-semibold text-ink-2">데이터</h2>
