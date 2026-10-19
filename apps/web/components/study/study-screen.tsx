@@ -75,7 +75,9 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const qc = useQueryClient();
   const { settings } = useSettings();
   const storageKey = `rs-study:${JSON.stringify(params)}`;
-  const restored = useMemo(() => readSnapshot(storageKey), [storageKey]);
+  // Snapshot is read only after mount (sessionStorage is client-only; reading it during the first render
+  // would make the client tree differ from the server-rendered skeleton → hydration mismatch).
+  const [restored, setRestored] = useState<Snapshot | null | undefined>(undefined);
   // The queue is fetched once per session and then frozen: refetches (reconnect, focus, HMR) must never
   // reorder or drop cards under the learner. A reload within 6 hours resumes from the saved snapshot.
   const queue = useQuery({
@@ -86,11 +88,11 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    enabled: !restored,
+    enabled: restored === null,
   });
-  const [baseItems, setBaseItems] = useState<QueueItem[] | null>(restored?.items ?? null);
-  const [queueMeta, setQueueMeta] = useState<Queue | null>(restored?.queue ?? null);
-  const [index, setIndex] = useState(restored?.index ?? 0);
+  const [baseItems, setBaseItems] = useState<QueueItem[] | null>(null);
+  const [queueMeta, setQueueMeta] = useState<Queue | null>(null);
+  const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<CardState>('answering');
   const [answer, setAnswer] = useState<AnswerPayload | null>(null);
   const [grade, setGrade] = useState<GradeResponse | null>(null);
@@ -98,14 +100,26 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const [hintUsed, setHintUsed] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [showExplanation, setShowExplanation] = useState(true);
-  const [done, setDone] = useState<Done[]>(restored?.done ?? []);
+  const [done, setDone] = useState<Done[]>([]);
   const [lastReview, setLastReview] = useState<{ reviewId: string; questionId: string; index: number; rating: 1 | 2 | 3 | 4; interval: string | null } | null>(null);
   const [pendingRating, setPendingRating] = useState<1 | 2 | 3 | 4 | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [notesFocus, setNotesFocus] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [extraItems, setExtraItems] = useState<QueueItem[]>(restored?.extraItems ?? []);
-  const [skipped, setSkipped] = useState<Set<string>>(new Set(restored?.skipped ?? []));
+  const [extraItems, setExtraItems] = useState<QueueItem[]>([]);
+  const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const snap = readSnapshot(storageKey);
+    setRestored(snap);
+    if (snap) {
+      setBaseItems(snap.items);
+      setQueueMeta(snap.queue);
+      setIndex(snap.index);
+      setDone(snap.done);
+      setExtraItems(snap.extraItems);
+      setSkipped(new Set(snap.skipped));
+    }
+  }, [storageKey]);
   useEffect(() => {
     if (queue.data && !baseItems) {
       setBaseItems(queue.data.items);
@@ -116,6 +130,33 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const digitHandler = useRef<((n: number) => void) | null>(null);
   const submitLock = useRef(false);
   const [shuffleSeed] = useState(() => uid());
+
+  // Patch one card's state in the frozen queue (base + re-queued copies). The react-query cache is not the
+  // source of truth once the queue is frozen, so updates must land here or the next rating sends a stale version.
+  const patchCard = useCallback((questionId: string, patch: Partial<QueueItem['card']>) => {
+    const apply = (list: QueueItem[]) => list.map((i) => (i.questionId === questionId ? { ...i, card: { ...i.card, ...patch } } : i));
+    setBaseItems((b) => (b ? apply(b) : b));
+    setExtraItems((x) => apply(x));
+  }, []);
+
+  // A resumed snapshot carries the card versions from when the queue was first fetched. Cards reviewed or undone
+  // since then (another tab, an undo before the reload) would 409 on rating, so re-sync their state once on resume.
+  useEffect(() => {
+    if (!restored) return;
+    let cancelled = false;
+    api<Queue>(queueUrl(params))
+      .then((fresh) => {
+        if (cancelled) return;
+        const byId = new Map(fresh.items.map((i) => [i.questionId, i.card]));
+        const sync = (list: QueueItem[]) => list.map((i) => { const c = byId.get(i.questionId); return c && c.version !== i.card.version ? { ...i, card: c } : i; });
+        setBaseItems((b) => (b ? sync(b) : b));
+        setExtraItems((x) => sync(x));
+        setQueueMeta((m) => (m ? { ...m, counts: fresh.counts } : m));
+      })
+      .catch(() => { /* offline: stale versions self-heal on the next 409 */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restored]);
 
   const items = useMemo(() => [...(baseItems ?? []), ...extraItems].filter((i) => !skipped.has(i.questionId)), [baseItems, extraItems, skipped]);
   const item = items[index] ?? null;
@@ -130,7 +171,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
   // session bookkeeping
   useEffect(() => {
-    if (!baseItems || sessionId || restored) return;
+    if (!baseItems || sessionId || restored === undefined || restored) return;
     api<{ id: string }>('/study/sessions', { method: 'POST', json: { scope: params.scope, subject: params.subject, mode: params.mode, queueSize: baseItems.length } })
       .then((s) => setSessionId(s.id))
       .catch(() => {});
@@ -237,10 +278,18 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       }
       if (settings.autoAdvanceAfterRating) next();
     },
-    onError: (e: Error) => {
+    onError: (e: Error, rating) => {
       setPendingRating(null);
-      if (e instanceof ApiRequestError && e.status === 409) toast.error('이 카드가 다른 곳에서 먼저 평가되었습니다', { description: '큐를 새로고침하세요.' });
-      else toast.error('평가를 저장하지 못했습니다', { description: e.message });
+      if (e instanceof ApiRequestError && e.status === 409 && item) {
+        // Our copy of the card is stale (undo, another tab, a reset). Take the server's version so the next
+        // rating goes through, and offer to re-send this one with a single click.
+        const current = (e.details as { currentVersion?: number } | undefined)?.currentVersion;
+        if (typeof current === 'number') patchCard(item.questionId, { version: current });
+        toast.error('카드 상태가 다른 곳에서 바뀌어 평가를 저장하지 못했습니다', {
+          description: '최신 상태로 맞췄습니다. 평가를 다시 저장할 수 있습니다.',
+          action: typeof current === 'number' ? { label: '다시 저장', onClick: () => { setPendingRating(rating); reviewMut.mutate(rating); } } : undefined,
+        });
+      } else toast.error('평가를 저장하지 못했습니다', { description: e.message });
     },
   });
 
@@ -258,8 +307,10 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       setExtraItems((x) => x.filter((i) => !(i.questionId === lastReview.questionId && i.reviewRound === res.reviewRound + 1)));
       setIndex(lastReview.index);
       resetCard();
-      // keep the card's new version so the next rating does not conflict
-      qc.setQueryData<Queue>(['queue', params], (old) => old ? { ...old, items: old.items.map((i) => (i.questionId === lastReview.questionId ? { ...i, card: { ...i.card, version: res.card.version } } : i)) } : old);
+      // keep the card's new version (undo bumps it too) so the next rating does not conflict
+      const { stateJson, ...card } = res.card;
+      void stateJson;
+      patchCard(lastReview.questionId, card);
       void qc.invalidateQueries({ queryKey: ['notes', lastReview.questionId] });
       setLastReview(null);
       toast.success('마지막 평가를 되돌렸습니다', { description: 'FSRS 상태와 복습 기록이 이전 스냅샷으로 복구되었습니다.' });
@@ -278,8 +329,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       if (!item) return;
       if (v.action === 'flag' || v.action === 'unflag') {
         const flagged = v.action === 'flag';
-        qc.setQueryData<Queue>(['queue', params], (old) => old ? { ...old, items: old.items.map((i) => (i.questionId === item.questionId ? { ...i, card: { ...i.card, flagged } } : i)) } : old);
-        setExtraItems((x) => x.map((i) => (i.questionId === item.questionId ? { ...i, card: { ...i.card, flagged } } : i)));
+        patchCard(item.questionId, { flagged });
         toast.success(flagged ? '문제를 표시했습니다' : '표시를 해제했습니다');
       } else {
         toast.success(v.action === 'bury' ? '내일까지 묻어두었습니다' : '문제를 보류했습니다', { description: '학습 큐에서 제외됩니다.' });

@@ -98,6 +98,22 @@ test.describe('study flow (keyboard-first)', () => {
     await expect(screen).toHaveAttribute('data-phase', 'answering');
     const q2 = await (await request.get(`${API}/study/queue?deckId=computer_networks_01&mode=cram&limit=100`)).json();
     expect(q2.items.filter((i: { card: { reps: number } }) => i.card.reps === 1)).toHaveLength(0);
+    // Undo bumps the card version: rating the same card again must not 409 (regression: stale version in the frozen queue)
+    await page.keyboard.press('Space');
+    await expect(screen).toHaveAttribute('data-phase', 'submitted');
+    await page.keyboard.press('3');
+    await expect(screen).toHaveAttribute('data-phase', 'rated');
+    await expect(page.getByText('평가를 저장하지 못했습니다')).toHaveCount(0);
+    // ...and the same after undo + reload (the session snapshot is resumed, versions re-synced from the server)
+    await page.keyboard.press('u');
+    await expect(screen).toHaveAttribute('data-phase', 'answering');
+    await page.reload();
+    await expect(screen).toHaveAttribute('data-phase', 'answering');
+    await page.keyboard.press('Space');
+    await expect(screen).toHaveAttribute('data-phase', 'submitted');
+    await page.keyboard.press('3');
+    await expect(screen).toHaveAttribute('data-phase', 'rated');
+    await expect(page.getByText('평가를 저장하지 못했습니다')).toHaveCount(0);
   });
 
   test('notes: one note per review round, visible as history after rating', async ({ page }) => {
