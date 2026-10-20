@@ -81,16 +81,16 @@ export default function DashboardPage() {
           <Panel>
             <ul className="divide-y divide-line">
               {decks.data.map((d) => (
-                <li key={d.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto_auto]">
+                <li key={d.id} className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto_auto] transition-colors hover:bg-muted/50">
                   <div className="min-w-0">
-                    <Link href={`/decks/${d.id}`} className="block truncate font-medium hover:underline">{d.title}</Link>
+                    <Link href={`/decks/${d.id}`} className="block truncate font-medium after:absolute after:inset-0">{d.title}</Link>
                     <div className="text-[12px] text-ink-3">{d.subject} · {d.progress.total}문항</div>
                   </div>
                   <div className="order-last col-span-2 lg:order-none lg:col-span-1"><ProgressStrip p={d.progress} /></div>
                   <div className="text-right text-[13px] tabular lg:w-16">
                     {d.progress.dueToday > 0 ? <span className="font-semibold text-accent">due {d.progress.dueToday}</span> : d.progress.new > 0 ? <span className="text-ink-2">새 {d.progress.new}</span> : <span className="text-ink-3">완료</span>}
                   </div>
-                  <div className="col-start-2 flex justify-end gap-2 lg:col-start-auto">
+                  <div className="relative z-10 col-start-2 flex justify-end gap-2 lg:col-start-auto">
                     <Link href={`/study/${d.id}`}><Button size="sm"><Play className="h-3.5 w-3.5 text-accent" /> 학습</Button></Link>
                     <Link href={`/exam?deckId=${d.id}`}><Button size="sm" variant="ghost">시험</Button></Link>
                   </div>

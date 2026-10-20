@@ -44,23 +44,23 @@ export default function SubjectsPage() {
       {subjects.isSuccess && subjects.data.length === 0 ? <EmptyState title="과목이 없습니다" body="덱을 가져오면 덱의 과목이 자동으로 생성됩니다." /> : null}
       <div className="grid gap-3 md:grid-cols-2">
         {subjects.data?.map((s) => (
-          <Panel key={s.id} className="p-4">
+          <Panel key={s.id} className="relative p-4 transition-colors hover:border-line-strong">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
-                <button type="button" aria-label="색상 변경" className="h-4 w-4 shrink-0 rounded-full border border-line" style={{ background: s.color ?? 'var(--accent)' }} onClick={() => update.mutate({ id: s.id, data: { color: COLORS[(COLORS.indexOf(s.color ?? '') + 1) % COLORS.length] } })} />
+                <button type="button" aria-label="색상 변경" className="relative z-10 h-4 w-4 shrink-0 rounded-full border border-line" style={{ background: s.color ?? 'var(--accent)' }} onClick={() => update.mutate({ id: s.id, data: { color: COLORS[(COLORS.indexOf(s.color ?? '') + 1) % COLORS.length] } })} />
                 <input
                   defaultValue={s.name}
                   aria-label="과목 이름"
-                  className="min-w-0 flex-1 truncate bg-transparent font-medium outline-none focus:border-b focus:border-accent"
+                  className="relative z-10 min-w-0 flex-1 truncate bg-transparent font-medium outline-none focus:border-b focus:border-accent"
                   onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.name) update.mutate({ id: s.id, data: { name: v } }); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                 />
               </div>
-              <Button variant="ghost" size="iconSm" aria-label="과목 삭제" onClick={() => { if (confirm(`"${s.name}" 과목을 삭제할까요? 문항은 삭제되지 않습니다.`)) remove.mutate(s.id); }}><Trash2 className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="iconSm" className="relative z-10" aria-label="과목 삭제" onClick={() => { if (confirm(`"${s.name}" 과목을 삭제할까요? 문항은 삭제되지 않습니다.`)) remove.mutate(s.id); }}><Trash2 className="h-4 w-4" /></Button>
             </div>
-            <div className="mt-1 text-[12px] text-ink-3">{s.questionCount}문항 · 덱 {s.deckIds.length}개 · due {s.progress.dueToday}</div>
+            <Link href={`/decks?subject=${encodeURIComponent(s.name)}`} aria-label={`${s.name} 덱 보기`} className="mt-1 block text-[12px] text-ink-3 after:absolute after:inset-0 after:rounded-lg">{s.questionCount}문항 · 덱 {s.deckIds.length}개 · due {s.progress.dueToday}</Link>
             <ProgressStrip p={s.progress} className="mt-3" />
-            <div className="mt-3 flex gap-2">
+            <div className="relative z-10 mt-3 flex gap-2">
               <Link href={`/study/all?subject=${encodeURIComponent(s.name)}`}><Button size="sm"><Play className="h-3.5 w-3.5 text-accent" /> 예정 학습</Button></Link>
               <Link href={`/study/all?subject=${encodeURIComponent(s.name)}&mode=cram`}><Button size="sm">훑기</Button></Link>
               <Link href={`/insights?subject=${encodeURIComponent(s.name)}`}><Button size="sm" variant="ghost">통계</Button></Link>
