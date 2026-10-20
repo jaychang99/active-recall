@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds a self-contained Lambda bundle for the API:
-#   apps/api/lambda-dist/            → compiled dist/ + production node_modules (incl. workspace @recall/contracts)
+#   apps/api/lambda-dist/            → index.js (esbuild bundle of dist/ with ESM-only deps inlined) + production node_modules
 #   apps/api/lambda-dist/lambda.zip  → what infra/aws/deploy-api.sh uploads
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -23,10 +23,15 @@ cp -R dist "$OUT/dist"
 mkdir -p "$OUT/examples" "$OUT/docs"
 cp "$ROOT/examples/example-question-batch.json" "$OUT/examples/"
 cp "$ROOT/docs/QUESTION_GENERATOR_PROMPT.md" "$OUT/docs/"
-# Lambda handler shim at the package root
-cat > "$OUT/index.js" <<'JS'
-module.exports = require('./dist/lambda.js');
-JS
+echo "▸ bundle (inline ESM-only packages — Lambda's node runs with --no-experimental-require-module)"
+node "$PWD/scripts/bundle-lambda.mjs" "$OUT"
+rm -rf "$OUT/dist"
+# Packages the inlined ESM code loads at runtime through createRequire(import.meta.url) (bare names, resolved
+# from the bundle root) must be reachable from node_modules/ — pnpm only hoists direct dependencies.
+for hoist in swagger-ui-dist; do
+  real=$(ls -d "$OUT"/node_modules/.pnpm/${hoist}@*/node_modules/${hoist} 2>/dev/null | head -1)
+  [ -n "$real" ] && [ ! -e "$OUT/node_modules/$hoist" ] && ln -s "${real#"$OUT"/node_modules/}" "$OUT/node_modules/$hoist"
+done
 echo "▸ prune"
 # The `prisma` CLI is only an optional peer of @prisma/client, but pnpm deploy still ships it together with its
 # dev-time tree (Prisma Studio, pglite, React, effect, Rust engines …) — none of it runs on Lambda.
@@ -43,8 +48,8 @@ find "$OUT/node_modules" -type f \( -name '*.md' -o -name '*.map' -o -name '*.d.
 find "$OUT/node_modules" -type l ! -exec test -e {} \; -delete 2>/dev/null || true
 du -sh "$OUT" | awk '{print "   unpacked:", $1}'
 
-echo "▸ smoke test"
-node "$PWD/scripts/smoke-lambda.cjs" "$OUT"
+echo "▸ smoke test (with Lambda's module flags)"
+node --no-experimental-require-module --no-experimental-detect-module "$PWD/scripts/smoke-lambda.cjs" "$OUT"
 
 echo "▸ zip"
 # -y keeps pnpm's relative symlinks inside node_modules as symlinks (Lambda preserves them on extract)

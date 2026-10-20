@@ -52,11 +52,11 @@ echo "▸ lambda $FN ($REGION)"
 if aws lambda get-function --function-name "$FN" --region "$REGION" >/dev/null 2>&1; then
   aws lambda update-function-code --function-name "$FN" --region "$REGION" --zip-file "fileb://$ZIP" --architectures arm64 >/dev/null
   aws lambda wait function-updated --function-name "$FN" --region "$REGION"
-  aws lambda update-function-configuration --function-name "$FN" --region "$REGION" --runtime nodejs22.x --handler index.handler --memory-size "$MEMORY" --timeout "$TIMEOUT" --environment "$ENV_JSON" >/dev/null
+  aws lambda update-function-configuration --function-name "$FN" --region "$REGION" --runtime nodejs24.x --handler index.handler --memory-size "$MEMORY" --timeout "$TIMEOUT" --environment "$ENV_JSON" >/dev/null
   aws lambda wait function-updated --function-name "$FN" --region "$REGION"
   echo "   updated"
 else
-  aws lambda create-function --function-name "$FN" --region "$REGION" --runtime nodejs22.x --architectures arm64 --handler index.handler --role "$ROLE_ARN" --zip-file "fileb://$ZIP" --memory-size "$MEMORY" --timeout "$TIMEOUT" --environment "$ENV_JSON" >/dev/null
+  aws lambda create-function --function-name "$FN" --region "$REGION" --runtime nodejs24.x --architectures arm64 --handler index.handler --role "$ROLE_ARN" --zip-file "fileb://$ZIP" --memory-size "$MEMORY" --timeout "$TIMEOUT" --environment "$ENV_JSON" >/dev/null
   aws lambda wait function-active --function-name "$FN" --region "$REGION"
   echo "   created"
 fi
@@ -64,7 +64,9 @@ fi
 echo "▸ function url"
 if ! aws lambda get-function-url-config --function-name "$FN" --region "$REGION" >/dev/null 2>&1; then
   aws lambda create-function-url-config --function-name "$FN" --region "$REGION" --auth-type NONE >/dev/null
+  # Since Oct 2025 a public (NONE) URL needs BOTH statements: InvokeFunctionUrl and InvokeFunction-via-URL.
   aws lambda add-permission --function-name "$FN" --region "$REGION" --statement-id public-url --action lambda:InvokeFunctionUrl --principal '*' --function-url-auth-type NONE >/dev/null
+  aws lambda add-permission --function-name "$FN" --region "$REGION" --statement-id public-url-invoke --action lambda:InvokeFunction --principal '*' --invoked-via-function-url >/dev/null
 fi
 URL=$(aws lambda get-function-url-config --function-name "$FN" --region "$REGION" --query FunctionUrl --output text)
 echo

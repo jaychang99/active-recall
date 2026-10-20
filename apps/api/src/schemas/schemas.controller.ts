@@ -9,8 +9,8 @@ function readRepoFile(...candidates: string[]): string | null {
   for (const c of candidates) if (existsSync(c)) return readFileSync(c, 'utf8');
   return null;
 }
-// Monorepo checkout: <root>/apps/api/dist/schemas → four levels up. Lambda bundle: <bundle>/dist/schemas → two levels up.
-const ROOTS = [join(__dirname, '..', '..', '..', '..'), join(__dirname, '..', '..')];
+// Monorepo checkout: <root>/apps/api/dist/schemas → four levels up. Lambda bundle (single index.js at the task root): __dirname itself.
+const ROOTS = [join(__dirname, '..', '..', '..', '..'), join(__dirname, '..', '..'), __dirname, process.env.LAMBDA_TASK_ROOT ?? ''].filter(Boolean);
 
 @ApiTags('schemas')
 @Public()

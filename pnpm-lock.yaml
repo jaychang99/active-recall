@@ -90,6 +90,9 @@ importers:
       '@types/supertest':
         specifier: ^7.2.1
         version: 7.2.1
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       eslint:
         specifier: ^10.0.1
         version: 10.13.0
@@ -110,7 +113,7 @@ importers:
         version: 8.71.2(eslint@10.13.0)(typescript@5.9.3)
       unplugin-swc:
         specifier: ^2.0.0
-        version: 2.0.0(@swc/core@1.16.18)(vite@8.3.4)
+        version: 2.0.0(@swc/core@1.16.18)(esbuild@0.28.2)(vite@8.3.4)
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@26.6.5)(jsdom@30.1.3)(vite@8.3.4)
@@ -4586,7 +4589,7 @@ packages:
         optional: true
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.3.4(@types/node@26.6.5)(tsx@4.23.15)
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)
     dev: true
 
   /@vitest/mocker@5.0.5(vite@8.3.4):
@@ -4604,7 +4607,7 @@ packages:
       '@vitest/spy': 5.0.5
       estree-walker: 3.0.3
       magic-string: 1.4.3
-      vite: 8.3.4(@types/node@26.6.5)(tsx@4.23.15)
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)
     dev: true
 
   /@vitest/spy@5.0.5:
@@ -10064,7 +10067,7 @@ packages:
     resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
     engines: {node: '>= 0.8'}
 
-  /unplugin-swc@2.0.0(@swc/core@1.16.18)(vite@8.3.4):
+  /unplugin-swc@2.0.0(@swc/core@1.16.18)(esbuild@0.28.2)(vite@8.3.4):
     resolution: {integrity: sha512-hMdGJEtkwiJhzuXXx4Nb1XYDeD9KG4+P7KZOaErJTpZNYhTo1sbWIsXb+u410zXyaqH00veNX4UxOr6TpUwNiQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
@@ -10073,7 +10076,7 @@ packages:
       '@rollup/pluginutils': 5.4.0
       '@swc/core': 1.16.18
       load-tsconfig: 0.2.5
-      unplugin: 3.4.0(vite@8.3.4)
+      unplugin: 3.4.0(esbuild@0.28.2)(vite@8.3.4)
     transitivePeerDependencies:
       - '@farmfe/core'
       - '@rsbuild/core'
@@ -10087,7 +10090,7 @@ packages:
       - webpack
     dev: true
 
-  /unplugin@3.4.0(vite@8.3.4):
+  /unplugin@3.4.0(esbuild@0.28.2)(vite@8.3.4):
     resolution: {integrity: sha512-9skdIFlCsPdFV7wUfZxNsFInlW+7nJmGu2gkTu0OUhF56aXGsHab9x52/QhdJ4lC7ZDPWTxbiC4ANqVlsuaW3w==}
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
@@ -10124,8 +10127,9 @@ packages:
         optional: true
     dependencies:
       '@jridgewell/remapping': 2.3.5
+      esbuild: 0.28.2
       picomatch: 4.0.7
-      vite: 8.3.4(@types/node@26.6.5)(tsx@4.23.15)
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)
       webpack-virtual-modules: 0.6.2
     dev: true
 
@@ -10250,7 +10254,7 @@ packages:
       vfile-message: 4.0.3
     dev: false
 
-  /vite@8.3.4(@types/node@26.6.5)(tsx@4.23.15):
+  /vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15):
     resolution: {integrity: sha512-IftLE8phJhdNRIGNEV4JCCvfNScoZQVfcXaN8TQropWGJtOHcu+iAB9pHcuGvmEb/kddw0LBe/jS8ztdC6xdiQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
@@ -10294,6 +10298,7 @@ packages:
         optional: true
     dependencies:
       '@types/node': 26.6.5
+      esbuild: 0.28.2
       lightningcss: 1.33.0
       picomatch: 4.0.7
       postcss: 8.5.31
@@ -10359,7 +10364,7 @@ packages:
       tinybench: 6.2.2
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.4(@types/node@26.6.5)(tsx@4.23.15)
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15)
       why-is-node-running: 3.2.1
     transitivePeerDependencies:
       - msw

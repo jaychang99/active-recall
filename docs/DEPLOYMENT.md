@@ -58,6 +58,8 @@ pnpm deploy:api                                          # 번들(apps/api/lambd
 마지막 줄에 `API URL: https://xxxx.lambda-url.ap-northeast-1.on.aws/`가 출력됩니다. `curl <URL>health`가 `{"status":"ok","db":"ok"}`이면 끝. 코드를 바꾸면 같은 명령으로 재배포합니다 (환경변수도 `.env.lambda`에서 다시 읽어 덮어씁니다).
 
 - 리전/이름/메모리는 `AWS_REGION`, `FUNCTION_NAME`, `MEMORY_MB`, `TIMEOUT_S` 환경변수로 바꿉니다.
+- 런타임은 **Node.js 24** 이고 핸들러는 promise 방식입니다 (Node 24 런타임은 callback 시그니처를 거부). Lambda의 node는 `--no-experimental-require-module`로 뜨기 때문에 ESM 전용 패키지(NestJS 12, jose)는 `scripts/bundle-lambda.mjs`(esbuild)가 `index.js` 하나로 인라인하고, 나머지 CommonJS 패키지는 `node_modules`에서 상대 경로로 require 합니다. 빌드 스크립트의 smoke test는 같은 플래그로 돌립니다.
+- 공개 Function URL은 2025년 10월부터 리소스 정책에 `lambda:InvokeFunctionUrl` **과** `lambda:InvokeFunction`(InvokedViaFunctionUrl) 두 문장이 모두 필요합니다 — 스크립트가 둘 다 추가합니다 (하나만 있으면 403).
 - CORS는 앱 레벨(`WEB_ORIGIN`, 쉼표로 여러 개)에서 처리하므로 Function URL에는 CORS 설정을 넣지 않습니다.
 - Swagger는 `<URL>docs`에서 열리고, 호출하려면 Authorize에 Bearer 토큰을 넣어야 합니다 (브라우저 DevTools → Network → 아무 API 요청의 `Authorization` 헤더에서 복사).
 
