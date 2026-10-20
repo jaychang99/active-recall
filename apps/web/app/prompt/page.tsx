@@ -4,7 +4,7 @@ import { ClipboardCopy, FileText, RotateCcw, Save } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { api, type Deck, type Settings } from '@/lib/api';
+import { api, type Deck, type Settings, type SubjectSummary } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader, Panel } from '@/components/ui/misc';
@@ -28,6 +28,7 @@ export default function PromptPage() {
   const qc = useQueryClient();
   const { settings, loaded } = useSettings();
   const decks = useQuery({ queryKey: ['decks'], queryFn: () => api<Deck[]>('/decks') });
+  const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => api<SubjectSummary[]>('/subjects') });
   const saved = useMemo(() => resolvePromptOptions(settings.promptDefaults), [settings.promptDefaults]);
   const [value, setValue] = useState<PromptOptions>(saved);
   const [touched, setTouched] = useState(false);
@@ -54,7 +55,7 @@ export default function PromptPage() {
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)] lg:items-start">
         <Panel className="px-5 py-2">
-          <PromptOptionsForm value={value} onChange={update} base={saved} decks={decks.data} oneOff />
+          <PromptOptionsForm value={value} onChange={update} base={saved} decks={decks.data} subjects={subjects.data} oneOff />
         </Panel>
 
         <div className="space-y-4 lg:sticky lg:top-20">

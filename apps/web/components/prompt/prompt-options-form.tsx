@@ -1,7 +1,7 @@
 'use client';
 import { RotateCcw } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
-import type { Deck } from '@/lib/api';
+import type { Deck, SubjectSummary } from '@/lib/api';
 import { Input, Label, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -70,8 +70,10 @@ export interface PromptOptionsFormProps {
   onChange: (next: PromptOptions) => void;
   /** Reference values (saved defaults on /prompt, the prompt document in Settings). Fields that differ get a per-field reset button. */
   base?: PromptOptions;
-  /** Decks offered by the "덱에서 채우기" picker. */
-  decks?: Pick<Deck, 'id' | 'title' | 'subject'>[];
+  /** Existing decks offered in the deck ID dropdown (the prompt's deck id is the slug). Picking one also fills title + subject. */
+  decks?: Pick<Deck, 'id' | 'slug' | 'title' | 'subject'>[];
+  /** Existing subjects offered in the subject dropdown. */
+  subjects?: Pick<SubjectSummary, 'id' | 'name'>[];
   /** Hide the deck identity section (Settings: defaults rarely carry a specific deck). */
   hideDeck?: boolean;
   /** Show the per-copy fields (topics, audience) that are never saved as defaults. */
@@ -79,15 +81,22 @@ export interface PromptOptionsFormProps {
 }
 
 /** Every CONFIG option of the generator prompt as a form. Used on /prompt (one-off copy) and in Settings (defaults). */
-export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, decks, hideDeck, oneOff }: PromptOptionsFormProps) {
+export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, decks, subjects, hideDeck, oneOff }: PromptOptionsFormProps) {
   const uid = useId();
   const id = (k: string) => `${uid}-${k}`;
   const set = <K extends keyof PromptOptions>(k: K, v: PromptOptions[K]) => onChange({ ...o, [k]: v });
   const changed = useMemo(() => new Set(changedKeys(o, base)), [o, base]);
   const isChanged = (k: keyof PromptOptions) => changed.has(k);
   /** Props shared by every Row: the changed mark and the reset to the base value for that one key. */
-  const row = (k: keyof PromptOptions) => ({ changed: isChanged(k), onReset: () => { const v = base[k]; onChange({ ...o, [k]: typeof v === 'object' && v !== null ? { ...(v as object) } : v }); if (k === 'outputLanguage') setCustomLang(!(LANGUAGE_PRESETS as readonly string[]).includes(base.outputLanguage)); } });
+  const row = (k: keyof PromptOptions) => ({ changed: isChanged(k), onReset: () => { const v = base[k]; onChange({ ...o, [k]: typeof v === 'object' && v !== null ? { ...(v as object) } : v }); if (k === 'outputLanguage') setCustomLang(!(LANGUAGE_PRESETS as readonly string[]).includes(base.outputLanguage)); if (k === 'deckId') setCustomDeck(false); if (k === 'subject') setCustomSubject(false); } });
   const [customLang, setCustomLang] = useState(() => !(LANGUAGE_PRESETS as readonly string[]).includes(o.outputLanguage));
+  // Deck ID / subject dropdowns: "auto", an existing item, or "직접 입력…" (a text input). The custom flag only remembers that the user
+  // asked to type; a value that is neither auto nor an existing item is shown as custom regardless.
+  const [customDeck, setCustomDeck] = useState(false);
+  const [customSubject, setCustomSubject] = useState(false);
+  const isAuto = (v: string) => !v.trim() || v.trim() === 'auto';
+  const deckMode = customDeck ? '__custom' : isAuto(o.deckId) ? 'auto' : decks?.some((d) => d.slug === o.deckId) ? o.deckId : '__custom';
+  const subjectMode = customSubject ? '__custom' : isAuto(o.subject) ? 'auto' : subjects?.some((s) => s.name === o.subject) ? o.subject : '__custom';
   const diffSum = sumDifficulty(o);
   const typeSum = sumTypeTarget(o);
   const general = o.sourceMode === 'general_knowledge';
@@ -128,19 +137,39 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
       {!hideDeck ? (
         <section>
           <h3 className="mb-1 text-[13px] font-semibold text-ink-2">덱</h3>
-          <Row label="덱 ID" hint="auto = LLM이 자료/주제에서 영문 ID를 새로 만듭니다 (새 덱). 기존 덱 ID를 넣으면 그 덱에 추가·갱신됩니다." {...row('deckId')} htmlFor={id('deckId')}>
+          <Row label="덱 ID" hint="auto = LLM이 자료/주제에서 영문 ID를 새로 만듭니다 (새 덱). 기존 덱을 고르면 그 덱에 추가·갱신되고 제목·과목도 채워집니다." {...row('deckId')} htmlFor={id('deckId')}>
             <div className="flex gap-2">
-              <Input id={id('deckId')} value={o.deckId} onChange={(e) => set('deckId', e.target.value)} placeholder="auto" className="font-mono text-[13px]" spellCheck={false} />
-              {decks?.length ? (
-                <Select aria-label="기존 덱에서 채우기" value="" onChange={(e) => { const d = decks.find((x) => x.id === e.target.value); if (d) onChange({ ...o, deckId: d.id, deckTitle: d.title, subject: d.subject }); }} className="w-32 shrink-0">
-                  <option value="">기존 덱…</option>
-                  {decks.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-                </Select>
-              ) : null}
+              <Select id={id('deckId')} className="min-w-0 flex-1" value={deckMode} data-testid="prompt-deck-select" onChange={(e) => {
+                const v = e.target.value;
+                if (v === '__custom') { setCustomDeck(true); if (isAuto(o.deckId)) set('deckId', ''); return; }
+                setCustomDeck(false);
+                if (v === 'auto') { set('deckId', 'auto'); return; }
+                const d = decks?.find((x) => x.slug === v);
+                if (d) onChange({ ...o, deckId: d.slug, deckTitle: d.title, subject: d.subject });
+              }}>
+                <option value="auto">auto (LLM이 새 덱 ID를 정함)</option>
+                {decks?.length ? <optgroup label="기존 덱에 추가">{decks.map((d) => <option key={d.id} value={d.slug}>{d.title} ({d.slug}) · {d.subject}</option>)}</optgroup> : null}
+                <option value="__custom">직접 입력…</option>
+              </Select>
+              {deckMode === '__custom' ? <Input aria-label="덱 ID 직접 입력" value={isAuto(o.deckId) && customDeck ? '' : o.deckId} onChange={(e) => set('deckId', e.target.value)} placeholder="예: os_midterm_02" className="w-40 shrink-0 font-mono text-[13px]" spellCheck={false} data-testid="prompt-deck-custom" /> : null}
             </div>
           </Row>
           <Row label="덱 제목" hint="auto = LLM이 정합니다." {...row('deckTitle')} htmlFor={id('deckTitle')}><Input id={id('deckTitle')} value={o.deckTitle} onChange={(e) => set('deckTitle', e.target.value)} placeholder="auto" /></Row>
-          <Row label="과목" hint="auto = LLM이 정합니다. 가져올 때 덱 과목으로 부여되며, 가져오기 화면에서 바꿀 수 있습니다." {...row('subject')} htmlFor={id('subject')}><Input id={id('subject')} value={o.subject} onChange={(e) => set('subject', e.target.value)} placeholder="auto" /></Row>
+          <Row label="과목" hint="auto = LLM이 정합니다. 가져올 때 덱 과목으로 부여되며, 가져오기 화면에서 바꿀 수 있습니다." {...row('subject')} htmlFor={id('subject')}>
+            <div className="flex gap-2">
+              <Select id={id('subject')} className="min-w-0 flex-1" value={subjectMode} data-testid="prompt-subject-select" onChange={(e) => {
+                const v = e.target.value;
+                if (v === '__custom') { setCustomSubject(true); if (isAuto(o.subject)) set('subject', ''); return; }
+                setCustomSubject(false);
+                set('subject', v === 'auto' ? 'auto' : v);
+              }}>
+                <option value="auto">auto (LLM이 정함)</option>
+                {subjects?.length ? <optgroup label="기존 과목">{subjects.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}</optgroup> : null}
+                <option value="__custom">직접 입력…</option>
+              </Select>
+              {subjectMode === '__custom' ? <Input aria-label="과목 직접 입력" value={isAuto(o.subject) && customSubject ? '' : o.subject} onChange={(e) => set('subject', e.target.value)} placeholder="예: 운영체제" className="w-40 shrink-0" data-testid="prompt-subject-custom" /> : null}
+            </div>
+          </Row>
         </section>
       ) : null}
 
