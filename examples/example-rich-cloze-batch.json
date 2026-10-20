@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1.0.0",
+  "deck": {
+    "id": "rich_cloze_demo",
+    "title": "표·도식 빈칸 데모",
+    "description": "GFM 표 셀 안의 cloze 빈칸과 mermaid 상태도 안의 cloze_select 빈칸",
+    "subject": "Operating Systems",
+    "language": "ko",
+    "tags": ["운영체제", "데모", "빈칸"]
+  },
+  "questions": [
+    {
+      "id": "rich-q001",
+      "type": "cloze",
+      "prompt": "OSI 7계층 표의 빈칸을 채우시오.\n\n| 계층 번호 | 이름 | 대표 프로토콜/단위 |\n|---|---|---|\n| 7 | 응용 | HTTP, SMTP |\n| 4 | {{b1}} | TCP, UDP (세그먼트) |\n| 3 | 네트워크 | IP ({{b2}}) |\n| 2 | 데이터 링크 | Ethernet (프레임) |",
+      "explanation": {
+        "summary": "4계층은 전송(transport) 계층이고, 3계층의 전송 단위는 패킷이다."
+      },
+      "difficulty": 2,
+      "tags": ["네트워크"],
+      "blanks": [
+        { "id": "b1", "acceptedAnswers": ["전송", "transport", "전송 계층"] },
+        { "id": "b2", "acceptedAnswers": ["패킷", "packet"] }
+      ]
+    },
+    {
+      "id": "rich-q002",
+      "type": "cloze_select",
+      "prompt": "프로세스 상태 전이도의 빈 노드를 채우시오.\n\n```mermaid\nstateDiagram-v2\n    state \"{{s1}}\" as W\n    state \"{{s2}}\" as R2\n    [*] --> Ready\n    Ready --> Running: dispatch\n    Running --> W: I/O 요청\n    W --> Ready: I/O 완료\n    Running --> R2: 타임슬라이스 만료\n    Running --> [*]: exit\n```",
+      "explanation": {
+        "summary": "I/O를 요청하면 대기(blocked) 상태로, 타임슬라이스가 끝나면 준비(ready) 상태로 돌아간다. 도식 안의 ①②는 아래 선택칸에 대응한다."
+      },
+      "difficulty": 2,
+      "tags": ["프로세스"],
+      "blanks": [
+        {
+          "id": "s1",
+          "options": [
+            { "id": "a", "text": "Blocked" },
+            { "id": "b", "text": "Ready" },
+            { "id": "c", "text": "Terminated" }
+          ],
+          "answerOptionId": "a"
+        },
+        {
+          "id": "s2",
+          "options": [
+            { "id": "a", "text": "Blocked" },
+            { "id": "b", "text": "Ready" },
+            { "id": "c", "text": "Running" }
+          ],
+          "answerOptionId": "b"
+        }
+      ]
+    }
+  ]
+}
