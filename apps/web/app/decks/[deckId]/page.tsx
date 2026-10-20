@@ -81,6 +81,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
             <Link href={`/study/${d.id}`}><Button variant="primary"><Play className="h-4 w-4" /> 학습 {d.progress.dueToday ? `(due ${d.progress.dueToday})` : ''}</Button></Link>
             <Link href={`/study/${d.id}?mode=cram`}><Button><PlayCircle className="h-4 w-4" /> 훑기</Button></Link>
             <Link href={`/study/${d.id}?mode=practice`}><Button>연습</Button></Link>
+            <Link href={`/study/${d.id}?mode=browse`} title="학습 상한·스케줄과 무관하게 모든 문제를 풀어보고 정답만 확인 (기록 없음)"><Button><Eye className="h-4 w-4" /> 구경</Button></Link>
             <Link href={`/exam?deckId=${d.id}`}><Button><GraduationCap className="h-4 w-4" /> 시험</Button></Link>
             <DeckSubjectDialog deckId={d.id} currentSubject={d.subject} questionCount={d.progress.total} onChanged={invalidate} />
             <DropdownMenu>

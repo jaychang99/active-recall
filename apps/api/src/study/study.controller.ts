@@ -5,10 +5,11 @@ import type { AuthUser } from '../auth/users.service';
 import { Transform } from 'class-transformer';
 import { IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 import type { AnswerPayload } from '@recall/contracts';
-import { StudyService, type StudyMode } from './study.service';
+import { StudyService, type SessionStudyMode, type StudyMode } from './study.service';
 import { QuestionType } from '../generated/prisma/client';
 
-const MODES = ['scheduled', 'cram', 'mistakes', 'flagged', 'practice'] as const;
+const MODES = ['scheduled', 'cram', 'mistakes', 'flagged', 'practice', 'browse'] as const;
+const SESSION_MODES = ['scheduled', 'cram', 'mistakes', 'flagged', 'practice'] as const;
 const toList = ({ value }: { value: unknown }) => (Array.isArray(value) ? value : typeof value === 'string' && value.length ? value.split(',') : undefined);
 
 class QueueQuery {
@@ -25,7 +26,7 @@ class QueueQuery {
 class StartSessionDto {
   @IsString() scope!: string; // deck id or "all"
   @IsOptional() @IsString() subject?: string;
-  @IsOptional() @IsIn(MODES) mode?: StudyMode;
+  @IsOptional() @IsIn(SESSION_MODES) mode?: SessionStudyMode;
   @IsOptional() @IsInt() @Min(0) queueSize?: number;
 }
 class PracticeDto {

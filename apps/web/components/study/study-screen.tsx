@@ -27,7 +27,7 @@ import { useSettings } from '@/components/layout/settings-context';
 
 export interface StudyParams {
   scope: string; // deck id or 'all'
-  mode: 'scheduled' | 'cram' | 'mistakes' | 'flagged' | 'practice';
+  mode: 'scheduled' | 'cram' | 'mistakes' | 'flagged' | 'practice' | 'browse';
   subject?: string;
   tags?: string[];
   types?: string[];
@@ -59,7 +59,7 @@ function clearSnapshot(key: string) {
 
 interface Done { questionId: string; rating?: number; isCorrect: boolean | null; reviewId?: string }
 
-const MODE_LABEL: Record<StudyParams['mode'], string> = { scheduled: '예정된 학습', cram: '전체 훑기 (cram)', mistakes: '틀린 문제', flagged: '표시한 문제', practice: '연습 (스케줄 영향 없음)' };
+const MODE_LABEL: Record<StudyParams['mode'], string> = { scheduled: '예정된 학습', cram: '전체 훑기 (cram)', mistakes: '틀린 문제', flagged: '표시한 문제', practice: '연습 (스케줄 영향 없음)', browse: '구경 (기록 없음)' };
 
 function queueUrl(p: StudyParams) {
   const u = new URLSearchParams();
@@ -70,7 +70,7 @@ function queueUrl(p: StudyParams) {
   if (p.types?.length) u.set('types', p.types.join(','));
   if (p.difficultyMin) u.set('difficultyMin', String(p.difficultyMin));
   if (p.difficultyMax) u.set('difficultyMax', String(p.difficultyMax));
-  u.set('limit', String(p.limit ?? 200));
+  u.set('limit', String(p.limit ?? (p.mode === 'browse' ? 1000 : 200)));
   return `/study/queue?${u.toString()}`;
 }
 
@@ -172,10 +172,13 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     writeSnapshot(storageKey, { items: baseItems, queue: queueMeta, index, done, extraItems, skipped: [...skipped], savedAt: Date.now() });
   }, [storageKey, baseItems, queueMeta, index, done, extraItems, skipped, finished]);
   const isPractice = params.mode === 'practice';
+  // Browse: look at every question (limits, due dates, suspend/bury ignored); nothing is recorded, no rating step.
+  const isBrowse = params.mode === 'browse';
+  const unrated = isPractice || isBrowse;
 
   // session bookkeeping
   useEffect(() => {
-    if (!baseItems || sessionId || restored === undefined || restored) return;
+    if (!baseItems || sessionId || restored === undefined || restored || isBrowse) return;
     api<{ id: string }>('/study/sessions', { method: 'POST', json: { scope: params.scope, subject: params.subject, mode: params.mode, queueSize: baseItems.length } })
       .then((s) => setSessionId(s.id))
       .catch(() => {});
@@ -269,6 +272,13 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     resetCard();
     setIndex((i) => i + 1);
   }, [resetCard]);
+
+  // practice/browse have no rating step: count the answer and move on
+  const advanceUnrated = useCallback(() => {
+    if (!item || !grade) return;
+    setDone((d) => [...d, { questionId: item.questionId, isCorrect: revealedBeforeAnswer ? null : grade.grade.isCorrect }]);
+    next();
+  }, [item, grade, revealedBeforeAnswer, next]);
 
   const reviewMut = useMutation({
     mutationFn: async (rating: 1 | 2 | 3 | 4) => {
@@ -373,12 +383,12 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       { keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9'], description: phase === 'answering' ? '보기 선택 (1–9)' : '평가 Again / Hard / Good / Easy (1–4)', group: '학습', handler: (e) => {
         const n = Number(e.key);
         if (phase === 'answering') { digitHandler.current?.(n); return; }
-        if (phase === 'submitted' && n >= 1 && n <= 4) { rate(n as 1 | 2 | 3 | 4); return; }
+        if (phase === 'submitted' && !unrated && n >= 1 && n <= 4) { rate(n as 1 | 2 | 3 | 4); return; }
         return false;
       } },
       { keys: 'Enter', description: '답안 제출 / 다음', group: '학습', handler: () => {
         if (phase === 'answering') { if (typing) return false; submit(); return; }
-        if (phase === 'submitted') return false; // Enter never rates by accident
+        if (phase === 'submitted') { if (unrated) { advanceUnrated(); return; } return false; } // Enter never rates by accident
         if (phase === 'rated') { next(); return; }
         return false;
       } },
@@ -388,14 +398,14 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         setShowExplanation((v) => !v);
       } },
       { keys: 'e', description: '해설 토글', group: '학습', handler: () => (phase === 'answering' ? false : (setShowExplanation((v) => !v), undefined)) },
-      { keys: 'n', description: '다음 문제 (평가 후)', group: '학습', handler: () => (phase === 'rated' ? (next(), undefined) : false) },
+      { keys: 'n', description: '다음 문제 (평가 후)', group: '학습', handler: () => (phase === 'rated' ? (next(), undefined) : phase === 'submitted' && unrated ? (advanceUnrated(), undefined) : false) },
       { keys: 'u', description: '마지막 평가 되돌리기', group: '학습', handler: () => { undo(); } },
       { keys: 'h', description: '힌트 보기', group: '학습', handler: () => (item?.hasHint && phase === 'answering' ? (void showHint(), undefined) : false) },
-      { keys: 'm', description: '메모 작성 (이번 회차)', group: '학습', handler: () => setNotesFocus((n) => n + 1) },
+      { keys: 'm', description: '메모 작성 (이번 회차)', group: '학습', handler: () => (isBrowse ? false : (setNotesFocus((n) => n + 1), undefined)) },
       { keys: 'f', description: '문제 표시 / 해제', group: '학습', handler: () => (item ? (cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' }), undefined) : false) },
       { keys: 'i', description: '카드 정보', group: '학습', handler: () => setShowInfo((v) => !v) },
       { keys: 'v', description: '메타데이터 모두 가리기 / 보이기', group: '학습', handler: () => { meta.toggleAll(); } },
-      { keys: 's', description: '건너뛰기 (내일까지 묻기)', group: '학습', handler: () => (item && !isPractice ? (cardMut.mutate({ action: 'bury' }), undefined) : false) },
+      { keys: 's', description: '건너뛰기 (내일까지 묻기)', group: '학습', handler: () => (item && !unrated ? (cardMut.mutate({ action: 'bury' }), undefined) : false) },
       { keys: 'Escape', description: '입력창 나가기 / 닫기', group: '학습', handler: () => (showInfo ? (setShowInfo(false), undefined) : false) },
     ],
     shortcutsOn && !finished && !!item,
@@ -413,7 +423,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       {/* progress strip */}
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-3">
         {meta.mask.subject && (queueMeta?.deck || params.subject) ? <MaskedChip label={queueMeta?.deck ? '덱' : '과목'} onReveal={() => meta.toggle('subject')} testId="meta-subject" /> : <span className="font-medium text-ink" data-testid="meta-subject">{queueMeta?.deck?.title ?? (params.subject ? `과목: ${params.subject}` : '모든 덱')}</span>}
-        <Badge tone={isPractice ? 'warn' : 'neutral'}>{MODE_LABEL[params.mode]}</Badge>
+        <Badge tone={unrated ? 'warn' : 'neutral'}>{MODE_LABEL[params.mode]}</Badge>
         <span className="tabular">{progress} / {total} 완료</span>
         {params.mode === 'scheduled' ? <span className="tabular">오늘 복습 {queueMeta?.counts.reviewedToday ?? 0} / 목표 {settings.dailyReviewGoal}</span> : null}
         {lastReview && phase === 'answering' ? <span className="flex items-center gap-1 tabular" data-testid="last-rating">직전 <span className={cn('font-medium', RATINGS[lastReview.rating - 1]!.cls.split(' ')[1])}>{RATINGS[lastReview.rating - 1]!.ko}</span>{lastReview.interval ? ` · ${lastReview.interval}` : ''} <kbd className="kbd" aria-hidden>U</kbd></span> : null}
@@ -466,7 +476,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             <Button variant="primary" size="lg" onClick={submit} disabled={gradeMut.isPending} kbd={typing ? '⌘⏎' : '⏎'} data-testid="submit-btn">제출</Button>
             <Button size="lg" onClick={reveal} disabled={gradeMut.isPending} kbd="Space" data-testid="reveal-btn"><Eye className="h-4 w-4" /> 정답 공개</Button>
             {item.hasHint ? <Button variant="ghost" onClick={() => void showHint()} kbd="H"><Lightbulb className="h-4 w-4" /> 힌트</Button> : null}
-            {!isPractice ? <Button variant="ghost" onClick={() => cardMut.mutate({ action: 'bury' })} kbd="S" className="ml-auto"><SkipForward className="h-4 w-4" /> 내일로</Button> : null}
+            {!unrated ? <Button variant="ghost" onClick={() => cardMut.mutate({ action: 'bury' })} kbd="S" className="ml-auto"><SkipForward className="h-4 w-4" /> 내일로</Button> : null}
           </div>
         ) : null}
 
@@ -481,10 +491,10 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             </div>
             <ExplanationPanel explanation={grade.explanation} source={item.question.source} sourceMasked={meta.mask.source} onRevealSource={() => meta.toggle('source')} open={showExplanation} />
             {phase === 'submitted' ? (
-              isPractice ? (
+              unrated ? (
                 <div className="flex items-center gap-2">
-                  <Button variant="primary" size="lg" onClick={() => { setDone((d) => [...d, { questionId: item.questionId, isCorrect: grade.grade.isCorrect }]); next(); }} kbd="N" data-testid="next-btn">다음 <ArrowRight className="h-4 w-4" /></Button>
-                  <span className="text-[12px] text-ink-3">연습 모드: FSRS 스케줄은 바뀌지 않습니다.</span>
+                  <Button variant="primary" size="lg" onClick={advanceUnrated} kbd="N" data-testid="next-btn">다음 <ArrowRight className="h-4 w-4" /></Button>
+                  <span className="text-[12px] text-ink-3">{isBrowse ? '구경 모드: 학습 기록과 FSRS 스케줄에 남지 않습니다.' : '연습 모드: FSRS 스케줄은 바뀌지 않습니다.'}</span>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -502,7 +512,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
           </div>
         ) : null}
 
-        <NotesPanel questionId={item.questionId} round={item.reviewRound} focusSignal={notesFocus} defaultOpen={false} />
+        {!isBrowse ? <NotesPanel questionId={item.questionId} round={item.reviewRound} focusSignal={notesFocus} defaultOpen={false} /> : null}
 
       </article>
 
@@ -510,7 +520,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         <DialogContent title="카드 정보" description={`${meta.mask.subject ? '덱 (가려짐)' : item.deck.title} · ${meta.mask.source ? 'ID (가려짐)' : item.externalId}`}>
           <CardInfoTable card={item.card} round={item.reviewRound} />
           <div className="mt-4 flex flex-wrap gap-2">
-            {!isPractice ? <Button size="sm" onClick={() => { setShowInfo(false); cardMut.mutate({ action: 'suspend' }); }}><PauseCircle className="h-4 w-4" /> 이 문제 보류</Button> : null}
+            {!unrated ? <Button size="sm" onClick={() => { setShowInfo(false); cardMut.mutate({ action: 'suspend' }); }}><PauseCircle className="h-4 w-4" /> 이 문제 보류</Button> : null}
             <Link href={`/decks/${item.deck.id}?q=${encodeURIComponent(item.externalId)}`} className="inline-flex h-8 items-center rounded-md border border-line px-2.5 text-[13px]">덱에서 보기</Link>
           </div>
         </DialogContent>
@@ -524,10 +534,11 @@ function SessionSummary({ params, done, queue, onRestart }: { params: StudyParam
   const correct = gradable.filter((d) => d.isCorrect).length;
   const counts = [1, 2, 3, 4].map((r) => done.filter((d) => d.rating === r).length);
   const nothing = queue.items.length === 0;
+  const browse = params.mode === 'browse';
   return (
     <div className="mx-auto max-w-[840px]" data-testid="session-summary">
-      <h1 className="text-xl font-semibold">{nothing ? '지금은 학습할 카드가 없습니다' : '세션 완료'}</h1>
-      {nothing ? (
+      <h1 className="text-xl font-semibold">{nothing ? (browse ? '볼 문제가 없습니다' : '지금은 학습할 카드가 없습니다') : browse ? '구경 완료' : '세션 완료'}</h1>
+      {nothing && browse ? null : nothing ? (
         <div className="mt-2 space-y-2 text-sm text-ink-2">
           <p>예정된 카드가 없거나 오늘의 상한에 도달했습니다. {queue.nextLearningDueAt ? `다음 학습 카드는 ${new Date(queue.nextLearningDueAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}에 예정되어 있습니다.` : ''}</p>
           <ul className="list-disc pl-5 text-[13px] text-ink-3">
@@ -539,12 +550,14 @@ function SessionSummary({ params, done, queue, onRestart }: { params: StudyParam
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           <div><div className="text-[12px] text-ink-3">완료</div><div className="text-2xl font-semibold tabular">{done.length}</div></div>
           <div><div className="text-[12px] text-ink-3">정답률 (자동채점 {gradable.length}문항)</div><div className="text-2xl font-semibold tabular">{gradable.length ? `${Math.round((correct / gradable.length) * 100)}%` : '—'}</div></div>
-          <div><div className="text-[12px] text-ink-3">평가 분포</div><div className="text-sm tabular">다시 {counts[0]} · 어려움 {counts[1]} · 보통 {counts[2]} · 쉬움 {counts[3]}</div></div>
+          {browse ? <div><div className="text-[12px] text-ink-3">기록</div><div className="text-sm">남기지 않음 (구경 모드)</div></div> : <div><div className="text-[12px] text-ink-3">평가 분포</div><div className="text-sm tabular">다시 {counts[0]} · 어려움 {counts[1]} · 보통 {counts[2]} · 쉬움 {counts[3]}</div></div>}
         </div>
       )}
       <div className="mt-6 flex flex-wrap gap-2">
         {params.mode === 'scheduled' && !nothing ? <Button variant="primary" onClick={onRestart}>더 학습하기</Button> : null}
-        {nothing ? <Link href={`/study/${params.scope}?mode=cram`} className="inline-flex h-9 items-center rounded-md bg-accent px-3.5 text-sm font-medium text-accent-ink">전체 훑기 (cram)</Link> : null}
+        {browse && !nothing ? <Button variant="primary" onClick={onRestart}>처음부터 다시</Button> : null}
+        {nothing && !browse ? <Link href={`/study/${params.scope}?mode=cram`} className="inline-flex h-9 items-center rounded-md bg-accent px-3.5 text-sm font-medium text-accent-ink">전체 훑기 (cram)</Link> : null}
+        {nothing && !browse && params.scope !== 'all' ? <Link href={`/study/${params.scope}?mode=browse`} className="inline-flex h-9 items-center rounded-md border border-line px-3.5 text-sm" data-testid="browse-link">구경하기 (기록 없음)</Link> : null}
         <Link href={params.scope === 'all' ? '/' : `/decks/${params.scope}`} className="inline-flex h-9 items-center rounded-md border border-line px-3.5 text-sm">{params.scope === 'all' ? '대시보드로' : '덱으로 돌아가기'}</Link>
         <Link href="/insights" className="inline-flex h-9 items-center rounded-md border border-line px-3.5 text-sm">통계 보기</Link>
       </div>

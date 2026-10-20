@@ -9,7 +9,7 @@ export default function StudyPage({ params }: { params: Promise<{ scope: string 
   const mode = (sp.get('mode') ?? 'scheduled') as StudyParams['mode'];
   const p: StudyParams = {
     scope: decodeURIComponent(scope),
-    mode: ['scheduled', 'cram', 'mistakes', 'flagged', 'practice'].includes(mode) ? mode : 'scheduled',
+    mode: ['scheduled', 'cram', 'mistakes', 'flagged', 'practice', 'browse'].includes(mode) ? mode : 'scheduled',
     subject: sp.get('subject') ?? undefined,
     tags: sp.get('tags')?.split(',').filter(Boolean),
     types: sp.get('types')?.split(',').filter(Boolean),

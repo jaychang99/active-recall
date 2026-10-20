@@ -73,6 +73,14 @@ describe('reviews / FSRS / undo / queue / notes', () => {
     await ctx.api.post(`/cards/${qid}/suspend`).expect(200);
     const q2 = await ctx.api.get(`/study/queue?deckId=${deckId}`).expect(200);
     expect(q2.body.items.some((i: { questionId: string }) => i.questionId === qid)).toBe(false);
+    // browse ignores the daily limit and suspension, keeps deck order, and has no answer keys or previews
+    const br = await ctx.api.get(`/study/queue?deckId=${deckId}&mode=browse`).expect(200);
+    expect(br.body.counts.queued).toBe(br.body.counts.total);
+    expect(br.body.counts.queued).toBeGreaterThan(3);
+    expect(br.body.items[0].questionId).toBe(qid);
+    expect(br.body.items.every((i: { preview: unknown }) => i.preview === null)).toBe(true);
+    expect(JSON.stringify(br.body.items.map((i: { question: unknown }) => i.question))).not.toContain('"choiceId"');
+    await ctx.api.post('/study/sessions').send({ scope: deckId, mode: 'browse' }).expect(400);
     await ctx.api.post(`/cards/${qid}/resume`).expect(200);
     // flagged mode
     await ctx.api.post(`/cards/${qid}/flag`).expect(200);

@@ -8,7 +8,9 @@ import { FsrsService, deserializeCard, type SerializedCard } from '../fsrs/fsrs.
 import { endOfDayInTz, startOfDayInTz } from '../common/time';
 import { CardStatus, Prisma, SessionMode, type QuestionType } from '../generated/prisma/client';
 
-export type StudyMode = 'scheduled' | 'cram' | 'mistakes' | 'flagged' | 'practice';
+export type StudyMode = 'scheduled' | 'cram' | 'mistakes' | 'flagged' | 'practice' | 'browse';
+/** Modes that open a StudySession (browse is read-only and never records anything). */
+export type SessionStudyMode = Exclude<StudyMode, 'browse'>;
 
 export interface QueueOptions {
   /** deck id, or "all" for every deck (optionally narrowed by `subject`). */
@@ -20,7 +22,7 @@ export interface QueueOptions {
   difficultyMin?: number;
   difficultyMax?: number;
   limit: number;
-  /** cram/practice: shuffle the queue */
+  /** cram/practice: shuffle the queue (default on); browse: opt-in (default deck order) */
   shuffle?: boolean;
 }
 
@@ -124,6 +126,10 @@ export class StudyService {
       case 'flagged':
         ordered = eligible.filter((r) => r.card?.flagged);
         break;
+      case 'browse':
+        // look-only: every question in scope, ignoring daily limits, due dates, suspend and bury
+        ordered = opts.shuffle === true ? seededShuffle(rows, seed) : rows;
+        break;
     }
     ordered = ordered.slice(0, opts.limit);
 
@@ -157,7 +163,7 @@ export class StudyService {
         },
         reviewRound: r._count.reviews + 1,
         noteCount: r._count.notes,
-        preview: settings.showIntervalPreview && opts.mode !== 'practice' ? this.fsrs.preview(params, card, now) : null,
+        preview: settings.showIntervalPreview && opts.mode !== 'practice' && opts.mode !== 'browse' ? this.fsrs.preview(params, card, now) : null,
       };
     });
 
@@ -194,7 +200,7 @@ export class StudyService {
     return { questionId, hint: (row.payloadJson as unknown as Question).hint ?? null };
   }
 
-  async startSession(userId: string, dto: { scope: string; mode: StudyMode; queueSize: number; subject?: string }) {
+  async startSession(userId: string, dto: { scope: string; mode: SessionStudyMode; queueSize: number; subject?: string }) {
     const isDeck = dto.scope !== 'all';
     if (isDeck) {
       const deck = await this.prisma.deck.findFirst({ where: { id: dto.scope, userId, deletedAt: null }, select: { id: true } });
