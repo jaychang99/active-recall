@@ -1,4 +1,5 @@
 import { extractClozeIds } from './normalize';
+import { compileSafeRegex, testRegexExamples } from './regex';
 import type { Question, QuestionBatch } from './types';
 import type { ValidationIssue } from './schema';
 
@@ -143,6 +144,135 @@ export function validateQuestionSemantics(q: Question, qi: number): ValidationIs
       for (const d of dupes(ids)) push('/segments', `duplicate segment id "${d}"`);
       for (const id of q.answer.segmentIds) if (!ids.includes(id)) push('/answer/segmentIds', `segmentId "${id}" is not one of the segments`);
       if (q.answer.segmentIds.length >= ids.length) push('/answer/segmentIds', 'highlight needs at least one non-answer segment');
+      break;
+    }
+    case 'cloze_bank': {
+      const bankIds = q.bank.map((b) => b.id);
+      for (const d of dupes(bankIds)) push('/bank', `duplicate bank item id "${d}"`);
+      const blankIds = q.blanks.map((b) => b.id);
+      for (const d of dupes(blankIds)) push('/blanks', `duplicate blank id "${d}"`);
+      const inPrompt = extractClozeIds(q.prompt);
+      for (const d of dupes(inPrompt)) push('/prompt', `placeholder {{${d}}} appears more than once`);
+      const promptSet = new Set(inPrompt);
+      const blankSet = new Set(blankIds);
+      for (const id of blankSet) if (!promptSet.has(id)) push('/prompt', `blank "${id}" has no {{${id}}} placeholder in prompt`);
+      for (const id of promptSet) if (!blankSet.has(id)) push('/blanks', `placeholder {{${id}}} has no matching blank definition`);
+      q.blanks.forEach((b, i) => { if (!bankIds.includes(b.bankItemId)) push(`/blanks/${i}/bankItemId`, `bankItemId "${b.bankItemId}" is not in the bank`); });
+      for (const d of dupes(q.blanks.map((b) => b.bankItemId))) push('/blanks', `bank item "${d}" is used by more than one blank`);
+      if (q.bank.length < q.blanks.length) push('/bank', 'bank must contain at least as many items as there are blanks');
+      break;
+    }
+    case 'code_cloze': {
+      const blankIds = q.blanks.map((b) => b.id);
+      for (const d of dupes(blankIds)) push('/blanks', `duplicate blank id "${d}"`);
+      const inCode = extractClozeIds(q.code);
+      for (const d of dupes(inCode)) push('/code', `placeholder {{${d}}} appears more than once`);
+      const codeSet = new Set(inCode);
+      const blankSet = new Set(blankIds);
+      for (const id of blankSet) if (!codeSet.has(id)) push('/code', `blank "${id}" has no {{${id}}} placeholder in code`);
+      for (const id of codeSet) if (!blankSet.has(id)) push('/blanks', `placeholder {{${id}}} has no matching blank definition`);
+      break;
+    }
+    case 'matrix': {
+      const rows = q.rows.map((r) => r.id);
+      const cols = q.columns.map((c) => c.id);
+      for (const d of dupes(rows)) push('/rows', `duplicate row id "${d}"`);
+      for (const d of dupes(cols)) push('/columns', `duplicate column id "${d}"`);
+      q.answer.cells.forEach((c, i) => {
+        if (!rows.includes(c.rowId)) push(`/answer/cells/${i}/rowId`, `rowId "${c.rowId}" is not one of the rows`);
+        if (!cols.includes(c.columnId)) push(`/answer/cells/${i}/columnId`, `columnId "${c.columnId}" is not one of the columns`);
+      });
+      for (const d of dupes(q.answer.cells.map((c) => `${c.rowId}:${c.columnId}`))) push('/answer/cells', `cell "${d}" is listed more than once`);
+      if (q.selection === 'single') {
+        for (const r of rows) {
+          const n = q.answer.cells.filter((c) => c.rowId === r).length;
+          if (n !== 1) push('/answer/cells', `selection "single" needs exactly one cell for row "${r}" (found ${n})`);
+        }
+      }
+      break;
+    }
+    case 'numeric_grid': {
+      const rows = q.rows.map((r) => r.id);
+      const cols = q.columns.map((c) => c.id);
+      for (const d of dupes(rows)) push('/rows', `duplicate row id "${d}"`);
+      for (const d of dupes(cols)) push('/columns', `duplicate column id "${d}"`);
+      for (const d of dupes(q.cells.map((c) => c.id))) push('/cells', `duplicate cell id "${d}"`);
+      q.cells.forEach((c, i) => {
+        if (!rows.includes(c.rowId)) push(`/cells/${i}/rowId`, `rowId "${c.rowId}" is not one of the rows`);
+        if (!cols.includes(c.columnId)) push(`/cells/${i}/columnId`, `columnId "${c.columnId}" is not one of the columns`);
+        if (!Number.isFinite(c.value)) push(`/cells/${i}/value`, 'value must be a finite number');
+      });
+      (q.given ?? []).forEach((g, i) => {
+        if (!rows.includes(g.rowId)) push(`/given/${i}/rowId`, `rowId "${g.rowId}" is not one of the rows`);
+        if (!cols.includes(g.columnId)) push(`/given/${i}/columnId`, `columnId "${g.columnId}" is not one of the columns`);
+      });
+      const positions = [...q.cells.map((c) => `${c.rowId}:${c.columnId}`), ...(q.given ?? []).map((g) => `${g.rowId}:${g.columnId}`)];
+      for (const d of dupes(positions)) push('/cells', `row×column "${d}" is used more than once (cells + given)`);
+      break;
+    }
+    case 'list_answer': {
+      for (const d of dupes(q.answer.items.map((i) => i.id))) push('/answer/items', `duplicate item id "${d}"`);
+      if (q.answer.required !== undefined && q.answer.required > q.answer.items.length) push('/answer/required', `required (${q.answer.required}) exceeds the number of items (${q.answer.items.length})`);
+      break;
+    }
+    case 'image_hotspot': {
+      const hasUrl = typeof q.image.url === 'string';
+      const hasSvg = typeof q.image.svg === 'string';
+      if (hasUrl === hasSvg) push('/image', 'image needs exactly one of url / svg');
+      if (hasSvg && !/^\s*<svg[\s>]/i.test(q.image.svg!)) push('/image/svg', 'svg must be inline <svg …> markup');
+      const ids = q.regions.map((r) => r.id);
+      for (const d of dupes(ids)) push('/regions', `duplicate region id "${d}"`);
+      for (const id of q.answer.regionIds) if (!ids.includes(id)) push('/answer/regionIds', `regionId "${id}" is not one of the regions`);
+      q.regions.forEach((r, i) => {
+        const s = r.shape;
+        if (s.kind === 'rect' && (s.x + s.w > 1 + 1e-9 || s.y + s.h > 1 + 1e-9)) push(`/regions/${i}/shape`, 'rect exceeds the image bounds (0..1)');
+        if (s.kind === 'rect' && (s.w === 0 || s.h === 0)) push(`/regions/${i}/shape`, 'rect must have a non-zero width and height');
+      });
+      break;
+    }
+    case 'parsons': {
+      const lineIds = q.lines.map((l) => l.id);
+      const dIds = (q.distractors ?? []).map((d) => d.id);
+      for (const d of dupes([...lineIds, ...dIds])) push('/lines', `duplicate line id "${d}" (lines + distractors)`);
+      const a = q.answer.lines.map((l) => l.id);
+      if (a.length !== lineIds.length || new Set(a).size !== a.length || !a.every((id) => lineIds.includes(id)))
+        push('/answer/lines', 'answer.lines ids must be a permutation of lines[].id (distractors never appear in the answer)');
+      if (q.answer.lines[0] && q.answer.lines[0].indent !== 0) push('/answer/lines/0/indent', 'the first line must have indent 0');
+      q.answer.lines.forEach((l, i) => { if (i > 0 && l.indent > q.answer.lines[i - 1]!.indent + 1) push(`/answer/lines/${i}/indent`, 'indent may grow by at most one level per line'); });
+      break;
+    }
+    case 'find_and_fix': {
+      const ids = q.segments.map((s) => s.id);
+      for (const d of dupes(ids)) push('/segments', `duplicate segment id "${d}"`);
+      const fixIds = q.answer.fixes.map((f) => f.segmentId);
+      for (const d of dupes(fixIds)) push('/answer/fixes', `segment "${d}" is fixed more than once`);
+      for (const id of fixIds) if (!ids.includes(id)) push('/answer/fixes', `segmentId "${id}" is not one of the segments`);
+      if (new Set(fixIds).size >= ids.length) push('/answer/fixes', 'find_and_fix needs at least one segment that is not an error');
+      break;
+    }
+    case 'coordinate_point': {
+      const { xMin, xMax, yMin, yMax, xStep, yStep } = q.plane;
+      if (!(xMax > xMin)) push('/plane', 'xMax must be greater than xMin');
+      if (!(yMax > yMin)) push('/plane', 'yMax must be greater than yMin');
+      if (xStep !== undefined && (xMax - xMin) / xStep > 200) push('/plane/xStep', 'too many grid steps on x (max 200)');
+      if (yStep !== undefined && (yMax - yMin) / yStep > 200) push('/plane/yStep', 'too many grid steps on y (max 200)');
+      for (const d of dupes(q.answer.points.map((p) => p.id))) push('/answer/points', `duplicate point id "${d}"`);
+      q.answer.points.forEach((p, i) => {
+        if (p.x < xMin || p.x > xMax || p.y < yMin || p.y > yMax) push(`/answer/points/${i}`, `point "${p.id}" lies outside the plane`);
+      });
+      break;
+    }
+    case 'regex_answer': {
+      const neg = new Set(q.answer.shouldNotMatch);
+      for (const s of q.answer.shouldMatch) if (neg.has(s)) push('/answer', `"${s}" is listed in both shouldMatch and shouldNotMatch`);
+      if (q.answer.modelPattern !== undefined) {
+        const compiled = compileSafeRegex(q.answer.modelPattern, q.answer.flags ?? '', q.answer.fullMatch ?? false);
+        if (!compiled.re) push('/answer/modelPattern', `modelPattern is not usable: ${compiled.error}`);
+        else {
+          const failing = testRegexExamples(compiled, q.answer.shouldMatch, q.answer.shouldNotMatch).filter((r) => !r.correct);
+          for (const f of failing) push('/answer/modelPattern', `modelPattern ${f.expected ? 'does not match' : 'wrongly matches'} "${f.text}"`);
+        }
+      }
       break;
     }
   }

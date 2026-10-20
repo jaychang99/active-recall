@@ -1,0 +1,248 @@
+{
+  "schemaVersion": "1.0.0",
+  "deck": {
+    "id": "extended2_types_demo",
+    "title": "확장 문항 10종 데모 (2차)",
+    "description": "cloze_bank, code_cloze, matrix, numeric_grid, list_answer, image_hotspot, parsons, find_and_fix, coordinate_point, regex_answer",
+    "subject": "Computer Science",
+    "language": "ko",
+    "tags": ["컴퓨터과학", "데모", "확장유형"]
+  },
+  "questions": [
+    {
+      "id": "ext2-q001",
+      "type": "cloze_bank",
+      "prompt": "HTTP 상태 코드: 요청이 성공하면 {{b1}}, 요청한 리소스가 없으면 {{b2}}, 서버 내부 오류이면 {{b3}}을 돌려준다.",
+      "explanation": {
+        "summary": "2xx는 성공, 4xx는 클라이언트 오류, 5xx는 서버 오류다. **200 OK**, **404 Not Found**, **500 Internal Server Error**가 각 범주의 대표 코드다.",
+        "misconceptions": ["403은 '권한 없음'이지 '없음'이 아니다.", "301은 영구 이동(리다이렉트)으로 성공 응답이 아니다."]
+      },
+      "difficulty": 2,
+      "tags": ["HTTP"],
+      "bank": [
+        { "id": "k200", "text": "200" },
+        { "id": "k301", "text": "301" },
+        { "id": "k403", "text": "403" },
+        { "id": "k404", "text": "404" },
+        { "id": "k500", "text": "500" }
+      ],
+      "blanks": [
+        { "id": "b1", "bankItemId": "k200" },
+        { "id": "b2", "bankItemId": "k404" },
+        { "id": "b3", "bankItemId": "k500" }
+      ]
+    },
+    {
+      "id": "ext2-q002",
+      "type": "code_cloze",
+      "prompt": "0 이상 10 미만의 **짝수**의 제곱 목록 `[0, 4, 16, 36, 64]`를 만드는 리스트 컴프리헨션이 되도록 빈칸을 채우시오.",
+      "explanation": {
+        "summary": "`range(10)`은 0~9를 만들고, `x % 2 == 0`이 짝수만 남기며, `x ** 2`가 제곱이다.",
+        "steps": ["`range(10)` → 0,1,…,9", "`if x % 2 == 0` → 0,2,4,6,8", "`x ** 2` → 0,4,16,36,64"]
+      },
+      "difficulty": 2,
+      "tags": ["Python"],
+      "language": "python",
+      "code": "squares = [x {{op}} 2 for x in {{fn}}(10) if x % 2 == {{rem}}]\nprint(squares)  # [0, 4, 16, 36, 64]",
+      "blanks": [
+        { "id": "op", "acceptedAnswers": ["**"] },
+        { "id": "fn", "acceptedAnswers": ["range"] },
+        { "id": "rem", "acceptedAnswers": ["0"] }
+      ]
+    },
+    {
+      "id": "ext2-q003",
+      "type": "matrix",
+      "prompt": "각 정렬 알고리즘이 가지는 성질을 모두 표시하시오. (평균 시간복잡도 기준)",
+      "explanation": {
+        "summary": "병합 정렬은 안정적이지만 $O(n)$ 추가 공간이 필요하고, 퀵 정렬과 힙 정렬은 제자리 정렬이지만 안정적이지 않다. 삽입 정렬은 안정적이고 제자리이지만 평균 $O(n^2)$이다.",
+        "misconceptions": ["힙 정렬은 제자리 정렬이지만 안정 정렬이 아니다.", "퀵 정렬의 최악은 $O(n^2)$이지만 평균은 $O(n \\log n)$이다."]
+      },
+      "difficulty": 3,
+      "tags": ["정렬", "알고리즘"],
+      "rows": [
+        { "id": "merge", "text": "병합 정렬" },
+        { "id": "quick", "text": "퀵 정렬" },
+        { "id": "insertion", "text": "삽입 정렬" },
+        { "id": "heap", "text": "힙 정렬" }
+      ],
+      "columns": [
+        { "id": "stable", "text": "안정 정렬" },
+        { "id": "inplace", "text": "제자리(in-place)" },
+        { "id": "nlogn", "text": "평균 $O(n \\log n)$" }
+      ],
+      "selection": "multiple",
+      "answer": {
+        "cells": [
+          { "rowId": "merge", "columnId": "stable" },
+          { "rowId": "merge", "columnId": "nlogn" },
+          { "rowId": "quick", "columnId": "inplace" },
+          { "rowId": "quick", "columnId": "nlogn" },
+          { "rowId": "insertion", "columnId": "stable" },
+          { "rowId": "insertion", "columnId": "inplace" },
+          { "rowId": "heap", "columnId": "inplace" },
+          { "rowId": "heap", "columnId": "nlogn" }
+        ]
+      }
+    },
+    {
+      "id": "ext2-q004",
+      "type": "numeric_grid",
+      "prompt": "행렬 곱 $AB$를 계산하시오.\n\n$$A = \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}, \\quad B = \\begin{pmatrix} 0 & 1 \\\\ 1 & 0 \\end{pmatrix}$$",
+      "explanation": {
+        "summary": "$B$는 열을 서로 바꾸는 순열 행렬이므로 $AB$는 $A$의 두 열을 교환한 $\\begin{pmatrix} 2 & 1 \\\\ 4 & 3 \\end{pmatrix}$이다.",
+        "steps": ["$(AB)_{11} = 1\\cdot0 + 2\\cdot1 = 2$", "$(AB)_{12} = 1\\cdot1 + 2\\cdot0 = 1$", "$(AB)_{21} = 3\\cdot0 + 4\\cdot1 = 4$", "$(AB)_{22} = 3\\cdot1 + 4\\cdot0 = 3$"]
+      },
+      "difficulty": 2,
+      "tags": ["선형대수"],
+      "rows": [
+        { "id": "r1", "label": "1행" },
+        { "id": "r2", "label": "2행" }
+      ],
+      "columns": [
+        { "id": "c1", "label": "1열" },
+        { "id": "c2", "label": "2열" }
+      ],
+      "cells": [
+        { "id": "a11", "rowId": "r1", "columnId": "c1", "value": 2 },
+        { "id": "a12", "rowId": "r1", "columnId": "c2", "value": 1 },
+        { "id": "a21", "rowId": "r2", "columnId": "c1", "value": 4 },
+        { "id": "a22", "rowId": "r2", "columnId": "c2", "value": 3 }
+      ]
+    },
+    {
+      "id": "ext2-q005",
+      "type": "list_answer",
+      "prompt": "데이터베이스 트랜잭션의 **ACID** 네 성질을 모두 쓰시오. (영어 또는 한국어)",
+      "explanation": {
+        "summary": "**Atomicity(원자성)** 전부 실행되거나 전부 취소, **Consistency(일관성)** 제약 조건 유지, **Isolation(고립성)** 동시 트랜잭션의 간섭 차단, **Durability(지속성)** 커밋된 결과는 장애에도 보존."
+      },
+      "difficulty": 2,
+      "tags": ["데이터베이스", "트랜잭션"],
+      "answer": {
+        "items": [
+          { "id": "a", "acceptedAnswers": ["Atomicity", "원자성"] },
+          { "id": "c", "acceptedAnswers": ["Consistency", "일관성"] },
+          { "id": "i", "acceptedAnswers": ["Isolation", "고립성", "격리성"] },
+          { "id": "d", "acceptedAnswers": ["Durability", "지속성", "영속성"] }
+        ],
+        "required": 4
+      }
+    },
+    {
+      "id": "ext2-q006",
+      "type": "image_hotspot",
+      "prompt": "OSI 7계층 그림에서 **TCP와 UDP가 동작하는 계층**을 클릭하시오.",
+      "explanation": {
+        "summary": "TCP/UDP는 4계층 **전송 계층(Transport)**의 프로토콜이다. IP는 3계층(네트워크), HTTP는 7계층(응용)에 속한다."
+      },
+      "difficulty": 1,
+      "tags": ["네트워크", "OSI"],
+      "image": {
+        "alt": "OSI 7계층을 위에서 아래로 쌓은 그림 (응용, 표현, 세션, 전송, 네트워크, 데이터링크, 물리)",
+        "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 300 350\" width=\"300\" height=\"350\"><g font-family=\"sans-serif\" font-size=\"16\" text-anchor=\"middle\"><rect x=\"20\" y=\"0\" width=\"260\" height=\"50\" fill=\"#dde7f9\" stroke=\"#2458b3\"/><text x=\"150\" y=\"31\">7 응용 (Application)</text><rect x=\"20\" y=\"50\" width=\"260\" height=\"50\" fill=\"#e4ecfa\" stroke=\"#2458b3\"/><text x=\"150\" y=\"81\">6 표현 (Presentation)</text><rect x=\"20\" y=\"100\" width=\"260\" height=\"50\" fill=\"#ebf1fb\" stroke=\"#2458b3\"/><text x=\"150\" y=\"131\">5 세션 (Session)</text><rect x=\"20\" y=\"150\" width=\"260\" height=\"50\" fill=\"#f1f5fc\" stroke=\"#2458b3\"/><text x=\"150\" y=\"181\">4 전송 (Transport)</text><rect x=\"20\" y=\"200\" width=\"260\" height=\"50\" fill=\"#f5f8fd\" stroke=\"#2458b3\"/><text x=\"150\" y=\"231\">3 네트워크 (Network)</text><rect x=\"20\" y=\"250\" width=\"260\" height=\"50\" fill=\"#f8fafe\" stroke=\"#2458b3\"/><text x=\"150\" y=\"281\">2 데이터링크 (Data Link)</text><rect x=\"20\" y=\"300\" width=\"260\" height=\"50\" fill=\"#fbfcfe\" stroke=\"#2458b3\"/><text x=\"150\" y=\"331\">1 물리 (Physical)</text></g></svg>"
+      },
+      "regions": [
+        { "id": "l7", "label": "응용", "shape": { "kind": "rect", "x": 0.0667, "y": 0, "w": 0.8667, "h": 0.1429 } },
+        { "id": "l6", "label": "표현", "shape": { "kind": "rect", "x": 0.0667, "y": 0.1429, "w": 0.8667, "h": 0.1429 } },
+        { "id": "l5", "label": "세션", "shape": { "kind": "rect", "x": 0.0667, "y": 0.2857, "w": 0.8667, "h": 0.1429 } },
+        { "id": "l4", "label": "전송", "shape": { "kind": "rect", "x": 0.0667, "y": 0.4286, "w": 0.8667, "h": 0.1429 } },
+        { "id": "l3", "label": "네트워크", "shape": { "kind": "rect", "x": 0.0667, "y": 0.5714, "w": 0.8667, "h": 0.1429 } },
+        { "id": "l2", "label": "데이터링크", "shape": { "kind": "rect", "x": 0.0667, "y": 0.7143, "w": 0.8667, "h": 0.1429 } },
+        { "id": "l1", "label": "물리", "shape": { "kind": "rect", "x": 0.0667, "y": 0.8571, "w": 0.8667, "h": 0.1429 } }
+      ],
+      "answer": { "regionIds": ["l4"] }
+    },
+    {
+      "id": "ext2-q007",
+      "type": "parsons",
+      "prompt": "`n`의 계승(factorial)을 반복문으로 구하는 함수가 되도록 코드 줄을 올바른 순서와 들여쓰기로 배열하시오. 쓰이지 않는 줄이 2개 섞여 있다.",
+      "explanation": {
+        "summary": "누적 변수는 **1**로 시작해야 곱셈이 의미 있고, 반환은 반복문 밖에서 누적 변수를 돌려준다.",
+        "misconceptions": ["`result = 0`으로 시작하면 모든 곱이 0이 된다.", "`return i`는 마지막 인덱스를 돌려줄 뿐이다."]
+      },
+      "difficulty": 3,
+      "tags": ["Python", "반복문"],
+      "language": "python",
+      "lines": [
+        { "id": "def", "code": "def factorial(n):" },
+        { "id": "init", "code": "result = 1" },
+        { "id": "loop", "code": "for i in range(2, n + 1):" },
+        { "id": "mul", "code": "result *= i" },
+        { "id": "ret", "code": "return result" }
+      ],
+      "distractors": [
+        { "id": "d-zero", "code": "result = 0" },
+        { "id": "d-reti", "code": "return i" }
+      ],
+      "checkIndent": true,
+      "answer": {
+        "lines": [
+          { "id": "def", "indent": 0 },
+          { "id": "init", "indent": 1 },
+          { "id": "loop", "indent": 1 },
+          { "id": "mul", "indent": 2 },
+          { "id": "ret", "indent": 1 }
+        ]
+      }
+    },
+    {
+      "id": "ext2-q008",
+      "type": "find_and_fix",
+      "prompt": "다음 SQL에는 **문법 오류가 2곳** 있다. 틀린 조각을 선택하고 올바르게 고쳐 쓰시오.",
+      "explanation": {
+        "summary": "테이블 지정 키워드는 `FROM`이고, 정렬은 `ORDER BY` 두 단어다.",
+        "misconceptions": ["`WHERE age >= 18`은 올바른 조건식이다."]
+      },
+      "difficulty": 2,
+      "tags": ["SQL"],
+      "segments": [
+        { "id": "s1", "text": "SELECT name, age" },
+        { "id": "s2", "text": "FORM" },
+        { "id": "s3", "text": "users" },
+        { "id": "s4", "text": "WHERE age >= 18" },
+        { "id": "s5", "text": "ORDER name ASC;" }
+      ],
+      "answer": {
+        "fixes": [
+          { "segmentId": "s2", "acceptedAnswers": ["FROM"] },
+          { "segmentId": "s5", "acceptedAnswers": ["ORDER BY name ASC;", "ORDER BY name ASC", "ORDER BY name;", "ORDER BY name"] }
+        ]
+      }
+    },
+    {
+      "id": "ext2-q009",
+      "type": "coordinate_point",
+      "prompt": "직선 $y = 2x - 1$ 위의 점 가운데 **$x = 2$인 점**과 **$y$축과의 교점**을 좌표평면에 찍으시오.",
+      "explanation": {
+        "summary": "$x=2$를 대입하면 $y=3$이므로 $(2, 3)$, $y$축과의 교점은 $x=0$일 때 $y=-1$이므로 $(0, -1)$이다."
+      },
+      "difficulty": 2,
+      "tags": ["함수", "좌표"],
+      "plane": { "xMin": -5, "xMax": 5, "yMin": -5, "yMax": 5, "xStep": 1, "yStep": 1, "xLabel": "x", "yLabel": "y", "snap": true },
+      "answer": {
+        "points": [
+          { "id": "p1", "x": 2, "y": 3, "label": "(2, 3)" },
+          { "id": "p2", "x": 0, "y": -1, "label": "y절편" }
+        ]
+      }
+    },
+    {
+      "id": "ext2-q010",
+      "type": "regex_answer",
+      "prompt": "`YYYY-MM-DD` 형태(자릿수만 검사: 숫자 4-2-2)의 날짜 문자열 **전체**와 일치하는 정규식을 쓰시오.",
+      "explanation": {
+        "summary": "`\\d{4}-\\d{2}-\\d{2}`가 가장 짧은 답이다. 전체 일치 모드이므로 앞뒤에 다른 문자가 붙으면 실패해야 한다.",
+        "misconceptions": ["`\\d+-\\d+-\\d+`는 `2024-1-31`도 통과시키므로 자릿수를 검사하지 못한다."]
+      },
+      "difficulty": 3,
+      "tags": ["정규식"],
+      "answer": {
+        "shouldMatch": ["2024-01-31", "1999-12-01"],
+        "shouldNotMatch": ["24-01-31", "2024/01/31", "2024-1-31", "2024-01-311", "x2024-01-31"],
+        "fullMatch": true,
+        "modelPattern": "\\d{4}-\\d{2}-\\d{2}"
+      }
+    }
+  ]
+}

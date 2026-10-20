@@ -49,6 +49,16 @@ export function answerKeyOf(q: Question): Record<string, unknown> {
       return { type: q.type, back: q.back, answer: q.answer ?? {} };
     case 'stepwise':
       return { type: q.type, steps: q.steps.map((s) => ({ id: s.id, acceptedAnswers: s.acceptedAnswers, explanation: s.explanation })) };
+    case 'cloze_bank':
+      return { type: q.type, blanks: q.blanks };
+    case 'code_cloze':
+      return { type: q.type, blanks: q.blanks };
+    case 'numeric_grid':
+      return { type: q.type, cells: q.cells };
+    case 'image_hotspot':
+      return { type: q.type, regions: q.regions, answer: q.answer };
+    case 'parsons':
+      return { type: q.type, answer: q.answer, distractorIds: (q.distractors ?? []).map((d) => d.id) };
     default:
       return { type: q.type, answer: q.answer };
   }

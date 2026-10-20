@@ -35,6 +35,39 @@ export function toPublicQuestion(q: Question): PublicQuestion {
       const { steps, ...rest } = q;
       return { ...rest, steps: steps.map((s) => ({ id: s.id, prompt: s.prompt })) };
     }
+    case 'cloze_bank': {
+      const { blanks, ...rest } = q;
+      return { ...rest, blanks: blanks.map((b) => ({ id: b.id })) };
+    }
+    case 'code_cloze': {
+      const { blanks, ...rest } = q;
+      return { ...rest, blanks: blanks.map((b) => ({ id: b.id })) };
+    }
+    case 'numeric_grid': {
+      const { cells, ...rest } = q;
+      return { ...rest, cells: cells.map((c) => ({ id: c.id, rowId: c.rowId, columnId: c.columnId })) };
+    }
+    case 'list_answer': {
+      const { answer, ...rest } = q;
+      return { ...rest, answer: { count: answer.required ?? answer.items.length } };
+    }
+    case 'image_hotspot': {
+      const { regions: _regions, answer, ...rest } = q;
+      return { ...rest, answer: { count: answer.regionIds.length } };
+    }
+    case 'parsons': {
+      const { lines, distractors, answer: _answer, ...rest } = q;
+      return { ...rest, blocks: [...lines, ...(distractors ?? [])] };
+    }
+    case 'coordinate_point': {
+      const { answer, ...rest } = q;
+      return { ...rest, answer: { count: answer.points.length } };
+    }
+    case 'regex_answer': {
+      const { answer, ...rest } = q;
+      const { modelPattern: _model, ...pub } = answer;
+      return { ...rest, answer: pub };
+    }
     default: {
       const { answer: _answer, ...rest } = q;
       return rest as PublicQuestion;
@@ -74,6 +107,26 @@ export function answerSignature(q: Question): unknown {
       return { type: q.type, steps: q.steps.map((s) => ({ id: s.id, acceptedAnswers: s.acceptedAnswers, normalization: s.normalization ?? null })) };
     case 'highlight':
       return { type: q.type, segmentIds: q.segments.map((s) => s.id), answer: q.answer };
+    case 'cloze_bank':
+      return { type: q.type, bankIds: q.bank.map((b) => b.id), blanks: q.blanks, placeholders: q.prompt.match(/\{\{[^}]+\}\}/g) ?? [] };
+    case 'code_cloze':
+      return { type: q.type, blanks: q.blanks, placeholders: q.code.match(/\{\{[^}]+\}\}/g) ?? [] };
+    case 'matrix':
+      return { type: q.type, rows: q.rows.map((r) => r.id), columns: q.columns.map((c) => c.id), selection: q.selection ?? 'multiple', answer: q.answer };
+    case 'numeric_grid':
+      return { type: q.type, cells: q.cells };
+    case 'list_answer':
+      return { type: q.type, answer: q.answer };
+    case 'image_hotspot':
+      return { type: q.type, regions: q.regions, answer: q.answer };
+    case 'parsons':
+      return { type: q.type, lineIds: q.lines.map((l) => l.id), distractorIds: (q.distractors ?? []).map((d) => d.id), checkIndent: q.checkIndent !== false, answer: q.answer };
+    case 'find_and_fix':
+      return { type: q.type, segmentIds: q.segments.map((s) => s.id), answer: q.answer };
+    case 'coordinate_point':
+      return { type: q.type, answer: q.answer };
+    case 'regex_answer':
+      return { type: q.type, answer: q.answer };
   }
 }
 

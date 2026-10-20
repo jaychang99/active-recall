@@ -6,3 +6,5 @@ export * from './grade';
 export * from './public';
 export * from './json';
 export * from './validate';
+export * from './regex';
+export * from './geometry';

@@ -114,6 +114,36 @@
           },
           {
             "$ref": "#/$defs/highlight"
+          },
+          {
+            "$ref": "#/$defs/cloze_bank"
+          },
+          {
+            "$ref": "#/$defs/code_cloze"
+          },
+          {
+            "$ref": "#/$defs/matrix"
+          },
+          {
+            "$ref": "#/$defs/numeric_grid"
+          },
+          {
+            "$ref": "#/$defs/list_answer"
+          },
+          {
+            "$ref": "#/$defs/image_hotspot"
+          },
+          {
+            "$ref": "#/$defs/parsons"
+          },
+          {
+            "$ref": "#/$defs/find_and_fix"
+          },
+          {
+            "$ref": "#/$defs/coordinate_point"
+          },
+          {
+            "$ref": "#/$defs/regex_answer"
           }
         ]
       }
@@ -2994,7 +3024,2218 @@
           }
         }
       }
+    },
+    "cloze_bank": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Cloze whose blanks are filled from one shared word bank (each bank item usable once; extra items are distractors). prompt uses {{id}} placeholders like cloze.",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "bank",
+        "blanks"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "cloze_bank"
+        },
+        "bank": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            }
+          },
+          "description": "shared word bank; may contain distractors; each item fills at most one blank"
+        },
+        "blanks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "bankItemId"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "bankItemId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "code_cloze": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Fill-in-the-blank inside a code block; graded per blank, case-sensitive by default (normalization.caseFold defaults to false here).",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "language",
+        "code",
+        "blanks"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "code_cloze"
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30,
+          "description": "highlight.js language id (python, js, sql, …)"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "description": "source code containing {{id}} placeholders"
+        },
+        "blanks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "acceptedAnswers"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "acceptedAnswers": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 30,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                }
+              },
+              "normalization": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "trim": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "unicodeNfkc": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "collapseWhitespace": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "caseFold": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "matrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Row × column check grid (attribute tables, truth tables, adjacency); answer.cells lists the cells that must be checked. Graded per row.",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "rows",
+        "columns",
+        "answer"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "matrix"
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            }
+          }
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            }
+          }
+        },
+        "selection": {
+          "type": "string",
+          "enum": [
+            "multiple",
+            "single"
+          ],
+          "default": "multiple",
+          "description": "multiple = any number of cells per row (checkboxes); single = exactly one column per row (radios)"
+        },
+        "answer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cells"
+          ],
+          "properties": {
+            "cells": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 200,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "rowId",
+                  "columnId"
+                ],
+                "properties": {
+                  "rowId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+                  },
+                  "columnId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "numeric_grid": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Table of numeric answers (matrices, computed tables, timelines as rows × year); each answer cell has its own tolerance.",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "rows",
+        "columns",
+        "cells"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "numeric_grid"
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "cells": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "rowId",
+              "columnId",
+              "value"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "rowId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "columnId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "value": {
+                "type": "number"
+              },
+              "tolerance": {
+                "type": "number",
+                "minimum": 0,
+                "description": "absolute tolerance (default 0)"
+              },
+              "relativeTolerance": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "relative tolerance as a fraction of |value|"
+              }
+            }
+          },
+          "description": "cells the learner fills in"
+        },
+        "given": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rowId",
+              "columnId",
+              "text"
+            ],
+            "properties": {
+              "rowId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "columnId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            }
+          },
+          "description": "pre-filled cells shown as-is"
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 30
+        }
+      }
+    },
+    "list_answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Order-independent set of short answers (\"name three …\"); each entry is matched against an unused item; correct when at least `required` distinct items are named and no entry is wrong.",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "answer"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "list_answer"
+        },
+        "answer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "items"
+          ],
+          "properties": {
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "acceptedAnswers"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+                  },
+                  "acceptedAnswers": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 30,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  },
+                  "normalization": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "trim": {
+                        "type": "boolean",
+                        "default": true
+                      },
+                      "unicodeNfkc": {
+                        "type": "boolean",
+                        "default": true
+                      },
+                      "collapseWhitespace": {
+                        "type": "boolean",
+                        "default": true
+                      },
+                      "caseFold": {
+                        "type": "boolean",
+                        "default": true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "how many distinct items the learner must name (default: all)"
+            }
+          }
+        }
+      }
+    },
+    "image_hotspot": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Click the correct area(s) on an image or inline SVG; the learner places one marker per target region. Regions are never sent to the client before grading.",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "image",
+        "regions",
+        "answer"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "image_hotspot"
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "alt"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "maxLength": 2000000,
+              "pattern": "^(https://|data:image/(png|jpeg|gif|webp|svg\\+xml);base64,)"
+            },
+            "svg": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200000,
+              "description": "inline <svg …>…</svg> markup (sanitized; no scripts or external references)"
+            },
+            "alt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "description": "exactly one of url / svg"
+        },
+        "regions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "shape"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "shape": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind",
+                      "x",
+                      "y",
+                      "w",
+                      "h"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "rect"
+                      },
+                      "x": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "w": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "h": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind",
+                      "cx",
+                      "cy",
+                      "r"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "circle"
+                      },
+                      "cx": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "cy": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "r": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "maximum": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind",
+                      "points"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "polygon"
+                      },
+                      "points": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 50,
+                        "items": {
+                          "type": "array",
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "items": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "description": "coordinates normalized to 0..1 of the image width/height (circle r relative to width and height independently)"
+        },
+        "answer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "regionIds"
+          ],
+          "properties": {
+            "regionIds": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    },
+    "parsons": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Parsons problem: arrange shuffled code lines (plus optional distractors) in order and set each line's indentation level.",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "lines",
+        "answer"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "parsons"
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "code"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "one line, without leading indentation"
+              }
+            }
+          }
+        },
+        "distractors": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "code"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "one line, without leading indentation"
+              }
+            }
+          }
+        },
+        "checkIndent": {
+          "type": "boolean",
+          "default": true
+        },
+        "answer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lines"
+          ],
+          "properties": {
+            "lines": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 30,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "indent"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+                  },
+                  "indent": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "find_and_fix": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Find the wrong segment(s) in a passage/code and type the corrected value; graded per expected fix (located + fixed), extra selections are wrong.",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "segments",
+        "answer"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "find_and_fix"
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            }
+          }
+        },
+        "answer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fixes"
+          ],
+          "properties": {
+            "fixes": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "segmentId",
+                  "acceptedAnswers"
+                ],
+                "properties": {
+                  "segmentId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+                  },
+                  "acceptedAnswers": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 30,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  },
+                  "normalization": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "trim": {
+                        "type": "boolean",
+                        "default": true
+                      },
+                      "unicodeNfkc": {
+                        "type": "boolean",
+                        "default": true
+                      },
+                      "collapseWhitespace": {
+                        "type": "boolean",
+                        "default": true
+                      },
+                      "caseFold": {
+                        "type": "boolean",
+                        "default": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "coordinate_point": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Place point(s) on a coordinate plane; each expected point is matched to the closest unused placed point within its tolerance.",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "plane",
+        "answer"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "coordinate_point"
+        },
+        "plane": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "xMin",
+            "xMax",
+            "yMin",
+            "yMax"
+          ],
+          "properties": {
+            "xMin": {
+              "type": "number"
+            },
+            "xMax": {
+              "type": "number"
+            },
+            "yMin": {
+              "type": "number"
+            },
+            "yMax": {
+              "type": "number"
+            },
+            "xStep": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "grid spacing and click snap (default 1)"
+            },
+            "yStep": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "xLabel": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "yLabel": {
+              "type": "string",
+              "maxLength": 50
+            },
+            "snap": {
+              "type": "boolean",
+              "default": true,
+              "description": "snap clicks to the grid"
+            }
+          }
+        },
+        "answer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "points"
+          ],
+          "properties": {
+            "points": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "x",
+                  "y"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+                  },
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "tolerance": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "euclidean distance allowed (default 0 = exact after snapping)"
+                  },
+                  "label": {
+                    "type": "string",
+                    "maxLength": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "regex_answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Write a regular expression that matches every positive example and no negative example (JavaScript syntax; pattern ≤ 200 chars, nested quantifiers rejected).",
+      "required": [
+        "id",
+        "type",
+        "prompt",
+        "explanation",
+        "difficulty",
+        "tags",
+        "answer"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "explanation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "steps": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "misconceptions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "document"
+                ],
+                "properties": {
+                  "document": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "estimatedSeconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1800
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "location": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "type": {
+          "const": "regex_answer"
+        },
+        "answer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shouldMatch",
+            "shouldNotMatch"
+          ],
+          "properties": {
+            "shouldMatch": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 30,
+              "items": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "shouldNotMatch": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 30,
+              "items": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "flags": {
+              "type": "string",
+              "pattern": "^[ims]{0,3}$",
+              "description": "subset of i, m, s"
+            },
+            "fullMatch": {
+              "type": "boolean",
+              "default": false,
+              "description": "true = the whole string must match (pattern is wrapped in ^(?:…)$)"
+            },
+            "modelPattern": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "a reference solution shown after grading; must satisfy every example"
+            }
+          }
+        }
+      }
     }
   },
-  "$comment": "Semantic validation outside JSON Schema: Within a deck, question IDs are unique. | IDs within each choices/items/left/right/blanks array must be unique. | single_choice.answer.choiceId must occur in choices. | multiple_choice.answer.choiceIds must all occur in choices, include >=2 and be a proper subset of choices. | cloze prompt placeholders {{id}} and blank IDs must be exactly equal. | ordering.answer.orderedIds must be a permutation of items[].id. | matching.answer.pairs must create a bijection of left and right IDs. | essay.answer.rubric[].maxPoints must sum to answer.maxScore. | Every answer must be verifiably supported by explanatory rationale. | Text fields may contain Markdown and LaTeX ($...$, $$...$$). acceptedAnswers are plain strings compared after normalization, never LaTeX. | Extended types (additive, v1.0.0-compatible): numeric (|given-value| <= max(tolerance, |value|*relativeTolerance)), cloze_select (prompt {{id}} placeholders == blanks ids; answerOptionId in options), statement_set (statement ids unique), categorize (item.categoryId in categories; ids unique), two_tier (answer.choiceId in choices and answer.reasonId in reasons), recall_card (self-checked unless acceptedAnswers given), stepwise (step ids unique; graded per step), highlight (answer.segmentIds subset of segments ids)."
+  "$comment": "Semantic validation outside JSON Schema: Within a deck, question IDs are unique. | IDs within each choices/items/left/right/blanks array must be unique. | single_choice.answer.choiceId must occur in choices. | multiple_choice.answer.choiceIds must all occur in choices, include >=2 and be a proper subset of choices. | cloze prompt placeholders {{id}} and blank IDs must be exactly equal. | ordering.answer.orderedIds must be a permutation of items[].id. | matching.answer.pairs must create a bijection of left and right IDs. | essay.answer.rubric[].maxPoints must sum to answer.maxScore. | Every answer must be verifiably supported by explanatory rationale. | Text fields may contain Markdown and LaTeX ($...$, $$...$$). acceptedAnswers are plain strings compared after normalization, never LaTeX. | Extended types (additive, v1.0.0-compatible): numeric (|given-value| <= max(tolerance, |value|*relativeTolerance)), cloze_select (prompt {{id}} placeholders == blanks ids; answerOptionId in options), statement_set (statement ids unique), categorize (item.categoryId in categories; ids unique), two_tier (answer.choiceId in choices and answer.reasonId in reasons), recall_card (self-checked unless acceptedAnswers given), stepwise (step ids unique; graded per step), highlight (answer.segmentIds subset of segments ids). | cloze_bank (placeholders = blank ids; bankItemId in bank; each bank item used at most once) | code_cloze (placeholders in code = blank ids) | matrix (cells reference rows/columns, no duplicates; selection=single → exactly one cell per row) | numeric_grid (cells/given reference rows/columns, each row×column used once) | list_answer (required ≤ items.length) | image_hotspot (exactly one of image.url/svg; answer.regionIds ⊂ regions; polygon ≥ 3 points) | parsons (answer.lines ids = permutation of lines ids; distractor ids disjoint) | find_and_fix (fix segmentIds ⊂ segments, unique, at least one untouched segment) | coordinate_point (points inside the plane; ids unique) | regex_answer (shouldMatch ∩ shouldNotMatch = ∅; modelPattern compiles, is safe and satisfies every example)."
 }

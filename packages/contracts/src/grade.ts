@@ -1,5 +1,10 @@
+import { distance, pointInShape, withinTolerance } from './geometry';
 import { matchesAccepted } from './normalize';
-import type { AnswerPayload, GradeResult, Question, RecallCardQuestion } from './types';
+import { compileSafeRegex, testRegexExamples } from './regex';
+import type { AnswerPayload, GradeDetail, GradeResult, Question, RecallCardQuestion } from './types';
+
+type Part = NonNullable<GradeDetail['parts']>[number];
+const ratio = (parts: Part[]) => (parts.length ? parts.filter((x) => x.correct).length / parts.length : 0);
 
 function sameSet(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
@@ -144,6 +149,127 @@ export function gradeAnswer(question: Question, payload: AnswerPayload | null | 
       const given = new Set(p.segmentIds ?? []);
       const parts = question.segments.map((s) => ({ id: s.id, correct: expected.has(s.id) === given.has(s.id), expected: expected.has(s.id) ? 'selected' : 'not-selected', given: given.has(s.id) ? 'selected' : 'not-selected' }));
       return { isCorrect: sameSet([...expected], [...given]), gradable: true, detail: { parts, partialRatio: parts.filter((x) => x.correct).length / parts.length } };
+    }
+    case 'cloze_bank': {
+      const p = payload as Extract<AnswerPayload, { type: 'cloze_bank' }>;
+      const parts = question.blanks.map((b) => ({ id: b.id, correct: p.blanks?.[b.id] === b.bankItemId, expected: b.bankItemId, given: p.blanks?.[b.id] ?? null }));
+      return { isCorrect: parts.every((x) => x.correct), gradable: true, detail: { parts, partialRatio: ratio(parts) } };
+    }
+    case 'code_cloze': {
+      const p = payload as Extract<AnswerPayload, { type: 'code_cloze' }>;
+      const parts = question.blanks.map((b) => {
+        const given = p.blanks?.[b.id] ?? '';
+        // code is case-sensitive unless the author says otherwise
+        return { id: b.id, correct: matchesAccepted(given, b.acceptedAnswers, { caseFold: false, ...(b.normalization ?? {}) }), expected: b.acceptedAnswers, given };
+      });
+      return { isCorrect: parts.every((x) => x.correct), gradable: true, detail: { parts, partialRatio: ratio(parts) } };
+    }
+    case 'matrix': {
+      const p = payload as Extract<AnswerPayload, { type: 'matrix' }>;
+      const givenByRow = new Map<string, Set<string>>();
+      for (const c of p.cells ?? []) {
+        if (!givenByRow.has(c.rowId)) givenByRow.set(c.rowId, new Set());
+        givenByRow.get(c.rowId)!.add(c.columnId);
+      }
+      const parts = question.rows.map((r) => {
+        const expected = question.answer.cells.filter((c) => c.rowId === r.id).map((c) => c.columnId).sort();
+        const given = [...(givenByRow.get(r.id) ?? [])].sort();
+        return { id: r.id, correct: sameSet(expected, given), expected, given: given.join(',') };
+      });
+      return { isCorrect: parts.every((x) => x.correct), gradable: true, detail: { parts, partialRatio: ratio(parts) } };
+    }
+    case 'numeric_grid': {
+      const p = payload as Extract<AnswerPayload, { type: 'numeric_grid' }>;
+      const parts = question.cells.map((c) => {
+        const raw = p.values?.[c.id];
+        const given = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+        return { id: c.id, correct: withinTolerance(given, c.value, c.tolerance, c.relativeTolerance), expected: String(c.value), given: given === null ? null : String(given) };
+      });
+      return { isCorrect: parts.every((x) => x.correct), gradable: true, detail: { parts, partialRatio: ratio(parts) } };
+    }
+    case 'list_answer': {
+      const p = payload as Extract<AnswerPayload, { type: 'list_answer' }>;
+      const required = question.answer.required ?? question.answer.items.length;
+      const used = new Set<string>();
+      const entries = (p.entries ?? []).map((e) => (typeof e === 'string' ? e : '')).filter((e) => e.trim().length > 0);
+      const parts: Part[] = entries.map((given, i) => {
+        const hit = question.answer.items.find((it) => !used.has(it.id) && matchesAccepted(given, it.acceptedAnswers, it.normalization));
+        if (hit) used.add(hit.id);
+        return { id: `entry-${i + 1}`, correct: !!hit, expected: hit ? hit.id : 'one of the remaining items', given };
+      });
+      const matched = used.size;
+      const wrong = parts.filter((x) => !x.correct).length;
+      const isCorrect = matched >= required && wrong === 0;
+      return { isCorrect, gradable: true, detail: { parts, partialRatio: Math.min(1, matched / required), note: `${matched}/${required} named${wrong ? `, ${wrong} wrong` : ''}` } };
+    }
+    case 'image_hotspot': {
+      const p = payload as Extract<AnswerPayload, { type: 'image_hotspot' }>;
+      const points = (p.points ?? []).filter((pt) => typeof pt?.x === 'number' && typeof pt?.y === 'number');
+      const regions = new Map(question.regions.map((r) => [r.id, r]));
+      const expectedIds = question.answer.regionIds;
+      const consumed = new Set<number>();
+      const parts: Part[] = expectedIds.map((rid) => {
+        const region = regions.get(rid)!;
+        const idx = points.findIndex((pt, i) => !consumed.has(i) && pointInShape(pt, region.shape));
+        if (idx >= 0) consumed.add(idx);
+        return { id: rid, correct: idx >= 0, expected: region.label ?? rid, given: idx >= 0 ? `${points[idx]!.x.toFixed(3)},${points[idx]!.y.toFixed(3)}` : null };
+      });
+      points.forEach((pt, i) => { if (!consumed.has(i)) parts.push({ id: `point-${i + 1}`, correct: false, expected: 'no extra marker', given: `${pt.x.toFixed(3)},${pt.y.toFixed(3)}` }); });
+      const hits = parts.filter((x) => x.correct).length;
+      return { isCorrect: hits === expectedIds.length && consumed.size === points.length, gradable: true, detail: { parts, partialRatio: hits / expectedIds.length } };
+    }
+    case 'parsons': {
+      const p = payload as Extract<AnswerPayload, { type: 'parsons' }>;
+      const checkIndent = question.checkIndent !== false;
+      const expected = question.answer.lines;
+      const given = p.lines ?? [];
+      const parts = expected.map((l, i) => {
+        const g = given[i];
+        const correct = !!g && g.id === l.id && (!checkIndent || g.indent === l.indent);
+        return { id: l.id, correct, expected: checkIndent ? `${l.id}@${l.indent}` : l.id, given: g ? (checkIndent ? `${g.id}@${g.indent}` : g.id) : null };
+      });
+      const isCorrect = given.length === expected.length && parts.every((x) => x.correct);
+      const extra = given.length - expected.length;
+      return { isCorrect, gradable: true, detail: { parts, partialRatio: ratio(parts), note: extra > 0 ? `${extra} extra line(s)` : extra < 0 ? `${-extra} line(s) missing` : undefined } };
+    }
+    case 'find_and_fix': {
+      const p = payload as Extract<AnswerPayload, { type: 'find_and_fix' }>;
+      const given = new Map((p.fixes ?? []).map((f) => [f.segmentId, typeof f.text === 'string' ? f.text : '']));
+      const parts: Part[] = question.answer.fixes.map((f) => {
+        const has = given.has(f.segmentId);
+        const text = given.get(f.segmentId) ?? '';
+        const fixed = has && matchesAccepted(text, f.acceptedAnswers, f.normalization);
+        return { id: f.segmentId, correct: fixed, expected: f.acceptedAnswers, given: has ? text : null };
+      });
+      const expectedIds = new Set(question.answer.fixes.map((f) => f.segmentId));
+      for (const [sid, text] of given) if (!expectedIds.has(sid)) parts.push({ id: sid, correct: false, expected: 'not an error', given: text });
+      const located = question.answer.fixes.filter((f) => given.has(f.segmentId)).length;
+      const isCorrect = parts.every((x) => x.correct);
+      return { isCorrect, gradable: true, detail: { parts, partialRatio: ratio(parts), note: `${located}/${question.answer.fixes.length} located` } };
+    }
+    case 'coordinate_point': {
+      const p = payload as Extract<AnswerPayload, { type: 'coordinate_point' }>;
+      const points = (p.points ?? []).filter((pt) => typeof pt?.x === 'number' && typeof pt?.y === 'number' && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+      const consumed = new Set<number>();
+      const parts: Part[] = question.answer.points.map((ex) => {
+        let best = -1;
+        let bestD = Infinity;
+        points.forEach((pt, i) => { if (consumed.has(i)) return; const d = distance(pt, ex); if (d < bestD) { bestD = d; best = i; } });
+        const ok = best >= 0 && bestD <= (ex.tolerance ?? 0) + 1e-9;
+        if (ok) consumed.add(best);
+        return { id: ex.id, correct: ok, expected: `(${ex.x}, ${ex.y})`, given: ok ? `(${points[best]!.x}, ${points[best]!.y})` : null };
+      });
+      points.forEach((pt, i) => { if (!consumed.has(i)) parts.push({ id: `point-${i + 1}`, correct: false, expected: 'no extra point', given: `(${pt.x}, ${pt.y})` }); });
+      const hits = parts.filter((x) => x.correct).length;
+      return { isCorrect: hits === question.answer.points.length && consumed.size === points.length, gradable: true, detail: { parts, partialRatio: hits / question.answer.points.length } };
+    }
+    case 'regex_answer': {
+      const p = payload as Extract<AnswerPayload, { type: 'regex_answer' }>;
+      const pattern = typeof p.pattern === 'string' ? p.pattern : '';
+      const compiled = compileSafeRegex(pattern, question.answer.flags ?? '', question.answer.fullMatch ?? false);
+      const results = testRegexExamples(compiled, question.answer.shouldMatch, question.answer.shouldNotMatch);
+      const parts = results.map((r) => ({ id: r.id, correct: r.correct, expected: r.expected ? 'match' : 'no match', given: r.matched === null ? null : r.matched ? 'match' : 'no match' }));
+      return { isCorrect: !!compiled.re && parts.every((x) => x.correct), gradable: true, detail: { parts, partialRatio: compiled.re ? ratio(parts) : 0, note: compiled.error ? `pattern rejected: ${compiled.error}` : undefined } };
     }
   }
 }

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `Question` MODIFY `type` ENUM('single_choice', 'multiple_choice', 'true_false', 'short_answer', 'essay', 'cloze', 'ordering', 'matching', 'numeric', 'cloze_select', 'statement_set', 'categorize', 'two_tier', 'recall_card', 'stepwise', 'highlight', 'cloze_bank', 'code_cloze', 'matrix', 'numeric_grid', 'list_answer', 'image_hotspot', 'parsons', 'find_and_fix', 'coordinate_point', 'regex_answer') NOT NULL;

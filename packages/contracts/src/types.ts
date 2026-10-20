@@ -20,11 +20,23 @@ export type QuestionType =
   | 'two_tier'
   | 'recall_card'
   | 'stepwise'
-  | 'highlight';
+  | 'highlight'
+  // extended set 2 (additive)
+  | 'cloze_bank'
+  | 'code_cloze'
+  | 'matrix'
+  | 'numeric_grid'
+  | 'list_answer'
+  | 'image_hotspot'
+  | 'parsons'
+  | 'find_and_fix'
+  | 'coordinate_point'
+  | 'regex_answer';
 
 export const CORE_QUESTION_TYPES: readonly QuestionType[] = ['single_choice', 'multiple_choice', 'true_false', 'short_answer', 'essay', 'cloze', 'ordering', 'matching'] as const;
 export const EXTENDED_QUESTION_TYPES: readonly QuestionType[] = ['numeric', 'cloze_select', 'statement_set', 'categorize', 'two_tier', 'recall_card', 'stepwise', 'highlight'] as const;
-export const QUESTION_TYPES: readonly QuestionType[] = [...CORE_QUESTION_TYPES, ...EXTENDED_QUESTION_TYPES];
+export const EXTENDED2_QUESTION_TYPES: readonly QuestionType[] = ['cloze_bank', 'code_cloze', 'matrix', 'numeric_grid', 'list_answer', 'image_hotspot', 'parsons', 'find_and_fix', 'coordinate_point', 'regex_answer'] as const;
+export const QUESTION_TYPES: readonly QuestionType[] = [...CORE_QUESTION_TYPES, ...EXTENDED_QUESTION_TYPES, ...EXTENDED2_QUESTION_TYPES];
 
 export interface SourceRef {
   document: string;
@@ -190,6 +202,125 @@ export interface HighlightQuestion extends QuestionBase {
   answer: { segmentIds: string[] };
 }
 
+// ---- extended set 2 ----
+
+export interface ClozeBankQuestion extends QuestionBase {
+  type: 'cloze_bank';
+  /** Shared word bank (may contain distractors); each item fills at most one blank. */
+  bank: TextItem[];
+  blanks: { id: string; bankItemId: string }[];
+}
+
+export interface CodeClozeQuestion extends QuestionBase {
+  type: 'code_cloze';
+  language: string;
+  /** Source code with `{{id}}` placeholders. */
+  code: string;
+  blanks: ClozeBlank[];
+}
+
+export interface MatrixQuestion extends QuestionBase {
+  type: 'matrix';
+  rows: TextItem[];
+  columns: TextItem[];
+  /** `multiple` (default): any number of cells per row; `single`: exactly one column per row. */
+  selection?: 'multiple' | 'single';
+  answer: { cells: { rowId: string; columnId: string }[] };
+}
+
+export interface NumericGridCell {
+  id: string;
+  rowId: string;
+  columnId: string;
+  value: number;
+  tolerance?: number;
+  relativeTolerance?: number;
+}
+export interface NumericGridQuestion extends QuestionBase {
+  type: 'numeric_grid';
+  rows: { id: string; label: string }[];
+  columns: { id: string; label: string }[];
+  cells: NumericGridCell[];
+  /** Pre-filled cells shown as-is. */
+  given?: { rowId: string; columnId: string; text: string }[];
+  unit?: string;
+}
+
+export interface ListAnswerItem {
+  id: string;
+  acceptedAnswers: string[];
+  normalization?: Normalization;
+}
+export interface ListAnswerQuestion extends QuestionBase {
+  type: 'list_answer';
+  answer: { items: ListAnswerItem[]; required?: number };
+}
+
+export type HotspotShape =
+  | { kind: 'rect'; x: number; y: number; w: number; h: number }
+  | { kind: 'circle'; cx: number; cy: number; r: number }
+  | { kind: 'polygon'; points: [number, number][] };
+export interface HotspotRegion {
+  id: string;
+  label?: string;
+  shape: HotspotShape;
+}
+export interface HotspotImage {
+  url?: string;
+  svg?: string;
+  alt: string;
+}
+export interface ImageHotspotQuestion extends QuestionBase {
+  type: 'image_hotspot';
+  image: HotspotImage;
+  /** Normalized (0..1) regions; never sent to the client before grading. */
+  regions: HotspotRegion[];
+  answer: { regionIds: string[] };
+}
+
+export interface CodeLine {
+  id: string;
+  /** One line without leading indentation. */
+  code: string;
+}
+export interface ParsonsQuestion extends QuestionBase {
+  type: 'parsons';
+  language?: string;
+  lines: CodeLine[];
+  distractors?: CodeLine[];
+  /** default true */
+  checkIndent?: boolean;
+  answer: { lines: { id: string; indent: number }[] };
+}
+
+export interface FindAndFixQuestion extends QuestionBase {
+  type: 'find_and_fix';
+  segments: TextItem[];
+  answer: { fixes: { segmentId: string; acceptedAnswers: string[]; normalization?: Normalization }[] };
+}
+
+export interface CoordinatePlane {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  xStep?: number;
+  yStep?: number;
+  xLabel?: string;
+  yLabel?: string;
+  snap?: boolean;
+}
+export interface CoordinatePointQuestion extends QuestionBase {
+  type: 'coordinate_point';
+  plane: CoordinatePlane;
+  answer: { points: { id: string; x: number; y: number; tolerance?: number; label?: string }[] };
+}
+
+export interface RegexAnswerQuestion extends QuestionBase {
+  type: 'regex_answer';
+  answer: { shouldMatch: string[]; shouldNotMatch: string[]; flags?: string; fullMatch?: boolean; modelPattern?: string };
+}
+
 export type Question =
   | SingleChoiceQuestion
   | MultipleChoiceQuestion
@@ -206,7 +337,17 @@ export type Question =
   | TwoTierQuestion
   | RecallCardQuestion
   | StepwiseQuestion
-  | HighlightQuestion;
+  | HighlightQuestion
+  | ClozeBankQuestion
+  | CodeClozeQuestion
+  | MatrixQuestion
+  | NumericGridQuestion
+  | ListAnswerQuestion
+  | ImageHotspotQuestion
+  | ParsonsQuestion
+  | FindAndFixQuestion
+  | CoordinatePointQuestion
+  | RegexAnswerQuestion;
 
 export interface DeckMeta {
   id: string;
@@ -245,7 +386,17 @@ export type PublicQuestion =
   | (Omit<TwoTierQuestion, 'answer'> & { answer?: undefined })
   | (Omit<RecallCardQuestion, 'back' | 'answer'> & { back?: undefined; answer?: undefined; hasAcceptedAnswers: boolean })
   | (Omit<StepwiseQuestion, 'steps'> & { steps: { id: string; prompt: string }[] })
-  | (Omit<HighlightQuestion, 'answer'> & { answer?: undefined });
+  | (Omit<HighlightQuestion, 'answer'> & { answer?: undefined })
+  | (Omit<ClozeBankQuestion, 'blanks'> & { blanks: { id: string }[] })
+  | (Omit<CodeClozeQuestion, 'blanks'> & { blanks: { id: string }[] })
+  | (Omit<MatrixQuestion, 'answer'> & { answer?: undefined })
+  | (Omit<NumericGridQuestion, 'cells'> & { cells: { id: string; rowId: string; columnId: string }[] })
+  | (Omit<ListAnswerQuestion, 'answer'> & { answer: { count: number } })
+  | (Omit<ImageHotspotQuestion, 'regions' | 'answer'> & { regions?: undefined; answer: { count: number } })
+  | (Omit<ParsonsQuestion, 'lines' | 'distractors' | 'answer'> & { lines?: undefined; distractors?: undefined; answer?: undefined; blocks: CodeLine[] })
+  | (Omit<FindAndFixQuestion, 'answer'> & { answer?: undefined })
+  | (Omit<CoordinatePointQuestion, 'answer'> & { answer: { count: number } })
+  | (Omit<RegexAnswerQuestion, 'answer'> & { answer: { shouldMatch: string[]; shouldNotMatch: string[]; flags?: string; fullMatch?: boolean } });
 
 // ---------------------------------------------------------------------------
 // Answer payloads submitted by the learner (candidate answers).
@@ -267,7 +418,17 @@ export type AnswerPayload =
   | { type: 'two_tier'; choiceId: string | null; reasonId: string | null }
   | { type: 'recall_card'; text?: string; selfCorrect?: boolean | null }
   | { type: 'stepwise'; answers: Record<string, string> }
-  | { type: 'highlight'; segmentIds: string[] };
+  | { type: 'highlight'; segmentIds: string[] }
+  | { type: 'cloze_bank'; blanks: Record<string, string> }
+  | { type: 'code_cloze'; blanks: Record<string, string> }
+  | { type: 'matrix'; cells: { rowId: string; columnId: string }[] }
+  | { type: 'numeric_grid'; values: Record<string, number | null> }
+  | { type: 'list_answer'; entries: string[] }
+  | { type: 'image_hotspot'; points: { x: number; y: number }[] }
+  | { type: 'parsons'; lines: { id: string; indent: number }[] }
+  | { type: 'find_and_fix'; fixes: { segmentId: string; text: string }[] }
+  | { type: 'coordinate_point'; points: { x: number; y: number }[] }
+  | { type: 'regex_answer'; pattern: string };
 
 export interface GradeDetail {
   /** Per-element verdicts for rich feedback (ids depend on the type). */
