@@ -147,7 +147,7 @@ describe('account deletion', () => {
   beforeAll(async () => { ctx = await createApp(); });
   afterAll(async () => { await ctx.app.close(); });
 
-  /** One row (at least) in every user-owned table: import, subject, review + note, session + practice, exam + responses, settings. */
+  /** One row (at least) in every user-owned table: import, subject, review + note, session + practice, exam + responses, settings, share. */
   async function populate(name: 'a' | 'b') {
     const as = ctx.as(name);
     const deckId = (await as.post('/imports/commit').send({ batch: exampleBatch() }).expect(200)).body.deckId;
@@ -161,6 +161,7 @@ describe('account deletion', () => {
     const exam = await as.post('/exams').send({ deckId, shuffle: false }).expect(201);
     await as.post(`/exams/${exam.body.id}/submit`).send({ responses: [{ questionId: qid, answerPayload: { type: 'single_choice', choiceId: 'a' } }] }).expect(200);
     await as.patch('/settings').send({ newCardsPerDay: 7 }).expect(200);
+    await as.post('/shares').send({ kind: 'deck', deckId, emails: [name === 'a' ? 'b@test.local' : 'a@test.local'] }).expect(201);
     return uid;
   }
 
@@ -180,6 +181,7 @@ describe('account deletion', () => {
       exams: await p.examAttempt.count(where),
       examResponses: await p.examResponse.count(where),
       settings: await p.appSettings.count(where),
+      shares: await p.share.count(where),
     };
   }
 
@@ -199,6 +201,8 @@ describe('account deletion', () => {
     for (const [table, n] of Object.entries(await countsFor(aId))) expect(n, `A ${table}`).toBe(0);
     expect(await countsFor(bId)).toEqual(bBefore);
     expect(await ctx.prisma.user.count({ where: { id: bId } })).toBe(1);
+    // B's share to A will never be answered now: it reads as declined on B's side
+    expect((await ctx.as('b').get('/shares/sent').expect(200)).body.map((x: { status: string }) => x.status)).toEqual(['declined']);
     expect((await ctx.as('b').get('/decks').expect(200)).body).toHaveLength(1);
 
     // A signing in again starts from an empty account

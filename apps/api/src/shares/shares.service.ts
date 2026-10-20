@@ -480,19 +480,19 @@ export class SharesService {
       await tx.cardState.createMany({ data: cardCreates });
     }
 
-    // Subjects: the target deck's subject as the deck link; the rest (mapped) as extra links.
+    // Subjects: the target deck's subject as the deck link; the source deck's subject (when it differs, e.g.
+    // merging into another deck) and, unless turned off, the sender's extra subjects as manual links.
     const ids = touched.map((t) => t.id);
     await this.subjects.assignDeckSubject(tx, userId, ids, deck.subject);
-    if (ctx.extraSubjects) {
-      const byName = new Map<string, string[]>();
-      for (const t of touched) {
-        for (const name of new Set(t.item.subjects.map(ctx.map))) {
-          if (!name || name === deck.subject) continue;
-          byName.set(name, [...(byName.get(name) ?? []), t.id]);
-        }
+    const byName = new Map<string, string[]>();
+    for (const t of touched) {
+      const [deckSubject, ...extras] = t.item.subjects;
+      for (const name of new Set([deckSubject!, ...(ctx.extraSubjects ? extras : [])].map(ctx.map))) {
+        if (!name || name === deck.subject) continue;
+        byName.set(name, [...(byName.get(name) ?? []), t.id]);
       }
-      for (const [name, qids] of byName) await this.subjects.assignDeckSubject(tx, userId, qids, name, 'manual');
     }
+    for (const [name, qids] of byName) await this.subjects.assignDeckSubject(tx, userId, qids, name, 'manual');
 
     const count = (k: Op['kind']) => ops.filter((o) => o.kind === k).length;
     return { id: deck.id, title: deck.title, isNew, created: count('create'), updated: count('update') + count('revive'), unchanged: count('unchanged'), skipped: count('skip') };
