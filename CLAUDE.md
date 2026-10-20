@@ -27,6 +27,7 @@ Monorepo (pnpm workspaces): `apps/web` (Next.js 16 App Router, React 19, Tailwin
 
 ## Gotchas
 - Prisma 7 `prisma-client` generator emits TS into `apps/api/src/generated` (gitignored) — run `pnpm db:generate` after schema changes; `prisma migrate dev` needs CREATE privilege (shadow DB; granted in `docker/init.sql`). `migrate dev` refuses non-TTY shells: generate SQL with `SHADOW_DATABASE_URL=… prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --script` into a new `prisma/migrations/<ts>_<name>/migration.sql`, then `migrate deploy`.
+- Production DB is TiDB Cloud Starter: it cannot `DROP PRIMARY KEY` on clustered tables (recreate the table in the migration instead) and needs TLS (`?sslaccept=strict`, honoured by `apps/api/src/prisma/database-url.ts`). Test new migrations against a fresh local MySQL with `prisma migrate deploy` + `migrate diff --exit-code` before deploying.
 - Local DB since the multi-tenant migration is `recall_studio_v2` (the old single-user `recall_studio` DB was left untouched; its backup is in `backups/`).
 - The API's integration tests truncate `recall_studio_test` and run `prisma migrate deploy` first.
 - Homebrew MySQL 8.3 on this machine is broken (icu4c mismatch); use Docker.

@@ -2,10 +2,12 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '../generated/prisma/client';
 import { tenantGuard } from './tenant-guard';
+import { parseDatabaseUrl } from './database-url';
 
 export function createPrismaClient(databaseUrl = process.env.DATABASE_URL) {
   if (!databaseUrl) throw new Error('DATABASE_URL is not set (see .env.example)');
-  const adapter = new PrismaMariaDb(databaseUrl, {});
+  // Parsed into a config object so TLS (`?sslaccept=strict`) actually applies — see database-url.ts.
+  const adapter = new PrismaMariaDb(parseDatabaseUrl(databaseUrl));
   return new PrismaClient({ adapter }).$extends(tenantGuard);
 }
 

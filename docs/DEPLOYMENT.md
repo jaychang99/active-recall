@@ -31,7 +31,8 @@
    ```
    mysql://<prefix>.root:<password>@gateway01.ap-northeast-1.prod.aws.tidbcloud.com:4000/test?sslaccept=strict
    ```
-   DB 이름은 `test` 대신 `recall_studio`로 바꾸고(콘솔 SQL Editor에서 `CREATE DATABASE recall_studio;`), `?sslaccept=strict`는 꼭 남깁니다 (Starter는 TLS 필수).
+   DB 이름은 `test` 대신 `recall_studio`로 바꾸고(콘솔 SQL Editor에서 `CREATE DATABASE recall_studio;`), `?sslaccept=strict`는 꼭 남깁니다 (Starter는 TLS 필수; API는 이 플래그를 보고 mariadb 커넥터에 TLS를 켭니다 — `apps/api/src/prisma/database-url.ts`).
+   TiDB는 클러스터형 PK를 `DROP PRIMARY KEY` 할 수 없어서 `multi_tenant` 마이그레이션은 `Deck`/`AppSettings`를 재생성하는 방식으로 작성돼 있습니다. 앞으로 PK를 바꾸는 마이그레이션은 같은 방식으로 쓰세요.
 3. 로컬에서 스키마 적용:
    ```bash
    DATABASE_URL='mysql://…/recall_studio?sslaccept=strict' pnpm --filter @recall/api db:deploy
