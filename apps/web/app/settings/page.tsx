@@ -1,11 +1,13 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Eye, EyeOff, Upload } from 'lucide-react';
+import { Download, Eye, EyeOff, Trash2, Upload } from 'lucide-react';
+import { signOut, useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { API_URL, api, type Settings } from '@/lib/api';
 import { downloadFromApi } from '@/lib/download';
+import { clearApiToken } from '@/lib/auth-token';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
@@ -22,6 +24,40 @@ function Row({ label, hint, children, id }: { label: string; hint?: string; chil
       <div><Label htmlFor={id}>{label}</Label>{hint ? <p className="text-[12px] text-ink-3">{hint}</p> : null}</div>
       <div className="sm:w-56">{children}</div>
     </div>
+  );
+}
+
+function DeleteAccountPanel() {
+  const { data } = useSession();
+  const qc = useQueryClient();
+  const email = data?.user?.email ?? '';
+  const [typed, setTyped] = useState('');
+  const remove = useMutation({
+    mutationFn: () => api('/auth/me', { method: 'DELETE' }),
+    onSuccess: async () => {
+      clearApiToken();
+      qc.clear();
+      try { window.sessionStorage.clear(); } catch { /* storage unavailable */ }
+      await signOut({ redirectTo: '/login' });
+    },
+    onError: (e: Error) => toast.error('계정 삭제 실패', { description: e.message }),
+  });
+  const matches = email.length > 0 && typed.trim().toLowerCase() === email.toLowerCase();
+  return (
+    <Panel id="delete-account" className="mt-6 scroll-mt-20 border-bad/40 px-5 py-4">
+      <h2 className="text-[13px] font-semibold text-bad-ink">계정 삭제</h2>
+      <p className="mt-1 text-[12px] text-ink-2">계정과 함께 덱·문항·복습 기록·메모·시험 기록·설정이 모두 즉시 영구 삭제되며 되돌릴 수 없습니다. 삭제 전에 위의 「전체 백업 (JSON)」을 받아 두면 나중에 다시 복원할 수 있습니다.</p>
+      <div className="mt-3">
+        <Button size="sm" onClick={() => downloadFromApi('/exports/backup.json', 'recall-studio-backup.json').catch((e: Error) => toast.error('백업 실패', { description: e.message }))}><Download className="h-4 w-4" /> 먼저 전체 백업 받기</Button>
+      </div>
+      <div className="mt-4 grid gap-2">
+        <Label htmlFor="delete-account-email">확인을 위해 내 계정 이메일 <span className="font-semibold text-ink">{email}</span>을 입력하세요.</Label>
+        <div className="flex flex-wrap gap-2">
+          <Input id="delete-account-email" className="min-w-0 flex-1 sm:max-w-80" type="email" autoComplete="off" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={email} data-testid="delete-account-email" />
+          <Button variant="danger" disabled={!matches || remove.isPending} onClick={() => remove.mutate()} data-testid="delete-account"><Trash2 className="h-4 w-4" /> {remove.isPending ? '삭제 중…' : '계정 영구 삭제'}</Button>
+        </div>
+      </div>
+    </Panel>
   );
 }
 
@@ -127,6 +163,7 @@ export default function SettingsPage() {
         </div>
         <p className="mt-2 text-[12px] text-ink-3">백업에는 내 계정의 덱·문항·복습 기록·메모·설정이 모두 담깁니다. 예전(단일 사용자) 백업 파일도 복원됩니다.</p>
       </Panel>
+      <DeleteAccountPanel />
     </div>
   );
 }

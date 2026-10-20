@@ -141,3 +141,68 @@ describe('per-user isolation', () => {
     expect(await ctx.prisma.question.count({ where: { userId: await ctx.userId('a') } })).toBe(8);
   });
 });
+
+describe('account deletion', () => {
+  let ctx: Awaited<ReturnType<typeof createApp>>;
+  beforeAll(async () => { ctx = await createApp(); });
+  afterAll(async () => { await ctx.app.close(); });
+
+  /** One row (at least) in every user-owned table: import, subject, review + note, session + practice, exam + responses, settings. */
+  async function populate(name: 'a' | 'b') {
+    const as = ctx.as(name);
+    const deckId = (await as.post('/imports/commit').send({ batch: exampleBatch() }).expect(200)).body.deckId;
+    const uid = await ctx.userId(name);
+    const qid = (await ctx.prisma.question.findFirstOrThrow({ where: { userId: uid, externalId: 'net-q001' } })).id;
+    await as.post('/subjects').send({ name: `Extra ${name}`, color: '#123456' }).expect(201);
+    await as.post('/reviews').send({ questionId: qid, rating: 3, idempotencyKey: `${name}-del-1` }).expect(201);
+    await as.put(`/questions/${qid}/notes/1`).send({ body: `note ${name}` }).expect(200);
+    const session = await as.post('/study/sessions').send({ scope: deckId }).expect(201);
+    await as.post('/study/practice').send({ questionId: qid, sessionId: session.body.id, answerPayload: { type: 'single_choice', choiceId: 'a' } }).expect(201);
+    const exam = await as.post('/exams').send({ deckId, shuffle: false }).expect(201);
+    await as.post(`/exams/${exam.body.id}/submit`).send({ responses: [{ questionId: qid, answerPayload: { type: 'single_choice', choiceId: 'a' } }] }).expect(200);
+    await as.patch('/settings').send({ newCardsPerDay: 7 }).expect(200);
+    return uid;
+  }
+
+  async function countsFor(userId: string) {
+    const where = { where: { userId } };
+    const p = ctx.prisma;
+    return {
+      decks: await p.deck.count(where),
+      questions: await p.question.count(where),
+      subjects: await p.subject.count(where),
+      questionSubjects: await p.questionSubject.count(where),
+      cards: await p.cardState.count(where),
+      reviews: await p.reviewLog.count(where),
+      notes: await p.questionNote.count(where),
+      sessions: await p.studySession.count(where),
+      practices: await p.practiceLog.count(where),
+      exams: await p.examAttempt.count(where),
+      examResponses: await p.examResponse.count(where),
+      settings: await p.appSettings.count(where),
+    };
+  }
+
+  it("DELETE /auth/me purges every row A owns and leaves B's data intact", async () => {
+    await resetDb(ctx.prisma);
+    const aId = await populate('a');
+    const bId = await populate('b');
+    const aBefore = await countsFor(aId);
+    const bBefore = await countsFor(bId);
+    for (const [table, n] of Object.entries(aBefore)) expect(n, `A ${table}`).toBeGreaterThan(0);
+
+    const res = await ctx.api.delete('/auth/me').expect(200);
+    expect(res.body.deleted).toBe(true);
+    expect(res.body.counts).toEqual(aBefore);
+
+    expect(await ctx.prisma.user.count({ where: { id: aId } })).toBe(0);
+    for (const [table, n] of Object.entries(await countsFor(aId))) expect(n, `A ${table}`).toBe(0);
+    expect(await countsFor(bId)).toEqual(bBefore);
+    expect(await ctx.prisma.user.count({ where: { id: bId } })).toBe(1);
+    expect((await ctx.as('b').get('/decks').expect(200)).body).toHaveLength(1);
+
+    // A signing in again starts from an empty account
+    expect((await ctx.api.get('/decks').expect(200)).body).toEqual([]);
+    expect(await ctx.userId('a')).not.toBe(aId);
+  });
+});

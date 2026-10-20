@@ -45,6 +45,34 @@ export class UsersService {
   me(userId: string) {
     return this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, provider: true, email: true, name: true, image: true, createdAt: true, lastSeenAt: true } });
   }
+
+  /**
+   * Permanently deletes the account and every row it owns, on the user's own request. This is the one
+   * deliberate exception to soft delete: nothing is kept behind a `deletedAt`. Children go first so
+   * foreign keys never dangle mid-way; every `where` carries `userId`, so the tenant guard still applies.
+   */
+  async deleteAccount(userId: string) {
+    const counts: Record<string, number> = {};
+    await this.prisma.$transaction(
+      async (tx) => {
+        counts.examResponses = (await tx.examResponse.deleteMany({ where: { userId } })).count;
+        counts.exams = (await tx.examAttempt.deleteMany({ where: { userId } })).count;
+        counts.practices = (await tx.practiceLog.deleteMany({ where: { userId } })).count;
+        counts.notes = (await tx.questionNote.deleteMany({ where: { userId } })).count;
+        counts.reviews = (await tx.reviewLog.deleteMany({ where: { userId } })).count;
+        counts.sessions = (await tx.studySession.deleteMany({ where: { userId } })).count;
+        counts.cards = (await tx.cardState.deleteMany({ where: { userId } })).count;
+        counts.questionSubjects = (await tx.questionSubject.deleteMany({ where: { userId } })).count;
+        counts.subjects = (await tx.subject.deleteMany({ where: { userId } })).count;
+        counts.questions = (await tx.question.deleteMany({ where: { userId } })).count;
+        counts.decks = (await tx.deck.deleteMany({ where: { userId } })).count;
+        counts.settings = (await tx.appSettings.deleteMany({ where: { userId } })).count;
+        await tx.user.delete({ where: { id: userId } });
+      },
+      { timeout: 120_000, maxWait: 10_000 },
+    );
+    return { deleted: true, counts };
+  }
 }
 
 function pick(u: { id: string; provider: string; email: string; name: string | null; image: string | null }): AuthUser {
