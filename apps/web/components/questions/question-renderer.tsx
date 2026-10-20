@@ -28,34 +28,30 @@ import { FindAndFix } from './find-and-fix';
 import { CoordinatePoint } from './coordinate-point';
 import { RegexAnswer } from './regex-answer';
 import { Markdown } from './markdown';
-import { MaskedChip } from './masked-chip';
-import type { MetaMask } from './meta-mask';
+import { MetaChip } from './masked-chip';
+import type { MetaControl } from './meta-mask';
 import { TYPE_LABEL } from '@/lib/utils';
 
 /**
  * The prompt leads; type, difficulty, tags and any caller-supplied card facts follow as one quiet meta line.
- * `mask` hides difficulty (with the time estimate) and/or tags behind a masked chip; `onReveal` makes the chip clickable.
+ * `meta` (study screen) turns difficulty (with the time estimate) and tags into mask toggles; see `MetaChip`.
  */
-export function QuestionPrompt({ question, hidePrompt, extra, mask, onReveal }: { question: RendererProps['question']; hidePrompt?: boolean; extra?: React.ReactNode; mask?: Partial<Pick<MetaMask, 'difficulty' | 'tags'>>; onReveal?: (key: 'difficulty' | 'tags') => void }) {
+export function QuestionPrompt({ question, hidePrompt, extra, meta }: { question: RendererProps['question']; hidePrompt?: boolean; extra?: React.ReactNode; meta?: MetaControl }) {
   const tags = question.tags.slice(0, 4);
   return (
     <div className="min-w-0">
       {!hidePrompt && question.type !== 'cloze' && question.type !== 'cloze_select' && question.type !== 'cloze_bank' ? <Markdown className="text-[1.125rem] md:text-[1.2rem] leading-relaxed">{question.prompt}</Markdown> : null}
       <div className={question.type === 'cloze' || question.type === 'cloze_bank' || hidePrompt ? 'flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-3' : 'mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-3'}>
         <span className="font-medium text-ink-2">{TYPE_LABEL[question.type] ?? question.type}</span>
-        {mask?.difficulty ? (
-          <MaskedChip label="난이도" onReveal={onReveal ? () => onReveal('difficulty') : undefined} testId="meta-difficulty" />
-        ) : (
-          <>
-            <span data-testid="meta-difficulty">난이도 {question.difficulty}/5</span>
-            {question.estimatedSeconds ? <span>약 {question.estimatedSeconds}초</span> : null}
-          </>
-        )}
-        {mask?.tags ? (
-          tags.length ? <MaskedChip label="태그" onReveal={onReveal ? () => onReveal('tags') : undefined} testId="meta-tags" /> : null
-        ) : (
-          tags.map((t) => <span key={t} data-testid="meta-tag">#{t}</span>)
-        )}
+        <MetaChip k="difficulty" label="난이도" control={meta} testId="meta-difficulty">
+          <span>난이도 {question.difficulty}/5</span>
+          {question.estimatedSeconds ? <span className="ml-3">약 {question.estimatedSeconds}초</span> : null}
+        </MetaChip>
+        {tags.length ? (
+          <MetaChip k="tags" label="태그" control={meta} testId="meta-tags">
+            {tags.map((t, i) => <span key={t} className={i ? 'ml-3' : undefined} data-testid="meta-tag">#{t}</span>)}
+          </MetaChip>
+        ) : null}
         {extra}
       </div>
     </div>

@@ -222,6 +222,7 @@ export const ENTITIES: EntityMeta[] = [
       { name: 'hideTags', label: '태그 가림', type: 'boolean', editable: true },
       { name: 'hideSubject', label: '과목·덱 가림', type: 'boolean', editable: true },
       { name: 'hideSource', label: '출처 가림', type: 'boolean', editable: true },
+      { name: 'revealMetaOnAnswer', label: '정답 공개 시 메타 표시', type: 'boolean', editable: true },
       { name: 'newCardOrder', label: '새 카드 순서', type: 'enum', enumValues: ['deck', 'random'], editable: true },
       { name: 'requestRetention', label: '목표 기억률', type: 'number', editable: true },
       { name: 'maximumInterval', label: '최대 간격', type: 'number', editable: true },

@@ -73,6 +73,8 @@ describe('exams & analytics', () => {
     expect([s.body.hideDifficulty, s.body.hideTags, s.body.hideSubject, s.body.hideSource]).toEqual([false, true, false, true]);
     const g = await ctx.api.get('/settings').expect(200);
     expect([g.body.hideDifficulty, g.body.hideTags, g.body.hideSubject, g.body.hideSource]).toEqual([false, true, false, true]);
+    expect(g.body.revealMetaOnAnswer).toBe(false);
+    expect((await ctx.api.patch('/settings').send({ revealMetaOnAnswer: true }).expect(200)).body.revealMetaOnAnswer).toBe(true);
     const backup = await ctx.api.get('/exports/backup.json').expect(200);
     expect(backup.body.version).toBe(2);
     expect(backup.body.questions).toHaveLength(8);

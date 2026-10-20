@@ -370,6 +370,8 @@ model AppSettings {
   hideTags               Boolean   @default(false)
   hideSubject            Boolean   @default(false)
   hideSource             Boolean   @default(false)
+  /// Show every hidden item once the answer is revealed (until the next card); the hide flags stay as they are.
+  revealMetaOnAnswer     Boolean   @default(false)
   newCardOrder           String    @default("deck") @db.VarChar(16) // deck | random
   dailyReviewGoal        Int       @default(50)
   leechThreshold         Int       @default(8)

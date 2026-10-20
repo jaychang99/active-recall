@@ -22,7 +22,8 @@ import { NotesPanel } from './notes-panel';
 import { CardInfoTable } from './card-info';
 import { CopyQuestionButtons } from './copy-question';
 import { MetaMaskMenu, useMetaMask } from './meta-mask-menu';
-import { MaskedChip } from '@/components/questions/masked-chip';
+import { MetaChip } from '@/components/questions/masked-chip';
+import type { MetaControl } from '@/components/questions/meta-mask';
 import { useSettings } from '@/components/layout/settings-context';
 
 export interface StudyParams {
@@ -78,6 +79,9 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const qc = useQueryClient();
   const { settings } = useSettings();
   const meta = useMetaMask();
+  // Card whose answer is open: the reveal-on-answer option shows hidden metadata only for exactly this card,
+  // so the next card never flashes its metadata even for the frame before the phase resets.
+  const [metaRevealedFor, setMetaRevealedFor] = useState<string | null>(null);
   const storageKey = `rs-study:${JSON.stringify(params)}`;
   // Snapshot is read only after mount (sessionStorage is client-only; reading it during the first render
   // would make the client tree differ from the server-rendered skeleton → hydration mismatch).
@@ -195,6 +199,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
   const resetCard = useCallback(() => {
     setPhase('answering');
+    setMetaRevealedFor(null);
     setAnswer(null);
     setGrade(null);
     setRevealedBeforeAnswer(false);
@@ -218,6 +223,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     onSuccess: (res) => {
       setGrade(res);
       setPhase('submitted');
+      if (item) setMetaRevealedFor(`${item.questionId}:${item.reviewRound}`);
     },
     onError: (e: Error) => { submitLock.current = false; toast.error('채점에 실패했습니다', { description: e.message }); },
   });
@@ -373,6 +379,8 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     setHintUsed(true);
   }, [item, hint, phase]);
 
+  const cardKey = item ? `${item.questionId}:${item.reviewRound}` : null;
+  const metaControl: MetaControl = { mask: meta.mask, revealed: meta.revealOnAnswer && phase !== 'answering' && cardKey !== null && metaRevealedFor === cardKey, onToggle: meta.toggle };
   const phaseForRenderer: Phase = phase === 'answering' ? 'answering' : revealedBeforeAnswer ? 'revealed' : 'submitted';
   const shortcutsOn = settings.shortcutsEnabled;
   const typing = item?.type === 'essay' || item?.type === 'short_answer' || item?.type === 'cloze' || item?.type === 'numeric' || item?.type === 'stepwise' || item?.type === 'recall_card';
@@ -422,7 +430,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     <div className="mx-auto w-full max-w-[840px]" data-testid="study-screen" data-phase={phase} data-type={item.type} data-round={item.reviewRound} data-question-id={item.questionId}>
       {/* progress strip */}
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-3">
-        {meta.mask.subject && (queueMeta?.deck || params.subject) ? <MaskedChip label={queueMeta?.deck ? '덱' : '과목'} onReveal={() => meta.toggle('subject')} testId="meta-subject" /> : <span className="font-medium text-ink" data-testid="meta-subject">{queueMeta?.deck?.title ?? (params.subject ? `과목: ${params.subject}` : '모든 덱')}</span>}
+        {queueMeta?.deck || params.subject ? <MetaChip k="subject" label={queueMeta?.deck ? '덱' : '과목'} control={metaControl} testId="meta-subject" className="font-medium text-ink"><span>{queueMeta?.deck?.title ?? `과목: ${params.subject}`}</span></MetaChip> : <span className="font-medium text-ink" data-testid="meta-subject">모든 덱</span>}
         <Badge tone={unrated ? 'warn' : 'neutral'}>{MODE_LABEL[params.mode]}</Badge>
         <span className="tabular">{progress} / {total} 완료</span>
         {params.mode === 'scheduled' ? <span className="tabular">오늘 복습 {queueMeta?.counts.reviewedToday ?? 0} / 목표 {settings.dailyReviewGoal}</span> : null}
@@ -435,8 +443,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         <header className="flex items-start justify-between gap-3">
           <QuestionPrompt
             question={item.question}
-            mask={meta.mask}
-            onReveal={meta.toggle}
+            meta={metaControl}
             extra={<>
               <span>{item.reviewRound}회차</span>
               <span>{item.card.status === 'NEW' ? '새 카드' : item.card.status === 'REVIEW' ? '복습' : '학습 중'}</span>
@@ -444,7 +451,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             </>}
           />
           <div className="flex shrink-0 items-center gap-1">
-            <MetaMaskMenu mask={meta.mask} onToggle={meta.toggle} onSetAll={meta.setAll} shortcut={shortcutsOn ? 'V' : undefined} />
+            <MetaMaskMenu mask={meta.mask} revealOnAnswer={meta.revealOnAnswer} onToggle={meta.toggle} onSetAll={meta.setAll} onSetRevealOnAnswer={meta.setRevealOnAnswer} shortcut={shortcutsOn ? 'V' : undefined} />
             <Tooltip content={<>{item.card.flagged ? '표시 해제' : '문제 표시'} <kbd className="kbd ml-1">F</kbd></>}>
               <Button variant="ghost" size="iconSm" aria-label={item.card.flagged ? '표시 해제' : '문제 표시'} aria-pressed={item.card.flagged} onClick={() => cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' })} className={cn(item.card.flagged && 'text-warn')}>
                 <Flag className="h-4 w-4" fill={item.card.flagged ? 'currentColor' : 'none'} />
@@ -489,7 +496,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
                 <Button size="sm" variant="ghost" onClick={() => setShowExplanation((v) => !v)} kbd="E">{showExplanation ? '해설 접기' : '해설 보기'}</Button>
               </div>
             </div>
-            <ExplanationPanel explanation={grade.explanation} source={item.question.source} sourceMasked={meta.mask.source} onRevealSource={() => meta.toggle('source')} open={showExplanation} />
+            <ExplanationPanel explanation={grade.explanation} source={item.question.source} meta={metaControl} open={showExplanation} />
             {phase === 'submitted' ? (
               unrated ? (
                 <div className="flex items-center gap-2">
@@ -517,7 +524,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       </article>
 
       <Dialog open={showInfo} onOpenChange={setShowInfo}>
-        <DialogContent title="카드 정보" description={`${meta.mask.subject ? '덱 (가려짐)' : item.deck.title} · ${meta.mask.source ? 'ID (가려짐)' : item.externalId}`}>
+        <DialogContent title="카드 정보" description={`${meta.mask.subject && !metaControl.revealed ? '덱 (가려짐)' : item.deck.title} · ${meta.mask.source && !metaControl.revealed ? 'ID (가려짐)' : item.externalId}`}>
           <CardInfoTable card={item.card} round={item.reviewRound} />
           <div className="mt-4 flex flex-wrap gap-2">
             {!unrated ? <Button size="sm" onClick={() => { setShowInfo(false); cardMut.mutate({ action: 'suspend' }); }}><PauseCircle className="h-4 w-4" /> 이 문제 보류</Button> : null}

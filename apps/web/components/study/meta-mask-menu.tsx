@@ -13,7 +13,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { useSettings } from '@/components/layout/settings-context';
 import { META_KEYS, META_LABEL, META_SETTING, allPatch, hiddenCount, isAllHidden, maskFromSettings, toggleAllPatch, togglePatch, type MetaKey, type MetaMask } from '@/components/questions/meta-mask';
 
-type MaskPatch = Partial<Pick<Settings, 'hideDifficulty' | 'hideTags' | 'hideSubject' | 'hideSource'>>;
+type MaskPatch = Partial<Pick<Settings, 'hideDifficulty' | 'hideTags' | 'hideSubject' | 'hideSource' | 'revealMetaOnAnswer'>>;
 
 /**
  * The study-time metadata mask, read from (and written straight back to) the user's global settings.
@@ -40,17 +40,18 @@ export function useMetaMask() {
   const { mutate } = save;
   const toggle = useCallback((key: MetaKey) => mutate(togglePatch(maskFromSettings(qc.getQueryData<Settings>(['settings']) ?? settings), key)), [mutate, qc, settings]);
   const setAll = useCallback((hidden: boolean) => mutate(allPatch(hidden)), [mutate]);
+  const setRevealOnAnswer = useCallback((v: boolean) => mutate({ revealMetaOnAnswer: v }), [mutate]);
   const toggleAll = useCallback(() => {
     const current = maskFromSettings(qc.getQueryData<Settings>(['settings']) ?? settings);
     const patch = toggleAllPatch(current);
     mutate(patch);
     toast(patch.hideDifficulty ? '메타데이터를 모두 가렸습니다' : '메타데이터를 모두 표시합니다', { description: '설정에 저장되어 다음 학습에도 유지됩니다.' });
   }, [mutate, qc, settings]);
-  return { mask, toggle, setAll, toggleAll, saving: save.isPending };
+  return { mask, revealOnAnswer: settings.revealMetaOnAnswer, toggle, setAll, toggleAll, setRevealOnAnswer, saving: save.isPending };
 }
 
-/** Header button + popover: one switch per metadata item, plus all-on / all-off. */
-export function MetaMaskMenu({ mask, onToggle, onSetAll, shortcut }: { mask: MetaMask; onToggle: (key: MetaKey) => void; onSetAll: (hidden: boolean) => void; shortcut?: string }) {
+/** Header button + popover: one switch per metadata item, all-on / all-off, and the reveal-on-answer option. */
+export function MetaMaskMenu({ mask, revealOnAnswer, onToggle, onSetAll, onSetRevealOnAnswer, shortcut }: { mask: MetaMask; revealOnAnswer: boolean; onToggle: (key: MetaKey) => void; onSetAll: (hidden: boolean) => void; onSetRevealOnAnswer: (v: boolean) => void; shortcut?: string }) {
   const n = hiddenCount(mask);
   const all = isAllHidden(mask);
   return (
@@ -82,7 +83,14 @@ export function MetaMaskMenu({ mask, onToggle, onSetAll, shortcut }: { mask: Met
               </li>
             ))}
           </ul>
-          <div className="mt-2 flex items-center gap-1.5 border-t border-line pt-2">
+          <div className="mt-1 flex items-center justify-between gap-3 border-t border-line py-2">
+            <label htmlFor="mask-reveal-on-answer" className="min-w-0 cursor-pointer">
+              <div className="text-[13px] text-ink">정답 공개 시 모두 표시</div>
+              <div className="text-[11px] leading-snug text-ink-3">정답을 본 뒤에만 가린 항목을 잠시 보여주고, 다음 문제에서 다시 가립니다.</div>
+            </label>
+            <Switch id="mask-reveal-on-answer" checked={revealOnAnswer} onCheckedChange={onSetRevealOnAnswer} aria-label="정답 공개 시 모두 표시" data-testid="mask-revealMetaOnAnswer" disabled={n === 0} />
+          </div>
+          <div className="flex items-center gap-1.5 border-t border-line pt-2">
             <Button size="sm" variant={all ? 'ghost' : 'primary'} onClick={() => onSetAll(true)} disabled={all} data-testid="mask-all-on"><EyeOff className="h-3.5 w-3.5" /> 모두 가리기</Button>
             <Button size="sm" variant="ghost" onClick={() => onSetAll(false)} disabled={n === 0} data-testid="mask-all-off"><Eye className="h-3.5 w-3.5" /> 모두 보이기</Button>
             <Tooltip content="설정 페이지에서도 바꿀 수 있습니다">

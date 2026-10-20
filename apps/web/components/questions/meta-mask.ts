@@ -21,6 +21,19 @@ export const META_LABEL: Record<MetaKey, { label: string; hint: string }> = {
 
 export type MetaMask = Record<MetaKey, boolean>;
 
+/**
+ * What a metadata slot needs to render itself: the saved mask, whether the answer reveal is temporarily
+ * showing everything for this card, and the toggle that flips one item's saved setting.
+ */
+export interface MetaControl { mask: MetaMask; revealed: boolean; onToggle: (key: MetaKey) => void }
+
+export type MetaSlotState = 'visible' | 'masked' | 'revealed';
+/** 'revealed' = hidden in settings but shown because the answer is open (until the next card). */
+export function slotState(control: MetaControl | undefined, key: MetaKey): MetaSlotState {
+  if (!control?.mask[key]) return 'visible';
+  return control.revealed ? 'revealed' : 'masked';
+}
+
 export function maskFromSettings(s: Pick<Settings, 'hideDifficulty' | 'hideTags' | 'hideSubject' | 'hideSource'>): MetaMask {
   return { difficulty: s.hideDifficulty, tags: s.hideTags, subject: s.hideSubject, source: s.hideSource };
 }

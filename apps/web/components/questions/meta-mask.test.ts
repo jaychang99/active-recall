@@ -23,3 +23,16 @@ describe('study metadata mask', () => {
     expect(togglePatch(maskFromSettings({ ...none, hideDifficulty: true }), 'difficulty')).toEqual({ hideDifficulty: false });
   });
 });
+
+describe('slot state', () => {
+  it('is visible without a control or when not hidden, masked when hidden, revealed only while the answer is open', async () => {
+    const { slotState } = await import('./meta-mask');
+    const mask = maskFromSettings({ ...none, hideTags: true });
+    const noop = () => {};
+    expect(slotState(undefined, 'tags')).toBe('visible');
+    expect(slotState({ mask, revealed: false, onToggle: noop }, 'difficulty')).toBe('visible');
+    expect(slotState({ mask, revealed: false, onToggle: noop }, 'tags')).toBe('masked');
+    expect(slotState({ mask, revealed: true, onToggle: noop }, 'tags')).toBe('revealed');
+    expect(slotState({ mask, revealed: true, onToggle: noop }, 'difficulty')).toBe('visible');
+  });
+});

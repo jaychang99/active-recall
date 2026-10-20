@@ -83,6 +83,9 @@ export default function SettingsPage() {
             <Switch id={META_SETTING[k]} checked={form[META_SETTING[k]] ?? false} onCheckedChange={(v) => set(META_SETTING[k], v)} aria-label={`${META_LABEL[k].label} 가리기`} />
           </Row>
         ))}
+        <Row label="정답 공개 시 모두 표시" hint="정답을 본 뒤에만 가린 항목을 잠시 보여주고, 다음 문제로 넘어가면 다시 가립니다. 위 가리기 설정은 그대로 유지됩니다." id="revealMetaOnAnswer">
+          <Switch id="revealMetaOnAnswer" checked={form.revealMetaOnAnswer ?? false} onCheckedChange={(v) => set('revealMetaOnAnswer', v)} aria-label="정답 공개 시 모두 표시" />
+        </Row>
       </Panel>
       <Panel className="mb-6 px-5 py-2">
         <h2 className="pt-3 text-[13px] font-semibold text-ink-2">학습량</h2>
