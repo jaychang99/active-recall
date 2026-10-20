@@ -64,14 +64,30 @@ export function uid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Deterministic shuffle so choice order is stable per question per session. */
+/** mulberry32: small seeded PRNG returning floats in [0, 1). */
+export function mulberry32(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Deterministic shuffle so choice order is stable per question per session. Fisher–Yates over mulberry32 —
+ * not a bare LCG with `seed % (i + 1)`: its low bits alternate, which only ever produced even permutations
+ * (half of all orders) and kept the source order 2–4× more often than chance.
+ */
 export function seededShuffle<T>(arr: T[], seedStr: string): T[] {
   let seed = 2166136261;
   for (const ch of seedStr) seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const rand = mulberry32(seed);
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    const j = seed % (i + 1);
+    const j = Math.floor(rand() * (i + 1));
     [a[i], a[j]] = [a[j]!, a[i]!];
   }
   return a;
