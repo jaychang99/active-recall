@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, NotebookPen, Save } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { api, type Note, type NotesResponse } from '@/lib/api';
 import { Textarea } from '@/components/ui/input';
@@ -10,6 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { cn, formatDateTime } from '@/lib/utils';
 import { RATINGS } from './rating-bar';
 import { Markdown } from '@/components/questions/markdown';
+import { isComposing } from '@/lib/shortcuts/manager';
+
+const AUTOSAVE_MS = 900;
 
 /**
  * Per-question notes, one per review round. The current round's note is editable;
@@ -26,11 +29,33 @@ export function NotesPanel({ questionId, round, focusSignal, className, defaultO
   const ref = useRef<HTMLTextAreaElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handledSignal = useRef(focusSignal);
+  // Refs mirror the latest text so a debounced/blur save never sends a stale closure value.
+  const draftRef = useRef('');
+  const dirtyRef = useRef(false);
+  const savedRef = useRef(''); // last body the server is known to hold
+  // IME (Korean/Japanese/Chinese) composition in progress: the textarea holds a half-built syllable, so
+  // nothing is saved and no server echo may overwrite the text until compositionend.
+  const composingRef = useRef(false);
+  const syncedKey = useRef<string | null>(null);
+  const key = `${questionId}:${round}`;
+
+  const setDirtyBoth = (v: boolean) => { dirtyRef.current = v; setDirty(v); };
+  const setDraftBoth = (v: string) => { draftRef.current = v; setDraft(v); };
 
   useEffect(() => {
-    setDraft(current?.body ?? '');
-    setDirty(false);
-  }, [current?.id, current?.body, questionId, round]);
+    if (!q.data) return;
+    const body = current?.body ?? '';
+    savedRef.current = body;
+    if (syncedKey.current !== key) {
+      syncedKey.current = key;
+      // first load for this card/round; text typed before it arrived wins over the server copy
+      if (!dirtyRef.current) setDraftBoth(body);
+      return;
+    }
+    // A later server value (our own save's refetch, another tab) must never clobber text being edited.
+    if (dirtyRef.current || composingRef.current || document.activeElement === ref.current) return;
+    setDraftBoth(body);
+  }, [key, q.data, current?.body]);
 
   useEffect(() => {
     // Only react to a *new* signal (M key); a remounted panel must not steal focus on the next card.
@@ -43,20 +68,39 @@ export function NotesPanel({ questionId, round, focusSignal, className, defaultO
 
   const save = useMutation({
     mutationFn: (body: string) => api<Note>(`/questions/${questionId}/notes/${round}`, { method: 'PUT', json: { body } }),
-    onSuccess: () => {
-      setDirty(false);
+    onSuccess: (_note, body) => {
+      savedRef.current = body;
+      // typed more while the request was in flight → stay dirty; the pending debounce saves the rest
+      if (draftRef.current === body) setDirtyBoth(false);
       void qc.invalidateQueries({ queryKey: ['notes', questionId] });
     },
     onError: (e: Error) => toast.error('메모를 저장하지 못했습니다', { description: e.message }),
   });
+  const { mutate } = save;
 
-  const scheduleSave = (text: string) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      if (text !== (current?.body ?? '')) save.mutate(text);
-    }, 900);
+  const clearTimer = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
+  const flush = useCallback(() => {
+    clearTimer();
+    if (composingRef.current) return;
+    const text = draftRef.current;
+    if (text === savedRef.current) { setDirtyBoth(false); return; }
+    mutate(text);
+  }, [mutate]);
+  const scheduleSave = () => {
+    clearTimer();
+    if (composingRef.current) return; // compositionend reschedules with the finished syllable
+    timer.current = setTimeout(flush, AUTOSAVE_MS);
   };
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  // Leaving the card (or page) with unsaved text: send it now instead of dropping the pending debounce.
+  useEffect(() => () => {
+    clearTimer();
+    if (dirtyRef.current && draftRef.current !== savedRef.current) {
+      dirtyRef.current = false;
+      void api<Note>(`/questions/${questionId}/notes/${round}`, { method: 'PUT', json: { body: draftRef.current } })
+        .then(() => qc.invalidateQueries({ queryKey: ['notes', questionId] }))
+        .catch((e: Error) => toast.error('메모를 저장하지 못했습니다', { description: e.message }));
+    }
+  }, [qc, questionId, round]);
 
   const history = (q.data?.notes ?? []).filter((n) => n.reviewRound !== round);
 
@@ -80,19 +124,27 @@ export function NotesPanel({ questionId, round, focusSignal, className, defaultO
             aria-label={`${round}회차 메모`}
             data-testid="note-input"
             onChange={(e) => {
-              setDraft(e.target.value);
-              setDirty(true);
-              scheduleSave(e.target.value);
+              setDraftBoth(e.target.value);
+              setDirtyBoth(true);
+              scheduleSave();
             }}
-            onBlur={() => { if (dirty) save.mutate(draft); }}
+            onCompositionStart={() => { composingRef.current = true; clearTimer(); }}
+            onCompositionEnd={(e) => {
+              composingRef.current = false;
+              setDraftBoth(e.currentTarget.value);
+              setDirtyBoth(true);
+              scheduleSave();
+            }}
+            onBlur={() => { if (dirtyRef.current) flush(); }}
             onKeyDown={(e) => {
+              if (isComposing(e.nativeEvent)) return; // Esc/⌘S belong to the IME while a syllable is being built
               if (e.key === 'Escape') { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); }
-              if (e.key === 's' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save.mutate(draft); }
+              if (e.key === 's' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); flush(); }
             }}
           />
           <div className="flex items-center justify-between">
             <p className="text-[12px] text-ink-3">회차마다 메모 하나가 저장되며, 평가 시 해당 복습 기록과 연결됩니다.</p>
-            <Button size="sm" variant="ghost" onClick={() => save.mutate(draft)} disabled={!dirty || save.isPending}><Save className="h-3.5 w-3.5" /> 저장</Button>
+            <Button size="sm" variant="ghost" onClick={flush} disabled={!dirty || save.isPending}><Save className="h-3.5 w-3.5" /> 저장</Button>
           </div>
           {history.length ? (
             <div>
