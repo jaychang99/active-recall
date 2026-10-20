@@ -91,7 +91,7 @@ pnpm deploy:api                                          # 번들(apps/api/lambd
 - **모든 PR / 푸시**: `pnpm install` → `db:generate` → lint → typecheck → unit 테스트 → API 통합 테스트(MySQL 8.4 서비스 컨테이너) → 웹 프로덕션 빌드.
 - **main 푸시**: 위 테스트 통과 후 `deploy-api` 잡이 AWS OIDC로 `recall-studio-github-deploy` 역할을 맡아 `prisma migrate deploy`(TiDB) → `infra/aws/deploy-api.sh`(번들·smoke·Lambda 업데이트) → `/health`가 `db: ok`인지 확인. 웹은 Vercel의 GitHub 연동이 같은 푸시로 따로 배포합니다.
 - 설정값: 저장소 **Secrets** `DATABASE_URL`, `API_JWT_SECRET`, `WEB_ORIGIN`; **Variables** `AWS_ROLE_ARN`, `AWS_REGION`. 바꾸려면 `gh secret set <NAME> --body …`.
-- AWS 쪽: OIDC 프로바이더 `token.actions.githubusercontent.com` + IAM 역할 `recall-studio-github-deploy` (신뢰: `repo:jaychang99/active-recall:ref:refs/heads/main` 과 `…:environment:production` — 잡이 `environment: production`을 쓰면 OIDC `sub`가 environment 형태가 됨, 권한: `recall-studio-api` 함수의 Get*/UpdateFunctionCode/UpdateFunctionConfiguration/GetFunctionUrlConfig/GetPolicy). 함수·URL·실행 역할을 처음 만드는 것은 로컬 `pnpm deploy:api`(관리자 자격증명) 몫입니다.
+- AWS 쪽: OIDC 프로바이더 `token.actions.githubusercontent.com` + IAM 역할 `recall-studio-github-deploy` (신뢰: OIDC `sub` = `repo:jaychang99@86560973/active-recall@1425382273:environment:production` — 2026년부터 GitHub가 sub에 owner/repo ID를 붙이고, 잡이 `environment: production`을 쓰면 environment 형태가 됨; 워크플로의 "Show OIDC token claims" 스텝이 실제 값을 찍어 줌, 권한: `recall-studio-api` 함수의 Get*/UpdateFunctionCode/UpdateFunctionConfiguration/GetFunctionUrlConfig/GetPolicy). 함수·URL·실행 역할을 처음 만드는 것은 로컬 `pnpm deploy:api`(관리자 자격증명) 몫입니다.
 
 ## 5. 기존 로컬 데이터 옮기기
 
