@@ -67,8 +67,12 @@ describe('exams & analytics', () => {
 
   it('settings validate timezone; backup round-trips', async () => {
     await ctx.api.patch('/settings').send({ timezone: 'Mars/Olympus' }).expect(400);
-    const s = await ctx.api.patch('/settings').send({ timezone: 'America/New_York', newCardsPerDay: 5 }).expect(200);
+    const s = await ctx.api.patch('/settings').send({ timezone: 'America/New_York', newCardsPerDay: 5, hideTags: true, hideSource: true }).expect(200);
     expect(s.body.timezone).toBe('America/New_York');
+    // study metadata mask: four independent booleans, default off, persisted
+    expect([s.body.hideDifficulty, s.body.hideTags, s.body.hideSubject, s.body.hideSource]).toEqual([false, true, false, true]);
+    const g = await ctx.api.get('/settings').expect(200);
+    expect([g.body.hideDifficulty, g.body.hideTags, g.body.hideSubject, g.body.hideSource]).toEqual([false, true, false, true]);
     const backup = await ctx.api.get('/exports/backup.json').expect(200);
     expect(backup.body.version).toBe(2);
     expect(backup.body.questions).toHaveLength(8);

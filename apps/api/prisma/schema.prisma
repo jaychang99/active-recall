@@ -365,6 +365,11 @@ model AppSettings {
   maximumInterval        Int       @default(36500)
   enableFuzz             Boolean   @default(false)
   shuffleChoices         Boolean   @default(true)
+  /// Study screen: hide question metadata that could hint at the answer (each item toggles independently).
+  hideDifficulty         Boolean   @default(false)
+  hideTags               Boolean   @default(false)
+  hideSubject            Boolean   @default(false)
+  hideSource             Boolean   @default(false)
   newCardOrder           String    @default("deck") @db.VarChar(16) // deck | random
   dailyReviewGoal        Int       @default(50)
   leechThreshold         Int       @default(8)

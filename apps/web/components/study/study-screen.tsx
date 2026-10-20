@@ -21,6 +21,8 @@ import { RATINGS, RatingBar } from './rating-bar';
 import { NotesPanel } from './notes-panel';
 import { CardInfoTable } from './card-info';
 import { CopyQuestionButtons } from './copy-question';
+import { MetaMaskMenu, useMetaMask } from './meta-mask-menu';
+import { MaskedChip } from '@/components/questions/masked-chip';
 import { useSettings } from '@/components/layout/settings-context';
 
 export interface StudyParams {
@@ -75,6 +77,7 @@ function queueUrl(p: StudyParams) {
 export function StudyScreen({ params }: { params: StudyParams }) {
   const qc = useQueryClient();
   const { settings } = useSettings();
+  const meta = useMetaMask();
   const storageKey = `rs-study:${JSON.stringify(params)}`;
   // Snapshot is read only after mount (sessionStorage is client-only; reading it during the first render
   // would make the client tree differ from the server-rendered skeleton → hydration mismatch).
@@ -391,6 +394,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       { keys: 'm', description: '메모 작성 (이번 회차)', group: '학습', handler: () => setNotesFocus((n) => n + 1) },
       { keys: 'f', description: '문제 표시 / 해제', group: '학습', handler: () => (item ? (cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' }), undefined) : false) },
       { keys: 'i', description: '카드 정보', group: '학습', handler: () => setShowInfo((v) => !v) },
+      { keys: 'v', description: '메타데이터 모두 가리기 / 보이기', group: '학습', handler: () => { meta.toggleAll(); } },
       { keys: 's', description: '건너뛰기 (내일까지 묻기)', group: '학습', handler: () => (item && !isPractice ? (cardMut.mutate({ action: 'bury' }), undefined) : false) },
       { keys: 'Escape', description: '입력창 나가기 / 닫기', group: '학습', handler: () => (showInfo ? (setShowInfo(false), undefined) : false) },
     ],
@@ -408,7 +412,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     <div className="mx-auto w-full max-w-[840px]" data-testid="study-screen" data-phase={phase} data-type={item.type} data-round={item.reviewRound} data-question-id={item.questionId}>
       {/* progress strip */}
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-3">
-        <span className="font-medium text-ink">{queueMeta?.deck?.title ?? (params.subject ? `과목: ${params.subject}` : '모든 덱')}</span>
+        {meta.mask.subject && (queueMeta?.deck || params.subject) ? <MaskedChip label={queueMeta?.deck ? '덱' : '과목'} onReveal={() => meta.toggle('subject')} testId="meta-subject" /> : <span className="font-medium text-ink" data-testid="meta-subject">{queueMeta?.deck?.title ?? (params.subject ? `과목: ${params.subject}` : '모든 덱')}</span>}
         <Badge tone={isPractice ? 'warn' : 'neutral'}>{MODE_LABEL[params.mode]}</Badge>
         <span className="tabular">{progress} / {total} 완료</span>
         {params.mode === 'scheduled' ? <span className="tabular">오늘 복습 {queueMeta?.counts.reviewedToday ?? 0} / 목표 {settings.dailyReviewGoal}</span> : null}
@@ -421,6 +425,8 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         <header className="flex items-start justify-between gap-3">
           <QuestionPrompt
             question={item.question}
+            mask={meta.mask}
+            onReveal={meta.toggle}
             extra={<>
               <span>{item.reviewRound}회차</span>
               <span>{item.card.status === 'NEW' ? '새 카드' : item.card.status === 'REVIEW' ? '복습' : '학습 중'}</span>
@@ -428,6 +434,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             </>}
           />
           <div className="flex shrink-0 items-center gap-1">
+            <MetaMaskMenu mask={meta.mask} onToggle={meta.toggle} onSetAll={meta.setAll} shortcut={shortcutsOn ? 'V' : undefined} />
             <Tooltip content={<>{item.card.flagged ? '표시 해제' : '문제 표시'} <kbd className="kbd ml-1">F</kbd></>}>
               <Button variant="ghost" size="iconSm" aria-label={item.card.flagged ? '표시 해제' : '문제 표시'} aria-pressed={item.card.flagged} onClick={() => cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' })} className={cn(item.card.flagged && 'text-warn')}>
                 <Flag className="h-4 w-4" fill={item.card.flagged ? 'currentColor' : 'none'} />
@@ -472,7 +479,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
                 <Button size="sm" variant="ghost" onClick={() => setShowExplanation((v) => !v)} kbd="E">{showExplanation ? '해설 접기' : '해설 보기'}</Button>
               </div>
             </div>
-            <ExplanationPanel explanation={grade.explanation} source={item.question.source} open={showExplanation} />
+            <ExplanationPanel explanation={grade.explanation} source={item.question.source} sourceMasked={meta.mask.source} onRevealSource={() => meta.toggle('source')} open={showExplanation} />
             {phase === 'submitted' ? (
               isPractice ? (
                 <div className="flex items-center gap-2">
@@ -500,7 +507,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       </article>
 
       <Dialog open={showInfo} onOpenChange={setShowInfo}>
-        <DialogContent title="카드 정보" description={`${item.deck.title} · ${item.externalId}`}>
+        <DialogContent title="카드 정보" description={`${meta.mask.subject ? '덱 (가려짐)' : item.deck.title} · ${meta.mask.source ? 'ID (가려짐)' : item.externalId}`}>
           <CardInfoTable card={item.card} round={item.reviewRound} />
           <div className="mt-4 flex flex-wrap gap-2">
             {!isPractice ? <Button size="sm" onClick={() => { setShowInfo(false); cardMut.mutate({ action: 'suspend' }); }}><PauseCircle className="h-4 w-4" /> 이 문제 보류</Button> : null}

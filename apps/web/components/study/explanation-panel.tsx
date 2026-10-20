@@ -3,6 +3,7 @@ import { AlertTriangle, BookMarked, Check, ListOrdered, X } from 'lucide-react';
 import type { GradeResult } from '@recall/contracts';
 import type { GradeResponse } from '@/lib/api';
 import { Markdown } from '@/components/questions/markdown';
+import { MaskedChip } from '@/components/questions/masked-chip';
 import { cn } from '@/lib/utils';
 
 export function Verdict({ grade, revealedBeforeAnswer }: { grade: GradeResult | null; revealedBeforeAnswer: boolean }) {
@@ -19,7 +20,7 @@ export function Verdict({ grade, revealedBeforeAnswer }: { grade: GradeResult | 
   );
 }
 
-export function ExplanationPanel({ explanation, source, open, className }: { explanation: GradeResponse['explanation']; source?: { document: string; location?: string; url?: string }; open: boolean; className?: string }) {
+export function ExplanationPanel({ explanation, source, sourceMasked, onRevealSource, open, className }: { explanation: GradeResponse['explanation']; source?: { document: string; location?: string; url?: string }; /** Hide the source line behind a masked chip (study metadata mask). */ sourceMasked?: boolean; onRevealSource?: () => void; open: boolean; className?: string }) {
   if (!open) return null;
   return (
     <section className={cn('rounded-lg border border-line bg-elevated p-4 rs-pop', className)} data-testid="explanation" aria-label="해설">
@@ -43,7 +44,7 @@ export function ExplanationPanel({ explanation, source, open, className }: { exp
       ) : null}
       {(explanation.references?.length || source) ? (
         <div className="mt-3 text-[12px] text-ink-3">
-          {source ? <div>출처: {source.document}{source.location ? ` · ${source.location}` : ''}{source.url ? <> · <a className="underline" href={source.url} target="_blank" rel="noreferrer">링크</a></> : null}</div> : null}
+          {source ? (sourceMasked ? <div><MaskedChip label="출처" onReveal={onRevealSource} testId="meta-source" /></div> : <div data-testid="meta-source">출처: {source.document}{source.location ? ` · ${source.location}` : ''}{source.url ? <> · <a className="underline" href={source.url} target="_blank" rel="noreferrer">링크</a></> : null}</div>) : null}
           {explanation.references?.map((r, i) => <div key={i}>참고: {r.document}{r.location ? ` · ${r.location}` : ''}{r.url ? <> · <a className="underline" href={r.url} target="_blank" rel="noreferrer">링크</a></> : null}</div>)}
         </div>
       ) : null}

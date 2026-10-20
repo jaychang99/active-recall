@@ -11,6 +11,10 @@ export class UpdateSettingsDto {
   @IsOptional() @IsInt() @Min(1) @Max(36500) maximumInterval?: number;
   @IsOptional() @IsBoolean() enableFuzz?: boolean;
   @IsOptional() @IsBoolean() shuffleChoices?: boolean;
+  @IsOptional() @IsBoolean() hideDifficulty?: boolean;
+  @IsOptional() @IsBoolean() hideTags?: boolean;
+  @IsOptional() @IsBoolean() hideSubject?: boolean;
+  @IsOptional() @IsBoolean() hideSource?: boolean;
   @IsOptional() @IsIn(['deck', 'random']) newCardOrder?: string;
   @IsOptional() @IsInt() @Min(0) @Max(10000) dailyReviewGoal?: number;
   @IsOptional() @IsInt() @Min(1) @Max(1000) leechThreshold?: number;

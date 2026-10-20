@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Upload } from 'lucide-react';
+import { Download, Eye, EyeOff, Upload } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ import { InstallAppButton, usePwa } from '@/components/layout/pwa';
 import Link from 'next/link';
 import { PromptOptionsForm } from '@/components/prompt/prompt-options-form';
 import { PROMPT_DEFAULTS, changedKeys, resolvePromptOptions, toSavedDefaults } from '@/lib/prompt-options';
+import { META_KEYS, META_LABEL, META_SETTING, allPatch } from '@/components/questions/meta-mask';
 
 function Row({ label, hint, children, id }: { label: string; hint?: string; children: React.ReactNode; id?: string }) {
   return (
@@ -67,6 +68,21 @@ export default function SettingsPage() {
         <Row label="평가 버튼에 다음 간격 표시" hint="Anki처럼 Again/Hard/Good/Easy 아래 예상 간격을 보여줍니다." id="showIntervalPreview"><Switch id="showIntervalPreview" checked={form.showIntervalPreview ?? true} onCheckedChange={(v) => set('showIntervalPreview', v)} /></Row>
         <Row label="평가 후 자동으로 다음 문제" hint="끄면 평가 후 N 키나 버튼으로 넘어갑니다." id="autoAdvanceAfterRating"><Switch id="autoAdvanceAfterRating" checked={form.autoAdvanceAfterRating ?? true} onCheckedChange={(v) => set('autoAdvanceAfterRating', v)} /></Row>
         <Row label="보기 순서 섞기" hint="선택지 ID는 바뀌지 않습니다." id="shuffleChoices"><Switch id="shuffleChoices" checked={form.shuffleChoices ?? true} onCheckedChange={(v) => set('shuffleChoices', v)} /></Row>
+      </Panel>
+      <Panel id="study-meta-mask" className="mb-6 scroll-mt-20 px-5 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3">
+          <h2 className="text-[13px] font-semibold text-ink-2">학습 중 메타데이터 가리기</h2>
+          <div className="flex gap-1.5">
+            <Button size="sm" variant="ghost" onClick={() => setForm((f) => ({ ...f, ...allPatch(true) }))} data-testid="settings-mask-all-on"><EyeOff className="h-3.5 w-3.5" /> 모두 가리기</Button>
+            <Button size="sm" variant="ghost" onClick={() => setForm((f) => ({ ...f, ...allPatch(false) }))} data-testid="settings-mask-all-off"><Eye className="h-3.5 w-3.5" /> 모두 보이기</Button>
+          </div>
+        </div>
+        <p className="mb-1 text-[12px] text-ink-3">정답 힌트가 될 수 있는 정보를 학습 화면에서 가린 표시(•••)로 바꿉니다. 학습 중에도 헤더의 눈 아이콘이나 <kbd className="kbd">V</kbd> 키로 실시간으로 바꿀 수 있고, 어디서 바꾸든 같은 설정입니다.</p>
+        {META_KEYS.map((k) => (
+          <Row key={k} label={META_LABEL[k].label} hint={META_LABEL[k].hint} id={META_SETTING[k]}>
+            <Switch id={META_SETTING[k]} checked={form[META_SETTING[k]] ?? false} onCheckedChange={(v) => set(META_SETTING[k], v)} aria-label={`${META_LABEL[k].label} 가리기`} />
+          </Row>
+        ))}
       </Panel>
       <Panel className="mb-6 px-5 py-2">
         <h2 className="pt-3 text-[13px] font-semibold text-ink-2">학습량</h2>
