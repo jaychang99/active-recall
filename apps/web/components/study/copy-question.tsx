@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type { AnswerPayload, GradeResult, Question } from '@recall/contracts';
 import { api, type CardInfo, type NotesResponse, type QueueItem } from '@/lib/api';
 import { buildQuestionExport, explainPrompt, exportJson } from '@/lib/question-export';
+import { useShortcuts } from '@/lib/shortcuts/provider';
 import { copyToClipboard } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -16,9 +17,10 @@ type SubjectRow = { id: string; name: string; source: string };
 /**
  * Two copy buttons for the result view: the whole question (answer key, explanations, source, my attempt, every
  * round's note) as JSON, and the same JSON wrapped in a prompt asking another LLM for a deeper explanation.
- * Only rendered after submit/reveal, so it never leaks the answer key while answering.
+ * Only rendered after submit/reveal, so it never leaks the answer key while answering (and its C / P shortcuts
+ * exist only while it is mounted).
  */
-export function CopyQuestionButtons({ item, answer, grade, revealedBeforeAnswer, hintUsed }: { item: QueueItem; answer: AnswerPayload | null; grade: GradeResult | null; revealedBeforeAnswer: boolean; hintUsed: boolean }) {
+export function CopyQuestionButtons({ item, answer, grade, revealedBeforeAnswer, hintUsed, shortcuts }: { item: QueueItem; answer: AnswerPayload | null; grade: GradeResult | null; revealedBeforeAnswer: boolean; hintUsed: boolean; shortcuts: boolean }) {
   const qc = useQueryClient();
   const id = item.questionId;
   const fullOpts = { queryKey: ['question', id], queryFn: () => api<FullQuestion>(`/questions/${id}?includeAnswer=true`) };
@@ -32,6 +34,7 @@ export function CopyQuestionButtons({ item, answer, grade, revealedBeforeAnswer,
   const [busy, setBusy] = useState<'json' | 'prompt' | null>(null);
 
   const copy = async (kind: 'json' | 'prompt') => {
+    if (busy) return;
     setBusy(kind);
     try {
       const [f, n, s] = await Promise.all([
@@ -61,13 +64,22 @@ export function CopyQuestionButtons({ item, answer, grade, revealedBeforeAnswer,
     }
   };
 
+  useShortcuts(
+    'study',
+    [
+      { keys: 'c', description: '문제 데이터 JSON 복사 (채점 후)', group: '학습', handler: () => { void copy('json'); } },
+      { keys: 'p', description: '해설 요청 프롬프트 복사 (채점 후)', group: '학습', handler: () => { void copy('prompt'); } },
+    ],
+    shortcuts,
+  );
+
   return (
     <div className="flex items-center gap-1" data-testid="copy-question">
       <Tooltip content="문제·보기·그래픽·정답·해설·출처·내 답안·회차별 메모 전체를 JSON으로 복사">
-        <Button size="sm" variant="ghost" onClick={() => void copy('json')} disabled={busy !== null} data-testid="copy-json-btn"><Braces className="h-4 w-4" /> JSON 복사</Button>
+        <Button size="sm" variant="ghost" onClick={() => void copy('json')} disabled={busy !== null} kbd={shortcuts ? 'C' : undefined} data-testid="copy-json-btn"><Braces className="h-4 w-4" /> JSON 복사</Button>
       </Tooltip>
       <Tooltip content="같은 JSON에 ‘더 자세히 해설해 달라’는 프롬프트를 붙여 복사 — 다른 LLM에 그대로 붙여넣기">
-        <Button size="sm" variant="ghost" onClick={() => void copy('prompt')} disabled={busy !== null} data-testid="copy-prompt-btn"><Sparkles className="h-4 w-4" /> 해설 요청 프롬프트 복사</Button>
+        <Button size="sm" variant="ghost" onClick={() => void copy('prompt')} disabled={busy !== null} kbd={shortcuts ? 'P' : undefined} data-testid="copy-prompt-btn"><Sparkles className="h-4 w-4" /> 해설 요청 프롬프트 복사</Button>
       </Tooltip>
     </div>
   );

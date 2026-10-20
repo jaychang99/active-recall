@@ -41,15 +41,46 @@ describe('ShortcutManager', () => {
     expect(isEditableTarget(cb)).toBe(false);
   });
 
-  it('ignores IME composition (Korean) and key repeat', () => {
+  it('ignores IME composition inside a text field and key repeat', () => {
     const m = new ShortcutManager();
     const h = vi.fn();
-    m.register('study', { keys: 'Enter', handler: h }, 10);
-    expect(m.handle(key({ key: 'Enter', isComposing: true }))).toBe(false);
-    expect(m.handle(key({ key: 'Process', keyCode: 229 }))).toBe(false);
-    expect(m.handle(key({ key: 'Enter', repeat: true }))).toBe(false);
+    m.register('study', { keys: 'Enter', mod: 'ctrlOrMeta', allowInEditable: true, handler: h }, 10);
+    const ta = document.createElement('textarea');
+    document.body.appendChild(ta);
+    expect(m.handle(key({ key: 'Enter', metaKey: true, isComposing: true, target: ta }))).toBe(false);
+    expect(m.handle(key({ key: 'Process', code: 'Enter', metaKey: true, keyCode: 229, target: ta }))).toBe(false);
+    expect(m.handle(key({ key: 'Enter', metaKey: true, repeat: true }))).toBe(false);
     expect(h).not.toHaveBeenCalled();
-    expect(m.handle(key({ key: 'Enter' }))).toBe(true);
+    expect(m.handle(key({ key: 'Enter', metaKey: true, target: ta }))).toBe(true);
+  });
+
+  it('fires by physical key outside text fields whatever the input source (Korean 2-set, IME Process)', () => {
+    const m = new ShortcutManager();
+    const e = vi.fn();
+    const digit = vi.fn();
+    const space = vi.fn();
+    const help = vi.fn();
+    m.register('study', { keys: 'e', handler: e }, 10);
+    m.register('study', { keys: ['1', '2'], handler: digit }, 10);
+    m.register('study', { keys: ' ', handler: space }, 10);
+    m.register('study', { keys: '?', handler: help }, 10);
+    expect(m.handle(key({ key: 'ㄷ', code: 'KeyE' }))).toBe(true);
+    expect(m.handle(key({ key: 'Process', code: 'KeyE', keyCode: 229 }))).toBe(true);
+    expect(m.handle(key({ key: 'ㄸ', code: 'KeyE', shiftKey: true }))).toBe(true);
+    expect(e).toHaveBeenCalledTimes(3);
+    expect(m.handle(key({ key: 'Process', code: 'Digit2', keyCode: 229 }))).toBe(true);
+    expect(m.handle(key({ key: 'Process', code: 'Space', keyCode: 229 }))).toBe(true);
+    expect(m.handle(key({ key: 'Process', code: 'Slash', shiftKey: true, keyCode: 229 }))).toBe(true);
+    expect(digit).toHaveBeenCalledTimes(1);
+    expect(space).toHaveBeenCalledTimes(1);
+    expect(help).toHaveBeenCalledTimes(1);
+    // inside a text field the Hangul key is just typing
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    expect(m.handle(key({ key: 'ㄷ', code: 'KeyE', target: input }))).toBe(false);
+    // a Latin layout keeps its own letters (Dvorak: physical KeyE types '.')
+    expect(m.handle(key({ key: '.', code: 'KeyE' }))).toBe(false);
+    expect(e).toHaveBeenCalledTimes(3);
   });
 
   it('modal scope is exclusive and wins over study', () => {

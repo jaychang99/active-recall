@@ -2,8 +2,10 @@
  * Shortcut scope manager.
  * - One keydown listener for the whole app (registered by ShortcutProvider).
  * - Handlers register into named scopes; the top-most active scope wins ("modal" above "study" above "global").
- * - Keys are ignored while typing in inputs/textareas/contenteditable, during IME composition
+ * - Keys are ignored while typing in inputs/textareas/contenteditable, during IME composition inside them
  *   (isComposing / keyCode 229), on key repeat, and when modifier keys are held unless the binding asks for them.
+ * - Outside editable elements shortcuts work whatever the input source is: a non-Latin layout (Korean 2-set gives
+ *   'ㄷ' for E) or an IME that reports 'Process' falls back to the physical key (KeyboardEvent.code).
  */
 export type KeyBinding = {
   /** KeyboardEvent.key value(s), case-insensitive for letters. e.g. '1', 'Enter', ' ', '?', 'Escape' */
@@ -47,6 +49,28 @@ export function isComposing(e: KeyboardEvent): boolean {
 function normalizeKey(k: string): string {
   if (k === 'Spacebar') return ' ';
   return k.length === 1 ? k.toLowerCase() : k;
+}
+
+const CODE_KEY: Record<string, string> = { Space: ' ', Enter: 'Enter', NumpadEnter: 'Enter', Escape: 'Escape', Backspace: 'Backspace', Tab: 'Tab' };
+
+/**
+ * The binding key for an event. Latin characters and named keys come from `e.key` (so Dvorak/AZERTY users keep
+ * their own letters); anything else (Hangul jamo, kana, 'Process', 'Unidentified') maps through `e.code` to the
+ * US-QWERTY character of that physical key.
+ */
+export function eventKey(e: KeyboardEvent): string {
+  const k = e.key ?? '';
+  const latin = k.length === 1 && k.charCodeAt(0) < 128;
+  const named = k.length > 1 && k !== 'Process' && k !== 'Unidentified' && k !== 'Dead';
+  if (latin || named) return normalizeKey(k);
+  const code = e.code ?? '';
+  const m = /^(?:Key([A-Z])|Digit([0-9])|Numpad([0-9]))$/.exec(code);
+  if (m) {
+    if (m[2] && e.shiftKey) return normalizeKey(k);
+    return (m[1] ?? m[2] ?? m[3])!.toLowerCase();
+  }
+  if (code === 'Slash') return e.shiftKey ? '?' : '/';
+  return CODE_KEY[code] ?? normalizeKey(k);
 }
 
 export class ShortcutManager {
@@ -108,9 +132,10 @@ export class ShortcutManager {
   /** Returns true when the event was consumed. */
   handle(e: KeyboardEvent): boolean {
     if (!this.enabled) return false;
-    if (isComposing(e)) return false;
     const editable = isEditableTarget(e.target);
-    const key = normalizeKey(e.key);
+    // Composition only exists inside a text field; outside one, keyCode 229 is just the IME being active.
+    if (editable && isComposing(e)) return false;
+    const key = eventKey(e);
     for (const scope of this.activeScopes()) {
       for (const b of scope.bindings.values()) {
         if (!b.allowRepeat && e.repeat) continue;

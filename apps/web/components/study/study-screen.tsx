@@ -475,7 +475,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             <div className="flex flex-wrap items-center gap-3">
               <Verdict grade={grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} />
               <div className="ml-auto flex flex-wrap items-center gap-1">
-                <CopyQuestionButtons item={item} answer={answer} grade={revealedBeforeAnswer ? null : grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} hintUsed={hintUsed} />
+                <CopyQuestionButtons item={item} answer={answer} grade={revealedBeforeAnswer ? null : grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} hintUsed={hintUsed} shortcuts={shortcutsOn} />
                 <Button size="sm" variant="ghost" onClick={() => setShowExplanation((v) => !v)} kbd="E">{showExplanation ? '해설 접기' : '해설 보기'}</Button>
               </div>
             </div>
