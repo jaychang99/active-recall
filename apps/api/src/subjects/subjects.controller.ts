@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthUser } from '../auth/users.service';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 import { SubjectsService } from './subjects.service';
 
@@ -20,12 +22,13 @@ class BulkAssignDto {
 }
 
 @ApiTags('subjects')
+@ApiBearerAuth()
 @Controller('subjects')
 export class SubjectsController {
   constructor(private readonly subjects: SubjectsService) {}
-  @Get() list() { return this.subjects.list(); }
-  @Post() create(@Body() dto: CreateSubjectDto) { return this.subjects.create(dto); }
-  @Patch(':id') update(@Param('id') id: string, @Body() dto: UpdateSubjectDto) { return this.subjects.update(id, dto); }
-  @Delete(':id') remove(@Param('id') id: string) { return this.subjects.remove(id); }
-  @Post('bulk-assign') @HttpCode(200) bulk(@Body() dto: BulkAssignDto) { return this.subjects.bulkAssign(dto.questionIds, dto.name, dto.remove ?? false); }
+  @Get() list(@CurrentUser() user: AuthUser) { return this.subjects.list(user.id); }
+  @Post() create(@CurrentUser() user: AuthUser, @Body() dto: CreateSubjectDto) { return this.subjects.create(user.id, dto); }
+  @Patch(':id') update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateSubjectDto) { return this.subjects.update(user.id, id, dto); }
+  @Delete(':id') remove(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.subjects.remove(user.id, id); }
+  @Post('bulk-assign') @HttpCode(200) bulk(@CurrentUser() user: AuthUser, @Body() dto: BulkAssignDto) { return this.subjects.bulkAssign(user.id, dto.questionIds, dto.name, dto.remove ?? false); }
 }

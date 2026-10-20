@@ -13,3 +13,4 @@ apps/web/playwright-report
 .DS_Store
 .taste-skill
 *.tsbuildinfo
+backups/

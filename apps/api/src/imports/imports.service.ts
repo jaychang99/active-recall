@@ -31,7 +31,8 @@ export interface ImportPlan {
   ok: boolean;
   issues: ValidationIssue[];
   summary?: { deckId: string; title: string; total: number; byType: Record<QuestionType, number> };
-  deck?: { id: string; exists: boolean; currentTitle?: string; newTitle: string };
+  /** `id` is the internal deck id (null until the deck exists); `slug` is the batch's `deck.id`. */
+  deck?: { id: string | null; slug: string; exists: boolean; currentTitle?: string; newTitle: string };
   strategy: ImportStrategy;
   counts: { created: number; updated: number; unchanged: number; resetSchedule: number; deactivated: number; skipped: number };
   items: ImportPlanItem[];
@@ -40,7 +41,9 @@ export interface ImportPlan {
 
 export interface ImportReport extends ImportPlan {
   committed: boolean;
-  deckId?: string;
+  /** internal id of the (created or updated) deck */
+  deckId: string;
+  deckSlug: string;
 }
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -59,7 +62,7 @@ export class ImportsService {
   ) {}
 
   /** Dry run: schema + semantic validation, plus the diff against the database. */
-  async plan(input: unknown, strategy: ImportStrategy = 'upsert'): Promise<ImportPlan> {
+  async plan(userId: string, input: unknown, strategy: ImportStrategy = 'upsert'): Promise<ImportPlan> {
     const v = validateBatch(input);
     const base: ImportPlan = {
       ok: false,
@@ -72,11 +75,14 @@ export class ImportsService {
     };
     if (!v.ok || !v.batch) return base;
     const batch = v.batch;
-    const deck = await this.prisma.deck.findFirst({ where: { id: batch.deck.id, deletedAt: null }, select: { id: true, title: true } });
-    const existing = await this.prisma.question.findMany({
-      where: { deckId: batch.deck.id },
-      select: { externalId: true, contentHash: true, answerHash: true, deletedAt: true },
-    });
+    // Decks are matched per user by the batch's deck.id (stored as `slug`); a soft-deleted deck is revived by an import.
+    const deck = await this.prisma.deck.findUnique({ where: { userId_slug: { userId, slug: batch.deck.id } }, select: { id: true, title: true, deletedAt: true } });
+    const existing = deck
+      ? await this.prisma.question.findMany({
+          where: { userId, deckId: deck.id },
+          select: { externalId: true, contentHash: true, answerHash: true, deletedAt: true },
+        })
+      : [];
     const byExt = new Map(existing.map((e) => [e.externalId, e]));
     const items: ImportPlanItem[] = [];
     const counts = { created: 0, updated: 0, unchanged: 0, resetSchedule: 0, deactivated: 0, skipped: 0 };
@@ -121,7 +127,7 @@ export class ImportsService {
     return {
       ...base,
       ok: true,
-      deck: { id: batch.deck.id, exists: !!deck, currentTitle: deck?.title, newTitle: batch.deck.title },
+      deck: { id: deck?.id ?? null, slug: batch.deck.id, exists: !!deck && !deck.deletedAt, currentTitle: deck?.title, newTitle: batch.deck.title },
       counts,
       items,
       deactivate,
@@ -129,19 +135,20 @@ export class ImportsService {
   }
 
   /** Atomic commit: one invalid question → nothing is written. */
-  async commit(input: unknown, strategy: ImportStrategy = 'upsert'): Promise<ImportReport> {
-    const plan = await this.plan(input, strategy);
+  async commit(userId: string, input: unknown, strategy: ImportStrategy = 'upsert'): Promise<ImportReport> {
+    const plan = await this.plan(userId, input, strategy);
     if (!plan.ok) throw ApiError.unprocessable('Batch failed validation; nothing was imported', { issues: plan.issues });
     const batch = input as QuestionBatch;
     const now = new Date();
     const emptyCard = serializeCard(this.fsrs.emptyCard(now));
 
-    await this.prisma.$transaction(
+    const deckId = await this.prisma.$transaction(
       async (tx) => {
-        await tx.deck.upsert({
-          where: { id: batch.deck.id },
+        const deck = await tx.deck.upsert({
+          where: { userId_slug: { userId, slug: batch.deck.id } },
           create: {
-            id: batch.deck.id,
+            userId,
+            slug: batch.deck.id,
             title: batch.deck.title,
             description: batch.deck.description ?? null,
             subject: batch.deck.subject,
@@ -156,8 +163,9 @@ export class ImportsService {
             tagsJson: toJson(batch.deck.tags),
             deletedAt: null,
           },
+          select: { id: true },
         });
-        const existing = await tx.question.findMany({ where: { deckId: batch.deck.id }, select: { id: true, externalId: true, sortIndex: true } });
+        const existing = await tx.question.findMany({ where: { userId, deckId: deck.id }, select: { id: true, externalId: true, sortIndex: true } });
         const byExt = new Map(existing.map((e) => [e.externalId, e]));
         const opByExt = new Map(plan.items.map((i) => [i.externalId, i]));
 
@@ -170,11 +178,11 @@ export class ImportsService {
           const prev = byExt.get(q.id);
           if (op.op === 'create') {
             const id = randomUUID();
-            creates.push({ id, externalId: q.id, deckId: batch.deck.id, type: q.type, payloadJson: toJson(q), contentHash: h.contentHash, answerHash: h.answerHash, revision: 1, sortIndex });
-            cardCreates.push({ questionId: id, stateJson: toJson(emptyCard), dueAt: now, status: CardStatus.NEW, version: 0 });
+            creates.push({ id, userId, externalId: q.id, deckId: deck.id, type: q.type, payloadJson: toJson(q), contentHash: h.contentHash, answerHash: h.answerHash, revision: 1, sortIndex });
+            cardCreates.push({ questionId: id, userId, stateJson: toJson(emptyCard), dueAt: now, status: CardStatus.NEW, version: 0 });
           } else if (op.op === 'update' || op.op === 'reactivate') {
             await tx.question.update({
-              where: { id: prev!.id },
+              where: { id: prev!.id, userId },
               data: {
                 payloadJson: toJson(q),
                 contentHash: h.contentHash,
@@ -187,13 +195,13 @@ export class ImportsService {
             });
             if (op.resetSchedule) {
               await tx.cardState.upsert({
-                where: { questionId: prev!.id },
-                create: { questionId: prev!.id, stateJson: toJson(emptyCard), dueAt: now, status: CardStatus.NEW, version: 0 },
+                where: { questionId: prev!.id, userId },
+                create: { questionId: prev!.id, userId, stateJson: toJson(emptyCard), dueAt: now, status: CardStatus.NEW, version: 0 },
                 update: { stateJson: toJson(emptyCard), dueAt: now, status: CardStatus.NEW, stability: 0, difficulty: 0, reps: 0, lapses: 0, lastReviewAt: null, version: { increment: 1 } },
               });
             }
           } else if (op.op === 'unchanged' && prev && prev.sortIndex !== sortIndex) {
-            await tx.question.update({ where: { id: prev.id }, data: { sortIndex } });
+            await tx.question.update({ where: { id: prev.id, userId }, data: { sortIndex } });
           }
           sortIndex++;
         }
@@ -202,15 +210,16 @@ export class ImportsService {
           await tx.cardState.createMany({ data: cardCreates });
         }
         if (plan.deactivate.length) {
-          await tx.question.updateMany({ where: { deckId: batch.deck.id, externalId: { in: plan.deactivate } }, data: { deletedAt: now } });
+          await tx.question.updateMany({ where: { userId, deckId: deck.id, externalId: { in: plan.deactivate } }, data: { deletedAt: now } });
         }
         // Subject classification: every live question of the deck belongs to the deck's subject.
-        const live = await tx.question.findMany({ where: { deckId: batch.deck.id, deletedAt: null }, select: { id: true } });
-        await this.subjects.assignDeckSubject(tx, live.map((q) => q.id), batch.deck.subject);
+        const live = await tx.question.findMany({ where: { userId, deckId: deck.id, deletedAt: null }, select: { id: true } });
+        await this.subjects.assignDeckSubject(tx, userId, live.map((q) => q.id), batch.deck.subject);
+        return deck.id;
       },
       { timeout: 120_000, maxWait: 10_000 },
     );
-    this.logger.log(`Imported deck ${batch.deck.id}: ${JSON.stringify(plan.counts)}`);
-    return { ...plan, committed: true, deckId: batch.deck.id };
+    this.logger.log(`Imported deck ${batch.deck.id} (${deckId}) for user ${userId}: ${JSON.stringify(plan.counts)}`);
+    return { ...plan, committed: true, deckId, deckSlug: batch.deck.id };
   }
 }

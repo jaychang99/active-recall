@@ -43,27 +43,27 @@ export class StudyService {
     private readonly fsrs: FsrsService,
   ) {}
 
-  private deckWhere(opts: QueueOptions): Prisma.QuestionWhereInput {
+  private deckWhere(userId: string, opts: QueueOptions): Prisma.QuestionWhereInput {
     const subject: Prisma.QuestionWhereInput = opts.subject ? { subjects: { some: { deletedAt: null, subject: { name: opts.subject, deletedAt: null } } } } : {};
-    if (opts.scope === 'all') return { deletedAt: null, deck: { deletedAt: null }, ...subject };
-    return { deletedAt: null, deckId: opts.scope, deck: { deletedAt: null }, ...subject };
+    if (opts.scope === 'all') return { userId, deletedAt: null, deck: { deletedAt: null }, ...subject };
+    return { userId, deletedAt: null, deckId: opts.scope, deck: { deletedAt: null }, ...subject };
   }
 
-  async queue(opts: QueueOptions) {
+  async queue(userId: string, opts: QueueOptions) {
     let deck: { id: string; title: string } | null = null;
     if (opts.scope !== 'all') {
-      deck = await this.prisma.deck.findFirst({ where: { id: opts.scope, deletedAt: null }, select: { id: true, title: true } });
+      deck = await this.prisma.deck.findFirst({ where: { id: opts.scope, userId, deletedAt: null }, select: { id: true, title: true } });
       if (!deck) throw ApiError.notFound('Deck', opts.scope);
     }
-    const settings = await this.settings.get();
+    const settings = await this.settings.get(userId);
     const params = { requestRetention: settings.requestRetention, maximumInterval: settings.maximumInterval, enableFuzz: settings.enableFuzz };
     const now = new Date();
     const dayStart = startOfDayInTz(now, settings.timezone);
     const dayEnd = endOfDayInTz(now, settings.timezone);
-    const qWhere = this.deckWhere(opts);
+    const qWhere = this.deckWhere(userId, opts);
 
     const todayLogs = await this.prisma.reviewLog.findMany({
-      where: { undone: false, deletedAt: null, reviewedAt: { gte: dayStart, lt: dayEnd }, question: qWhere },
+      where: { userId, undone: false, deletedAt: null, reviewedAt: { gte: dayStart, lt: dayEnd }, question: qWhere },
       select: { questionId: true, previousStatus: true },
     });
     const reviewedToday = new Set(todayLogs.map((l) => l.questionId)).size;
@@ -110,13 +110,13 @@ export class StudyService {
       case 'mistakes': {
         // questions whose most recent effective review (or practice/exam answer) was incorrect, plus lapses
         const last = await this.prisma.reviewLog.findMany({
-          where: { undone: false, deletedAt: null, question: qWhere },
+          where: { userId, undone: false, deletedAt: null, question: qWhere },
           orderBy: { reviewedAt: 'desc' },
           select: { questionId: true, isCorrect: true, rating: true },
           distinct: ['questionId'],
         });
         const wrong = new Set(last.filter((l) => l.isCorrect === false || l.rating === 1).map((l) => l.questionId));
-        const exam = await this.prisma.examResponse.findMany({ where: { isCorrect: false, deletedAt: null, question: qWhere }, select: { questionId: true } });
+        const exam = await this.prisma.examResponse.findMany({ where: { userId, isCorrect: false, deletedAt: null, question: qWhere }, select: { questionId: true } });
         for (const e of exam) wrong.add(e.questionId);
         ordered = eligible.filter((r) => wrong.has(r.id) || (r.card?.lapses ?? 0) > 0).sort((a, b) => (b.card?.lapses ?? 0) - (a.card?.lapses ?? 0));
         break;
@@ -188,42 +188,43 @@ export class StudyService {
     };
   }
 
-  async hint(questionId: string) {
-    const row = await this.prisma.question.findFirst({ where: { id: questionId, deletedAt: null }, select: { payloadJson: true } });
+  async hint(userId: string, questionId: string) {
+    const row = await this.prisma.question.findFirst({ where: { id: questionId, userId, deletedAt: null }, select: { payloadJson: true } });
     if (!row) throw ApiError.notFound('Question', questionId);
     return { questionId, hint: (row.payloadJson as unknown as Question).hint ?? null };
   }
 
-  async startSession(dto: { scope: string; mode: StudyMode; queueSize: number; subject?: string }) {
+  async startSession(userId: string, dto: { scope: string; mode: StudyMode; queueSize: number; subject?: string }) {
     const isDeck = dto.scope !== 'all';
     if (isDeck) {
-      const deck = await this.prisma.deck.findFirst({ where: { id: dto.scope, deletedAt: null }, select: { id: true } });
+      const deck = await this.prisma.deck.findFirst({ where: { id: dto.scope, userId, deletedAt: null }, select: { id: true } });
       if (!deck) throw ApiError.notFound('Deck', dto.scope);
     }
     const mode: SessionMode = dto.mode === 'practice' ? SessionMode.practice : dto.mode === 'scheduled' ? SessionMode.study : SessionMode.cram;
     return this.prisma.studySession.create({
-      data: { deckId: isDeck ? dto.scope : null, scope: isDeck ? 'deck' : dto.subject ? `subject:${dto.subject}` : 'all', mode, queueSize: dto.queueSize },
+      data: { userId, deckId: isDeck ? dto.scope : null, scope: isDeck ? 'deck' : dto.subject ? `subject:${dto.subject}` : 'all', mode, queueSize: dto.queueSize },
     });
   }
 
-  async endSession(id: string) {
-    const s = await this.prisma.studySession.findFirst({ where: { id, deletedAt: null } });
+  async endSession(userId: string, id: string) {
+    const s = await this.prisma.studySession.findFirst({ where: { id, userId, deletedAt: null } });
     if (!s) throw ApiError.notFound('Session', id);
     const [reviews, practices] = await Promise.all([
-      this.prisma.reviewLog.count({ where: { sessionId: id, undone: false, deletedAt: null } }),
-      this.prisma.practiceLog.count({ where: { sessionId: id, deletedAt: null } }),
+      this.prisma.reviewLog.count({ where: { userId, sessionId: id, undone: false, deletedAt: null } }),
+      this.prisma.practiceLog.count({ where: { userId, sessionId: id, deletedAt: null } }),
     ]);
-    const ended = await this.prisma.studySession.update({ where: { id }, data: { endedAt: s.endedAt ?? new Date() } });
+    const ended = await this.prisma.studySession.update({ where: { id, userId }, data: { endedAt: s.endedAt ?? new Date() } });
     return { ...ended, reviews, practices };
   }
 
   /** Practice mode answer log: graded, stored, never touches FSRS. */
-  async logPractice(dto: { questionId: string; sessionId?: string; answerPayload?: AnswerPayload | null; elapsedMs?: number }) {
-    const row = await this.prisma.question.findFirst({ where: { id: dto.questionId, deletedAt: null } });
+  async logPractice(userId: string, dto: { questionId: string; sessionId?: string; answerPayload?: AnswerPayload | null; elapsedMs?: number }) {
+    const row = await this.prisma.question.findFirst({ where: { id: dto.questionId, userId, deletedAt: null } });
     if (!row) throw ApiError.notFound('Question', dto.questionId);
     const grade = gradeAnswer(row.payloadJson as unknown as Question, dto.answerPayload ?? null);
     const log = await this.prisma.practiceLog.create({
       data: {
+        userId,
         questionId: dto.questionId,
         sessionId: dto.sessionId ?? null,
         isCorrect: grade.isCorrect,
@@ -234,9 +235,9 @@ export class StudyService {
     return { log, grade };
   }
 
-  async recentSessions(limit = 20) {
+  async recentSessions(userId: string, limit = 20) {
     const sessions = await this.prisma.studySession.findMany({
-      where: { deletedAt: null },
+      where: { userId, deletedAt: null },
       orderBy: { startedAt: 'desc' },
       take: limit,
       include: { deck: { select: { id: true, title: true, subject: true } }, _count: { select: { reviews: { where: { undone: false } }, practices: true } } },

@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthUser } from '../auth/users.service';
 import { Transform } from 'class-transformer';
 import { IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { DecksService } from './decks.service';
@@ -37,6 +39,7 @@ class UpdateDeckDto {
 }
 
 @ApiTags('decks')
+@ApiBearerAuth()
 @Controller('decks')
 export class DecksController {
   constructor(
@@ -44,26 +47,26 @@ export class DecksController {
     private readonly notes: NotesService,
   ) {}
 
-  @Get() list(@Query() q: ListDecksQuery) {
-    return this.decks.list({ subject: q.subject, includeDeleted: q.includeDeleted });
+  @Get() list(@CurrentUser() user: AuthUser, @Query() q: ListDecksQuery) {
+    return this.decks.list(user.id, { subject: q.subject, includeDeleted: q.includeDeleted });
   }
 
-  @Get('by-subject') bySubject() {
-    return this.decks.subjects();
+  @Get('by-subject') bySubject(@CurrentUser() user: AuthUser) {
+    return this.decks.subjects(user.id);
   }
 
-  @Get(':id') get(@Param('id') id: string) {
-    return this.decks.get(id);
+  @Get(':id') get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.decks.get(user.id, id);
   }
 
-  @Patch(':id') update(@Param('id') id: string, @Body() dto: UpdateDeckDto) {
-    return this.decks.update(id, dto);
+  @Patch(':id') update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateDeckDto) {
+    return this.decks.update(user.id, id, dto);
   }
 
   @Get(':id/questions')
   @ApiQuery({ name: 'includeAnswers', required: false, description: 'true to include answer keys (answer-key review mode)' })
-  questions(@Param('id') id: string, @Query() q: ListQuestionsQuery) {
-    return this.decks.questions(id, {
+  questions(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query() q: ListQuestionsQuery) {
+    return this.decks.questions(user.id, id, {
       page: q.page,
       pageSize: q.pageSize,
       type: q.type,
@@ -79,21 +82,21 @@ export class DecksController {
   }
 
   /** Add an extra subject to all questions of the deck (primary subject unchanged). To replace the primary subject use PATCH /decks/:id { subject }. */
-  @Post(':id/subjects') addSubject(@Param('id') id: string, @Body() dto: AddSubjectDto) {
-    return this.decks.addSubject(id, dto.name);
+  @Post(':id/subjects') addSubject(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AddSubjectDto) {
+    return this.decks.addSubject(user.id, id, dto.name);
   }
 
-  @Get(':id/notes') notesForDeck(@Param('id') id: string) {
-    return this.notes.listForDeck(id);
+  @Get(':id/notes') notesForDeck(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.notes.listForDeck(user.id, id);
   }
 
   @Delete(':id')
   @ApiQuery({ name: 'permanent', required: false, description: 'true = hard delete with all history (irreversible)' })
-  remove(@Param('id') id: string, @Query('permanent') permanent?: string) {
-    return this.decks.remove(id, permanent === 'true');
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('permanent') permanent?: string) {
+    return this.decks.remove(user.id, id, permanent === 'true');
   }
 
-  @Post(':id/restore') restore(@Param('id') id: string) {
-    return this.decks.restore(id);
+  @Post(':id/restore') restore(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.decks.restore(user.id, id);
   }
 }

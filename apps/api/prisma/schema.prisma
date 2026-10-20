@@ -1,5 +1,7 @@
-// Recall Studio — Prisma schema (MySQL 8)
+// Recall Studio — Prisma schema (MySQL 8 / TiDB)
 // Conventions: every entity carries createdAt / updatedAt / deletedAt (soft delete; null = live).
+// Multi-tenant: EVERY entity carries `userId` (denormalised onto children too) so each query is scoped
+// with a single `where: { userId }`; `PrismaService` throws when a tenant model is queried without it.
 // FSRS card state is stored both as explicit columns (for queries/indexes) and as the full
 // ts-fsrs Card JSON (`stateJson`) so library state round-trips losslessly.
 
@@ -48,8 +50,41 @@ enum SessionMode {
   exam
 }
 
+// A signed-in person. `provider` + `providerSub` identify the identity (google sub, or "dev" email locally).
+model User {
+  id          String    @id @default(cuid())
+  provider    String    @db.VarChar(16)
+  providerSub String    @db.VarChar(191)
+  email       String    @db.VarChar(320)
+  name        String?   @db.VarChar(200)
+  image       String?   @db.VarChar(2048)
+  lastSeenAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  decks            Deck[]
+  questions        Question[]
+  subjects         Subject[]
+  questionSubjects QuestionSubject[]
+  cards            CardState[]
+  reviews          ReviewLog[]
+  notes            QuestionNote[]
+  sessions         StudySession[]
+  practices        PracticeLog[]
+  examAttempts     ExamAttempt[]
+  examResponses    ExamResponse[]
+  settings         AppSettings?
+
+  @@unique([provider, providerSub])
+  @@index([email])
+  @@index([deletedAt])
+}
+
 model Deck {
-  id          String    @id @db.VarChar(80) // external stable slug from batch.deck.id
+  id          String    @id @default(cuid())
+  userId      String
+  slug        String    @db.VarChar(80) // external stable id from batch.deck.id (unique per user)
   title       String    @db.VarChar(200)
   description String?   @db.Text
   subject     String    @db.VarChar(200)
@@ -59,18 +94,21 @@ model Deck {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions    Question[]
   sessions     StudySession[]
   examAttempts ExamAttempt[]
 
-  @@index([subject])
+  @@unique([userId, slug])
+  @@index([userId, subject])
   @@index([deletedAt])
 }
 
 model Question {
   id          String       @id @default(cuid())
+  userId      String
   externalId  String       @db.VarChar(80)
-  deckId      String       @db.VarChar(80)
+  deckId      String
   type        QuestionType
   payloadJson Json
   contentHash String       @db.Char(64)
@@ -81,7 +119,8 @@ model Question {
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime? // soft delete (also set by replace_deck imports)
 
-  deck          Deck           @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deck          Deck              @relation(fields: [deckId], references: [id], onDelete: Cascade)
   card          CardState?
   reviews       ReviewLog[]
   notes         QuestionNote[]
@@ -90,6 +129,7 @@ model Question {
   subjects      QuestionSubject[]
 
   @@unique([deckId, externalId])
+  @@index([userId])
   @@index([deckId, type])
   @@index([deckId, sortIndex])
   @@index([deletedAt])
@@ -99,35 +139,42 @@ model Question {
 // The deck's `subject` is assigned automatically on import (source = "deck"); learners add more (source = "manual").
 model Subject {
   id          String    @id @default(cuid())
-  name        String    @unique @db.VarChar(200)
+  userId      String
+  name        String    @db.VarChar(200)
   color       String?   @db.VarChar(16)
   description String?   @db.Text
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions QuestionSubject[]
 
+  @@unique([userId, name])
   @@index([deletedAt])
 }
 
 model QuestionSubject {
   questionId String
   subjectId  String
+  userId     String
   source     String    @default("manual") @db.VarChar(16) // deck | manual
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?
 
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   subject  Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   @@id([questionId, subjectId])
+  @@index([userId])
   @@index([subjectId])
 }
 
 model CardState {
   questionId   String     @id
+  userId       String
   stateJson    Json // full ts-fsrs Card (dates as ISO strings)
   dueAt        DateTime
   status       CardStatus @default(NEW)
@@ -144,18 +191,20 @@ model CardState {
   updatedAt    DateTime   @updatedAt
   deletedAt    DateTime?
 
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
-  @@index([dueAt, status])
-  @@index([status])
-  @@index([flagged])
+  @@index([userId, dueAt, status])
+  @@index([userId, status])
+  @@index([userId, flagged])
 }
 
 model ReviewLog {
   id                     String     @id @default(cuid())
+  userId                 String
   questionId             String
   sessionId              String?
-  idempotencyKey         String     @unique @db.VarChar(120)
+  idempotencyKey         String     @db.VarChar(120)
   rating                 Int // 1 Again, 2 Hard, 3 Good, 4 Easy
   previousStatus         CardStatus @default(NEW)
   reviewRound            Int // nth effective review of this question (1-based)
@@ -175,17 +224,20 @@ model ReviewLog {
   updatedAt              DateTime   @updatedAt
   deletedAt              DateTime?
 
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   question Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
   session  StudySession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   notes    QuestionNote[]
 
+  @@unique([userId, idempotencyKey])
   @@index([questionId, reviewedAt])
-  @@index([reviewedAt])
+  @@index([userId, reviewedAt])
   @@index([sessionId])
 }
 
 model QuestionNote {
   id          String    @id @default(cuid())
+  userId      String
   questionId  String
   reviewRound Int // one note per review round per question
   reviewLogId String?
@@ -194,16 +246,19 @@ model QuestionNote {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   question  Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
   reviewLog ReviewLog? @relation(fields: [reviewLogId], references: [id], onDelete: SetNull)
 
   @@unique([questionId, reviewRound])
+  @@index([userId])
   @@index([questionId, updatedAt])
 }
 
 model StudySession {
   id        String      @id @default(cuid())
-  deckId    String?     @db.VarChar(80) // null for cross-deck sessions
+  userId    String
+  deckId    String? // null for cross-deck sessions
   scope     String      @default("deck") @db.VarChar(120) // deck | all | subject:<name>
   mode      SessionMode @default(study)
   startedAt DateTime    @default(now())
@@ -213,16 +268,18 @@ model StudySession {
   updatedAt DateTime    @updatedAt
   deletedAt DateTime?
 
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   deck      Deck?         @relation(fields: [deckId], references: [id], onDelete: Cascade)
   reviews   ReviewLog[]
   practices PracticeLog[]
 
   @@index([deckId, startedAt])
-  @@index([startedAt])
+  @@index([userId, startedAt])
 }
 
 model PracticeLog {
   id                String    @id @default(cuid())
+  userId            String
   questionId        String
   sessionId         String?
   isCorrect         Boolean?
@@ -232,16 +289,18 @@ model PracticeLog {
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
 
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   question Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
   session  StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@index([questionId, createdAt])
-  @@index([createdAt])
+  @@index([userId, createdAt])
 }
 
 model ExamAttempt {
   id          String    @id @default(cuid())
-  deckId      String    @db.VarChar(80)
+  userId      String
+  deckId      String
   title       String    @default("") @db.VarChar(200)
   configJson  Json
   questionIds Json // ordered internal question ids
@@ -252,15 +311,17 @@ model ExamAttempt {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   deck      Deck           @relation(fields: [deckId], references: [id], onDelete: Cascade)
   responses ExamResponse[]
 
   @@index([deckId, startedAt])
-  @@index([startedAt])
+  @@index([userId, startedAt])
 }
 
 model ExamResponse {
   id                String    @id @default(cuid())
+  userId            String
   attemptId         String
   questionId        String
   answerPayloadJson Json?
@@ -271,14 +332,18 @@ model ExamResponse {
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
 
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   attempt  ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([attemptId, questionId])
+  @@index([userId])
 }
 
+// One row per user (created lazily on first read).
 model AppSettings {
-  id                     Int       @id @default(1)
+  id                     String    @id @default(cuid())
+  userId                 String    @unique
   newCardsPerDay         Int       @default(20)
   reviewsPerDay          Int       @default(200)
   timezone               String    @default("Asia/Seoul") @db.VarChar(64)
@@ -297,4 +362,6 @@ model AppSettings {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
   deletedAt              DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

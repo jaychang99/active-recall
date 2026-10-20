@@ -16,6 +16,12 @@ export class ApiError extends HttpException {
   static notFound(what: string, id?: string) {
     return new ApiError(HttpStatus.NOT_FOUND, 'NOT_FOUND', id ? `${what} "${id}" was not found` : `${what} was not found`);
   }
+  static unauthorized(message = 'Authentication required') {
+    return new ApiError(HttpStatus.UNAUTHORIZED, 'UNAUTHORIZED', message);
+  }
+  static forbidden(message = 'Not allowed') {
+    return new ApiError(HttpStatus.FORBIDDEN, 'FORBIDDEN', message);
+  }
   static conflict(message: string, details?: unknown) {
     return new ApiError(HttpStatus.CONFLICT, 'CONFLICT', message, details);
   }

@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthUser } from '../auth/users.service';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 import { AdminService, type BulkAction } from './admin.service';
 import { ApiError } from '../common/api-error';
@@ -21,6 +23,7 @@ class BulkDto {
 }
 
 @ApiTags('admin')
+@ApiBearerAuth()
 @Controller('admin')
 export class AdminController {
   constructor(private readonly admin: AdminService) {}
@@ -29,11 +32,11 @@ export class AdminController {
     return this.admin.entities();
   }
 
-  @Get('counts') counts() {
-    return this.admin.counts();
+  @Get('counts') counts(@CurrentUser() user: AuthUser) {
+    return this.admin.counts(user.id);
   }
 
-  @Get(':entity') list(@Param('entity') entity: string, @Query() q: ListDto) {
+  @Get(':entity') list(@CurrentUser() user: AuthUser, @Param('entity') entity: string, @Query() q: ListDto) {
     let filters: Record<string, unknown> | undefined;
     if (q.filters) {
       try {
@@ -42,34 +45,34 @@ export class AdminController {
         throw ApiError.badRequest('filters must be a JSON object');
       }
     }
-    return this.admin.list(entity, { page: q.page, pageSize: q.pageSize, sort: q.sort, dir: q.dir, search: q.search, filters, deleted: q.deleted });
+    return this.admin.list(user.id, entity, { page: q.page, pageSize: q.pageSize, sort: q.sort, dir: q.dir, search: q.search, filters, deleted: q.deleted });
   }
 
-  @Get(':entity/options') options(@Param('entity') entity: string, @Query('search') search?: string) {
-    return this.admin.options(entity, search);
+  @Get(':entity/options') options(@CurrentUser() user: AuthUser, @Param('entity') entity: string, @Query('search') search?: string) {
+    return this.admin.options(user.id, entity, search);
   }
 
-  @Get(':entity/:id') get(@Param('entity') entity: string, @Param('id') id: string) {
-    return this.admin.get(entity, id);
+  @Get(':entity/:id') get(@CurrentUser() user: AuthUser, @Param('entity') entity: string, @Param('id') id: string) {
+    return this.admin.get(user.id, entity, id);
   }
 
-  @Post(':entity') create(@Param('entity') entity: string, @Body() body: Record<string, unknown>) {
-    return this.admin.create(entity, body);
+  @Post(':entity') create(@CurrentUser() user: AuthUser, @Param('entity') entity: string, @Body() body: Record<string, unknown>) {
+    return this.admin.create(user.id, entity, body);
   }
 
-  @Post(':entity/bulk') @HttpCode(200) bulk(@Param('entity') entity: string, @Body() body: BulkDto) {
-    return this.admin.bulk(entity, body.ids, body.action, body.data);
+  @Post(':entity/bulk') @HttpCode(200) bulk(@CurrentUser() user: AuthUser, @Param('entity') entity: string, @Body() body: BulkDto) {
+    return this.admin.bulk(user.id, entity, body.ids, body.action, body.data);
   }
 
-  @Patch(':entity/:id') update(@Param('entity') entity: string, @Param('id') id: string, @Body() body: Record<string, unknown>) {
-    return this.admin.update(entity, id, body);
+  @Patch(':entity/:id') update(@CurrentUser() user: AuthUser, @Param('entity') entity: string, @Param('id') id: string, @Body() body: Record<string, unknown>) {
+    return this.admin.update(user.id, entity, id, body);
   }
 
-  @Delete(':entity/:id') remove(@Param('entity') entity: string, @Param('id') id: string, @Query('permanent') permanent?: string) {
-    return this.admin.remove(entity, id, permanent === 'true');
+  @Delete(':entity/:id') remove(@CurrentUser() user: AuthUser, @Param('entity') entity: string, @Param('id') id: string, @Query('permanent') permanent?: string) {
+    return this.admin.remove(user.id, entity, id, permanent === 'true');
   }
 
-  @Post(':entity/:id/restore') @HttpCode(200) restore(@Param('entity') entity: string, @Param('id') id: string) {
-    return this.admin.restore(entity, id);
+  @Post(':entity/:id/restore') @HttpCode(200) restore(@CurrentUser() user: AuthUser, @Param('entity') entity: string, @Param('id') id: string) {
+    return this.admin.restore(user.id, entity, id);
   }
 }

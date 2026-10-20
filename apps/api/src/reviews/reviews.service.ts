@@ -25,40 +25,41 @@ export class ReviewsService {
     private readonly fsrs: FsrsService,
   ) {}
 
-  private async replay(idempotencyKey: string): Promise<ReviewResult | null> {
-    const existing = await this.prisma.reviewLog.findUnique({ where: { idempotencyKey } });
+  private async replay(userId: string, idempotencyKey: string): Promise<ReviewResult | null> {
+    const existing = await this.prisma.reviewLog.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
     if (!existing) return null;
-    const card = await this.prisma.cardState.findUniqueOrThrow({ where: { questionId: existing.questionId } });
+    const card = await this.prisma.cardState.findUniqueOrThrow({ where: { questionId: existing.questionId, userId } });
     return { review: existing, card, reviewRound: existing.reviewRound, replayed: true };
   }
 
-  async create(dto: CreateReviewDto): Promise<ReviewResult> {
-    const prior = await this.replay(dto.idempotencyKey);
+  async create(userId: string, dto: CreateReviewDto): Promise<ReviewResult> {
+    const prior = await this.replay(userId, dto.idempotencyKey);
     if (prior) return prior;
-    const settings = await this.settings.get();
+    const settings = await this.settings.get(userId);
     const params = { requestRetention: settings.requestRetention, maximumInterval: settings.maximumInterval, enableFuzz: settings.enableFuzz };
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const question = await tx.question.findFirst({ where: { id: dto.questionId, deletedAt: null }, select: { id: true } });
+        const question = await tx.question.findFirst({ where: { id: dto.questionId, userId, deletedAt: null }, select: { id: true } });
         if (!question) throw ApiError.notFound('Question', dto.questionId);
         const now = new Date();
-        const existingCard = await tx.cardState.findUnique({ where: { questionId: dto.questionId }, select: { questionId: true } });
+        const existingCard = await tx.cardState.findUnique({ where: { questionId: dto.questionId, userId }, select: { questionId: true } });
         if (!existingCard) {
           await tx.cardState.create({
-            data: { questionId: dto.questionId, stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))), dueAt: now, status: CardStatus.NEW, version: 0 },
+            data: { questionId: dto.questionId, userId, stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))), dueAt: now, status: CardStatus.NEW, version: 0 },
           });
         }
         // Serialize concurrent reviews of the same card (row lock held until commit), then read the locked row.
-        await tx.$queryRaw`SELECT questionId FROM CardState WHERE questionId = ${dto.questionId} FOR UPDATE`;
-        const card = await tx.cardState.findUniqueOrThrow({ where: { questionId: dto.questionId } });
+        await tx.$queryRaw`SELECT questionId FROM CardState WHERE questionId = ${dto.questionId} AND userId = ${userId} FOR UPDATE`;
+        const card = await tx.cardState.findUniqueOrThrow({ where: { questionId: dto.questionId, userId } });
         if (dto.expectedVersion !== undefined && dto.expectedVersion !== card.version) {
           throw ApiError.conflict('This card was updated by another request. Reload the queue and try again.', { expectedVersion: dto.expectedVersion, currentVersion: card.version });
         }
         const prevCard = deserializeCard(card.stateJson as unknown as SerializedCard);
         const { card: nextCard, log } = this.fsrs.next(params, prevCard, now, dto.rating as Grade);
-        const reviewRound = (await tx.reviewLog.count({ where: { questionId: dto.questionId, undone: false, deletedAt: null } })) + 1;
+        const reviewRound = (await tx.reviewLog.count({ where: { userId, questionId: dto.questionId, undone: false, deletedAt: null } })) + 1;
         const review = await tx.reviewLog.create({
           data: {
+            userId,
             questionId: dto.questionId,
             sessionId: dto.sessionId ?? null,
             idempotencyKey: dto.idempotencyKey,
@@ -78,7 +79,7 @@ export class ReviewsService {
           },
         });
         const updated = await tx.cardState.updateMany({
-          where: { questionId: dto.questionId, version: card.version },
+          where: { userId, questionId: dto.questionId, version: card.version },
           data: {
             stateJson: toJson(serializeCard(nextCard)),
             dueAt: nextCard.due,
@@ -93,8 +94,8 @@ export class ReviewsService {
         });
         if (updated.count !== 1) throw ApiError.conflict('Concurrent review detected; nothing was recorded for this request.');
         // Attach the note written during this round (if any) to this review.
-        await tx.questionNote.updateMany({ where: { questionId: dto.questionId, reviewRound, reviewLogId: null, deletedAt: null }, data: { reviewLogId: review.id } });
-        const fresh = await tx.cardState.findUniqueOrThrow({ where: { questionId: dto.questionId } });
+        await tx.questionNote.updateMany({ where: { userId, questionId: dto.questionId, reviewRound, reviewLogId: null, deletedAt: null }, data: { reviewLogId: review.id } });
+        const fresh = await tx.cardState.findUniqueOrThrow({ where: { questionId: dto.questionId, userId } });
         return { review, card: fresh, reviewRound, replayed: false };
       });
     } catch (e) {
@@ -102,7 +103,7 @@ export class ReviewsService {
       // Concurrent duplicate (unique idempotencyKey) or a deadlock while the twin request held the row:
       // if the twin already recorded this key, return its result instead of failing.
       if (e instanceof Prisma.PrismaClientKnownRequestError) {
-        const again = await this.replay(dto.idempotencyKey);
+        const again = await this.replay(userId, dto.idempotencyKey);
         if (again) return again;
         this.logger.warn(`review write failed (${e.code}): ${e.message}`);
       }
@@ -111,21 +112,21 @@ export class ReviewsService {
   }
 
   /** Undo the most recent review of a question: restore the exact previous card snapshot. */
-  async undo(reviewId: string) {
+  async undo(userId: string, reviewId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const review = await tx.reviewLog.findUnique({ where: { id: reviewId } });
+      const review = await tx.reviewLog.findUnique({ where: { id: reviewId, userId } });
       if (!review) throw ApiError.notFound('Review', reviewId);
       if (review.undone) throw ApiError.conflict('This review was already undone.');
-      const latest = await tx.reviewLog.findFirst({ where: { questionId: review.questionId, undone: false, deletedAt: null }, orderBy: [{ reviewedAt: 'desc' }, { reviewRound: 'desc' }] });
+      const latest = await tx.reviewLog.findFirst({ where: { userId, questionId: review.questionId, undone: false, deletedAt: null }, orderBy: [{ reviewedAt: 'desc' }, { reviewRound: 'desc' }] });
       if (!latest || latest.id !== review.id)
         throw ApiError.conflict('Only the most recent review of a question can be undone.', { latestReviewId: latest?.id ?? null });
-      const card = await tx.cardState.findUnique({ where: { questionId: review.questionId } });
+      const card = await tx.cardState.findUnique({ where: { questionId: review.questionId, userId } });
       if (!card) throw ApiError.conflict('Card state is missing for this question.');
       const prev = review.previousCardStateJson as unknown as SerializedCard;
       const prevCard = deserializeCard(prev);
-      const prevLog = await tx.reviewLog.findFirst({ where: { questionId: review.questionId, undone: false, id: { not: review.id } }, orderBy: { reviewedAt: 'desc' }, select: { reviewedAt: true } });
+      const prevLog = await tx.reviewLog.findFirst({ where: { userId, questionId: review.questionId, undone: false, id: { not: review.id } }, orderBy: { reviewedAt: 'desc' }, select: { reviewedAt: true } });
       const updated = await tx.cardState.updateMany({
-        where: { questionId: review.questionId, version: card.version },
+        where: { userId, questionId: review.questionId, version: card.version },
         data: {
           stateJson: toJson(prev),
           dueAt: prevCard.due,
@@ -139,15 +140,15 @@ export class ReviewsService {
         },
       });
       if (updated.count !== 1) throw ApiError.conflict('Concurrent update detected; undo was not applied.');
-      const undone = await tx.reviewLog.update({ where: { id: review.id }, data: { undone: true, undoneAt: new Date() } });
+      const undone = await tx.reviewLog.update({ where: { id: review.id, userId }, data: { undone: true, undoneAt: new Date() } });
       // The note of this round stays with the round (it will be the current round again).
-      await tx.questionNote.updateMany({ where: { reviewLogId: review.id }, data: { reviewLogId: null } });
-      const fresh = await tx.cardState.findUniqueOrThrow({ where: { questionId: review.questionId } });
+      await tx.questionNote.updateMany({ where: { userId, reviewLogId: review.id }, data: { reviewLogId: null } });
+      const fresh = await tx.cardState.findUniqueOrThrow({ where: { questionId: review.questionId, userId } });
       return { review: undone, card: fresh, reviewRound: review.reviewRound };
     });
   }
 
-  async listForQuestion(questionId: string) {
-    return this.prisma.reviewLog.findMany({ where: { questionId, deletedAt: null }, orderBy: { reviewedAt: 'desc' }, take: 100 });
+  async listForQuestion(userId: string, questionId: string) {
+    return this.prisma.reviewLog.findMany({ where: { userId, questionId, deletedAt: null }, orderBy: { reviewedAt: 'desc' }, take: 100 });
   }
 }

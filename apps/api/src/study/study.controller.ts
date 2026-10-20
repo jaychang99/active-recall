@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthUser } from '../auth/users.service';
 import { Transform } from 'class-transformer';
 import { IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 import type { AnswerPayload } from '@recall/contracts';
@@ -34,12 +36,13 @@ class PracticeDto {
 }
 
 @ApiTags('study')
+@ApiBearerAuth()
 @Controller('study')
 export class StudyController {
   constructor(private readonly study: StudyService) {}
 
-  @Get('queue') queue(@Query() q: QueueQuery) {
-    return this.study.queue({
+  @Get('queue') queue(@CurrentUser() user: AuthUser, @Query() q: QueueQuery) {
+    return this.study.queue(user.id, {
       scope: q.deckId ?? 'all',
       subject: q.subject,
       mode: q.mode ?? 'scheduled',
@@ -52,23 +55,23 @@ export class StudyController {
     });
   }
 
-  @Get('hint/:questionId') hint(@Param('questionId') id: string) {
-    return this.study.hint(id);
+  @Get('hint/:questionId') hint(@CurrentUser() user: AuthUser, @Param('questionId') id: string) {
+    return this.study.hint(user.id, id);
   }
 
-  @Get('sessions') sessions() {
-    return this.study.recentSessions();
+  @Get('sessions') sessions(@CurrentUser() user: AuthUser) {
+    return this.study.recentSessions(user.id);
   }
 
-  @Post('sessions') start(@Body() dto: StartSessionDto) {
-    return this.study.startSession({ scope: dto.scope, subject: dto.subject, mode: dto.mode ?? 'scheduled', queueSize: dto.queueSize ?? 0 });
+  @Post('sessions') start(@CurrentUser() user: AuthUser, @Body() dto: StartSessionDto) {
+    return this.study.startSession(user.id, { scope: dto.scope, subject: dto.subject, mode: dto.mode ?? 'scheduled', queueSize: dto.queueSize ?? 0 });
   }
 
-  @Patch('sessions/:id/end') end(@Param('id') id: string) {
-    return this.study.endSession(id);
+  @Patch('sessions/:id/end') end(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.study.endSession(user.id, id);
   }
 
-  @Post('practice') practice(@Body() dto: PracticeDto) {
-    return this.study.logPractice(dto);
+  @Post('practice') practice(@CurrentUser() user: AuthUser, @Body() dto: PracticeDto) {
+    return this.study.logPractice(user.id, dto);
   }
 }

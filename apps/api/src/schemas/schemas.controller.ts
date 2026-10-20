@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { questionBatchSchema } from '@recall/contracts';
+import { Public } from '../auth/public.decorator';
 
 function readRepoFile(...candidates: string[]): string | null {
   for (const c of candidates) if (existsSync(c)) return readFileSync(c, 'utf8');
@@ -11,6 +12,7 @@ function readRepoFile(...candidates: string[]): string | null {
 const ROOT = join(__dirname, '..', '..', '..', '..');
 
 @ApiTags('schemas')
+@Public()
 @Controller('schemas')
 export class SchemasController {
   @Get('question-batch.schema.json')

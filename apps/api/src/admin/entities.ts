@@ -1,6 +1,7 @@
 /**
  * Metadata that drives the generic data manager (API + web). One entry per entity.
  * `fields` are what the UI may show/filter/edit; Prisma delegates are looked up by `model`.
+ * `userId` is deliberately absent from every field list: the service forces it on every query and write.
  */
 export type FieldType = 'string' | 'text' | 'number' | 'boolean' | 'datetime' | 'json' | 'enum';
 
@@ -51,7 +52,8 @@ export const ENTITIES: EntityMeta[] = [
   {
     key: 'decks', model: 'deck', label: '덱', pk: 'id', softDelete: true, creatable: true, defaultSort: { field: 'updatedAt', dir: 'desc' },
     fields: [
-      { name: 'id', label: 'ID (slug)', type: 'string', required: true, filterable: true, searchable: true, sortable: true },
+      { name: 'id', label: 'ID', type: 'string', filterable: true, sortable: true },
+      { name: 'slug', label: '슬러그 (배치 deck.id)', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
       { name: 'title', label: '제목', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
       { name: 'subject', label: '과목', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
       { name: 'language', label: '언어', type: 'string', editable: true, required: true, filterable: true, sortable: true },
@@ -207,7 +209,7 @@ export const ENTITIES: EntityMeta[] = [
   {
     key: 'settings', model: 'appSettings', label: '앱 설정', pk: 'id', softDelete: false, creatable: false, defaultSort: { field: 'id', dir: 'asc' },
     fields: [
-      { name: 'id', label: 'ID', type: 'number' },
+      { name: 'id', label: 'ID', type: 'string' },
       { name: 'newCardsPerDay', label: '하루 새 카드', type: 'number', editable: true },
       { name: 'reviewsPerDay', label: '하루 복습', type: 'number', editable: true },
       { name: 'dailyReviewGoal', label: '하루 목표', type: 'number', editable: true },

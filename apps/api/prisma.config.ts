@@ -9,5 +9,7 @@ export default defineConfig({
   },
   datasource: {
     url: env('DATABASE_URL'),
+    // Only used by `migrate dev` / `migrate diff --from-migrations` (needs CREATE privilege; see docker/init.sql).
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },
 });

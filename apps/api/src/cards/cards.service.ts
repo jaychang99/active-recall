@@ -16,46 +16,46 @@ export class CardsService {
     private readonly settings: SettingsService,
   ) {}
 
-  private async ensure(questionId: string) {
-    const q = await this.prisma.question.findFirst({ where: { id: questionId, deletedAt: null }, select: { id: true } });
+  private async ensure(userId: string, questionId: string) {
+    const q = await this.prisma.question.findFirst({ where: { id: questionId, userId, deletedAt: null }, select: { id: true } });
     if (!q) throw ApiError.notFound('Question', questionId);
     const now = new Date();
     return this.prisma.cardState.upsert({
-      where: { questionId },
-      create: { questionId, stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))), dueAt: now, status: CardStatus.NEW },
+      where: { questionId, userId },
+      create: { userId, questionId, stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))), dueAt: now, status: CardStatus.NEW },
       update: {},
     });
   }
 
-  async setFlag(questionId: string, flagged: boolean) {
-    await this.ensure(questionId);
-    return this.prisma.cardState.update({ where: { questionId }, data: { flagged } });
+  async setFlag(userId: string, questionId: string, flagged: boolean) {
+    await this.ensure(userId, questionId);
+    return this.prisma.cardState.update({ where: { questionId, userId }, data: { flagged } });
   }
 
-  async setSuspended(questionId: string, suspended: boolean) {
-    await this.ensure(questionId);
-    return this.prisma.cardState.update({ where: { questionId }, data: { suspended } });
+  async setSuspended(userId: string, questionId: string, suspended: boolean) {
+    await this.ensure(userId, questionId);
+    return this.prisma.cardState.update({ where: { questionId, userId }, data: { suspended } });
   }
 
   /** Hide until the start of tomorrow (learner's timezone). */
-  async bury(questionId: string) {
-    await this.ensure(questionId);
-    const settings = await this.settings.get();
+  async bury(userId: string, questionId: string) {
+    await this.ensure(userId, questionId);
+    const settings = await this.settings.get(userId);
     const until = endOfDayInTz(new Date(), settings.timezone);
-    return this.prisma.cardState.update({ where: { questionId }, data: { buriedUntil: until } });
+    return this.prisma.cardState.update({ where: { questionId, userId }, data: { buriedUntil: until } });
   }
 
-  async unbury(questionId: string) {
-    await this.ensure(questionId);
-    return this.prisma.cardState.update({ where: { questionId }, data: { buriedUntil: null } });
+  async unbury(userId: string, questionId: string) {
+    await this.ensure(userId, questionId);
+    return this.prisma.cardState.update({ where: { questionId, userId }, data: { buriedUntil: null } });
   }
 
   /** Forget scheduling (card becomes NEW). Review history is preserved; the round counter continues. */
-  async reset(questionId: string) {
-    const card = await this.ensure(questionId);
+  async reset(userId: string, questionId: string) {
+    const card = await this.ensure(userId, questionId);
     const now = new Date();
     return this.prisma.cardState.update({
-      where: { questionId },
+      where: { questionId, userId },
       data: {
         stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))),
         dueAt: now,
@@ -71,17 +71,17 @@ export class CardsService {
     });
   }
 
-  async bulk(questionIds: string[], action: 'flag' | 'unflag' | 'suspend' | 'resume' | 'bury' | 'unbury' | 'reset') {
+  async bulk(userId: string, questionIds: string[], action: 'flag' | 'unflag' | 'suspend' | 'resume' | 'bury' | 'unbury' | 'reset') {
     const results = [];
     for (const id of questionIds) {
       switch (action) {
-        case 'flag': results.push(await this.setFlag(id, true)); break;
-        case 'unflag': results.push(await this.setFlag(id, false)); break;
-        case 'suspend': results.push(await this.setSuspended(id, true)); break;
-        case 'resume': results.push(await this.setSuspended(id, false)); break;
-        case 'bury': results.push(await this.bury(id)); break;
-        case 'unbury': results.push(await this.unbury(id)); break;
-        case 'reset': results.push(await this.reset(id)); break;
+        case 'flag': results.push(await this.setFlag(userId, id, true)); break;
+        case 'unflag': results.push(await this.setFlag(userId, id, false)); break;
+        case 'suspend': results.push(await this.setSuspended(userId, id, true)); break;
+        case 'resume': results.push(await this.setSuspended(userId, id, false)); break;
+        case 'bury': results.push(await this.bury(userId, id)); break;
+        case 'unbury': results.push(await this.unbury(userId, id)); break;
+        case 'reset': results.push(await this.reset(userId, id)); break;
       }
     }
     return { action, count: results.length };

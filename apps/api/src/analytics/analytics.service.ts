@@ -20,8 +20,9 @@ export class AnalyticsService {
     private readonly fsrs: FsrsService,
   ) {}
 
-  private scope(f: OverviewFilter): Prisma.QuestionWhereInput {
+  private scope(userId: string, f: OverviewFilter): Prisma.QuestionWhereInput {
     return {
+      userId,
       deletedAt: null,
       deck: { deletedAt: null },
       ...(f.deckId ? { deckId: f.deckId } : {}),
@@ -29,8 +30,8 @@ export class AnalyticsService {
     };
   }
 
-  async overview(f: OverviewFilter) {
-    const settings = await this.settings.get();
+  async overview(userId: string, f: OverviewFilter) {
+    const settings = await this.settings.get(userId);
     const tz = settings.timezone;
     const params = { requestRetention: settings.requestRetention, maximumInterval: settings.maximumInterval, enableFuzz: settings.enableFuzz };
     const now = new Date();
@@ -38,17 +39,17 @@ export class AnalyticsService {
     const dayEnd = endOfDayInTz(now, tz);
     const days = Math.min(365, Math.max(7, f.days ?? 30));
     const since = startOfDayInTz(addDays(dayStart, -(days - 1) + 0.5), tz);
-    const scope = this.scope(f);
+    const scope = this.scope(userId, f);
 
     const [questions, logs, allLogsForStreak, practices, exams] = await Promise.all([
       this.prisma.question.findMany({ where: scope, select: { id: true, deckId: true, type: true, payloadJson: true, card: true, deck: { select: { id: true, title: true, subject: true } } } }),
       this.prisma.reviewLog.findMany({
-        where: { undone: false, deletedAt: null, reviewedAt: { gte: since }, question: scope },
+        where: { userId, undone: false, deletedAt: null, reviewedAt: { gte: since }, question: scope },
         select: { questionId: true, rating: true, reviewedAt: true, isCorrect: true, elapsedMs: true, previousStatus: true, revealedBeforeAnswer: true, hintUsed: true, question: { select: { type: true } } },
       }),
-      this.prisma.reviewLog.findMany({ where: { undone: false, deletedAt: null, question: scope }, select: { reviewedAt: true }, orderBy: { reviewedAt: 'desc' }, take: 5000 }),
-      this.prisma.practiceLog.findMany({ where: { deletedAt: null, createdAt: { gte: since }, question: scope }, select: { isCorrect: true, createdAt: true } }),
-      this.prisma.examAttempt.findMany({ where: { deletedAt: null, submittedAt: { not: null }, ...(f.deckId ? { deckId: f.deckId } : {}) }, orderBy: { submittedAt: 'desc' }, take: 10, select: { id: true, title: true, submittedAt: true, scoreJson: true, deck: { select: { id: true, title: true } } } }),
+      this.prisma.reviewLog.findMany({ where: { userId, undone: false, deletedAt: null, question: scope }, select: { reviewedAt: true }, orderBy: { reviewedAt: 'desc' }, take: 5000 }),
+      this.prisma.practiceLog.findMany({ where: { userId, deletedAt: null, createdAt: { gte: since }, question: scope }, select: { isCorrect: true, createdAt: true } }),
+      this.prisma.examAttempt.findMany({ where: { userId, deletedAt: null, submittedAt: { not: null }, ...(f.deckId ? { deckId: f.deckId } : {}) }, orderBy: { submittedAt: 'desc' }, take: 10, select: { id: true, title: true, submittedAt: true, scoreJson: true, deck: { select: { id: true, title: true } } } }),
     ]);
 
     // --- card state & due forecast ---
@@ -249,13 +250,13 @@ export class AnalyticsService {
   }
 
   /** Review-activity heatmap for the last N days (default 365). */
-  async heatmap(f: OverviewFilter) {
-    const settings = await this.settings.get();
+  async heatmap(userId: string, f: OverviewFilter) {
+    const settings = await this.settings.get(userId);
     const tz = settings.timezone;
     const now = new Date();
     const days = Math.min(730, Math.max(30, f.days ?? 365));
     const since = startOfDayInTz(addDays(startOfDayInTz(now, tz), -(days - 1) + 0.5), tz);
-    const logs = await this.prisma.reviewLog.findMany({ where: { undone: false, deletedAt: null, reviewedAt: { gte: since }, question: this.scope(f) }, select: { reviewedAt: true } });
+    const logs = await this.prisma.reviewLog.findMany({ where: { userId, undone: false, deletedAt: null, reviewedAt: { gte: since }, question: this.scope(userId, f) }, select: { reviewedAt: true } });
     const counts = new Map<string, number>();
     for (const l of logs) {
       const k = dayKey(l.reviewedAt, tz);

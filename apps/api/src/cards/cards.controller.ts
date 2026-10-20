@@ -1,5 +1,7 @@
 import { Body, Controller, HttpCode, Param, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthUser } from '../auth/users.service';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsString } from 'class-validator';
 import { CardsService } from './cards.service';
 
@@ -9,16 +11,17 @@ class BulkDto {
 }
 
 @ApiTags('cards')
+@ApiBearerAuth()
 @Controller('cards')
 export class CardsController {
   constructor(private readonly cards: CardsService) {}
 
-  @Post(':questionId/flag') @HttpCode(200) flag(@Param('questionId') id: string) { return this.cards.setFlag(id, true); }
-  @Post(':questionId/unflag') @HttpCode(200) unflag(@Param('questionId') id: string) { return this.cards.setFlag(id, false); }
-  @Post(':questionId/suspend') @HttpCode(200) suspend(@Param('questionId') id: string) { return this.cards.setSuspended(id, true); }
-  @Post(':questionId/resume') @HttpCode(200) resume(@Param('questionId') id: string) { return this.cards.setSuspended(id, false); }
-  @Post(':questionId/bury') @HttpCode(200) bury(@Param('questionId') id: string) { return this.cards.bury(id); }
-  @Post(':questionId/unbury') @HttpCode(200) unbury(@Param('questionId') id: string) { return this.cards.unbury(id); }
-  @Post(':questionId/reset') @HttpCode(200) reset(@Param('questionId') id: string) { return this.cards.reset(id); }
-  @Post('bulk') @HttpCode(200) bulk(@Body() dto: BulkDto) { return this.cards.bulk(dto.questionIds, dto.action); }
+  @Post(':questionId/flag') @HttpCode(200) flag(@CurrentUser() user: AuthUser, @Param('questionId') id: string) { return this.cards.setFlag(user.id, id, true); }
+  @Post(':questionId/unflag') @HttpCode(200) unflag(@CurrentUser() user: AuthUser, @Param('questionId') id: string) { return this.cards.setFlag(user.id, id, false); }
+  @Post(':questionId/suspend') @HttpCode(200) suspend(@CurrentUser() user: AuthUser, @Param('questionId') id: string) { return this.cards.setSuspended(user.id, id, true); }
+  @Post(':questionId/resume') @HttpCode(200) resume(@CurrentUser() user: AuthUser, @Param('questionId') id: string) { return this.cards.setSuspended(user.id, id, false); }
+  @Post(':questionId/bury') @HttpCode(200) bury(@CurrentUser() user: AuthUser, @Param('questionId') id: string) { return this.cards.bury(user.id, id); }
+  @Post(':questionId/unbury') @HttpCode(200) unbury(@CurrentUser() user: AuthUser, @Param('questionId') id: string) { return this.cards.unbury(user.id, id); }
+  @Post(':questionId/reset') @HttpCode(200) reset(@CurrentUser() user: AuthUser, @Param('questionId') id: string) { return this.cards.reset(user.id, id); }
+  @Post('bulk') @HttpCode(200) bulk(@CurrentUser() user: AuthUser, @Body() dto: BulkDto) { return this.cards.bulk(user.id, dto.questionIds, dto.action); }
 }

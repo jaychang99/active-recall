@@ -16,10 +16,12 @@ import { CardsModule } from './cards/cards.module';
 import { SubjectsModule } from './subjects/subjects.module';
 import { ExportsModule } from './exports/exports.module';
 import { AdminModule } from './admin/admin.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
     PrismaModule,
+    AuthModule,
     SettingsModule,
     FsrsModule,
     SubjectsModule,

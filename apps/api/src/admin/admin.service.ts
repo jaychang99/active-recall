@@ -47,26 +47,36 @@ export class AdminService {
     return (this.prisma as any)[meta.model];
   }
 
-  /** The settings singleton is created lazily elsewhere; make sure it exists before admin access. */
-  private async ensureSingleton(meta: EntityMeta) {
+  /** The per-user settings row is created lazily elsewhere; make sure it exists before admin access. */
+  private async ensureSingleton(userId: string, meta: EntityMeta) {
     if (meta.key !== 'settings') return;
-    const row = await this.prisma.appSettings.findUnique({ where: { id: 1 } });
-    if (!row) await this.prisma.appSettings.create({ data: { id: 1 } }).catch(() => undefined);
+    const row = await this.prisma.appSettings.findUnique({ where: { userId } });
+    if (!row) await this.prisma.appSettings.create({ data: { userId } }).catch(() => undefined);
   }
 
   private field(meta: EntityMeta, name: string): FieldMeta | undefined {
     return meta.fields.find((f) => f.name === name);
   }
 
-  /** Composite keys are passed as "a:b" (QuestionSubject = questionId:subjectId). */
-  private whereUnique(meta: EntityMeta, id: string): Record<string, unknown> {
+  /** Composite keys are passed as "a:b" (QuestionSubject = questionId:subjectId). Always pinned to the user. */
+  private whereUnique(userId: string, meta: EntityMeta, id: string): Record<string, unknown> {
     if (meta.key === 'question-subjects') {
       const [questionId, subjectId] = id.split(':');
       if (!questionId || !subjectId) throw ApiError.badRequest('id must be "questionId:subjectId"');
-      return { questionId_subjectId: { questionId, subjectId } };
+      return { questionId_subjectId: { questionId, subjectId }, userId };
     }
-    if (meta.key === 'settings') return { id: Number(id) };
-    return { [meta.pk]: id };
+    return { [meta.pk]: id, userId };
+  }
+
+  /** Reference fields (deckId, questionId, …) may only point at the user's own rows. */
+  private async assertRefsOwned(userId: string, meta: EntityMeta, payload: Record<string, unknown>) {
+    for (const f of meta.fields) {
+      if (!f.ref || payload[f.name] === undefined || payload[f.name] === null) continue;
+      const refMeta = this.meta(f.ref);
+      const id = String(payload[f.name]);
+      const row = await this.delegate(refMeta).findFirst({ where: { [refMeta.pk]: id, userId }, select: { [refMeta.pk]: true } });
+      if (!row) throw ApiError.notFound(refMeta.label, id);
+    }
   }
 
   private coerce(f: FieldMeta, v: unknown): unknown {
@@ -102,8 +112,8 @@ export class AdminService {
     }
   }
 
-  private buildWhere(meta: EntityMeta, q: ListQuery): Record<string, unknown> {
-    const and: Record<string, unknown>[] = [];
+  private buildWhere(userId: string, meta: EntityMeta, q: ListQuery): Record<string, unknown> {
+    const and: Record<string, unknown>[] = [{ userId }];
     if (meta.softDelete) {
       if (q.deleted === 'live') and.push({ deletedAt: null });
       else if (q.deleted === 'deleted') and.push({ deletedAt: { not: null } });
@@ -133,13 +143,13 @@ export class AdminService {
       if (f.type === 'string' || f.type === 'text') and.push(f.ref ? { [name]: String(raw) } : { [name]: { contains: String(raw) } });
       else and.push({ [name]: this.coerce(f, raw) });
     }
-    return and.length ? { AND: and } : {};
+    return { AND: and };
   }
 
-  async list(key: string, q: ListQuery) {
+  async list(userId: string, key: string, q: ListQuery) {
     const meta = this.meta(key);
-    await this.ensureSingleton(meta);
-    const where = this.buildWhere(meta, q);
+    await this.ensureSingleton(userId, meta);
+    const where = this.buildWhere(userId, meta, q);
     const sortField = q.sort && this.field(meta, q.sort)?.sortable ? q.sort : meta.defaultSort.field;
     const dir = q.dir ?? (sortField === meta.defaultSort.field ? meta.defaultSort.dir : 'asc');
     const d = this.delegate(meta);
@@ -174,10 +184,10 @@ export class AdminService {
     }
   }
 
-  async get(key: string, id: string) {
+  async get(userId: string, key: string, id: string) {
     const meta = this.meta(key);
-    await this.ensureSingleton(meta);
-    const row = await this.delegate(meta).findUnique({ where: this.whereUnique(meta, id), ...(meta.display ? { include: meta.display } : {}) });
+    await this.ensureSingleton(userId, meta);
+    const row = await this.delegate(meta).findUnique({ where: this.whereUnique(userId, meta, id), ...(meta.display ? { include: meta.display } : {}) });
     if (!row) throw ApiError.notFound(meta.label, id);
     return this.decorate(meta, row);
   }
@@ -205,40 +215,42 @@ export class AdminService {
     return q;
   }
 
-  async create(key: string, data: Record<string, unknown>) {
+  async create(userId: string, key: string, data: Record<string, unknown>) {
     const meta = this.meta(key);
     if (!meta.creatable) throw ApiError.badRequest(`${meta.label} cannot be created here`);
     const d = this.delegate(meta);
     if (meta.key === 'questions') {
       const q = this.validateQuestionPayload(data.payloadJson);
       const deckId = String(data.deckId ?? '');
-      const deck = await this.prisma.deck.findFirst({ where: { id: deckId, deletedAt: null } });
+      const deck = await this.prisma.deck.findFirst({ where: { id: deckId, userId, deletedAt: null } });
       if (!deck) throw ApiError.notFound('Deck', deckId);
-      const dup = await this.prisma.question.findUnique({ where: { deckId_externalId: { deckId, externalId: q.id } } });
+      const dup = await this.prisma.question.findUnique({ where: { deckId_externalId: { deckId, externalId: q.id }, userId } });
       if (dup) throw ApiError.conflict(`Question "${q.id}" already exists in deck ${deckId}`);
-      const max = await this.prisma.question.aggregate({ where: { deckId }, _max: { sortIndex: true } });
+      const max = await this.prisma.question.aggregate({ where: { userId, deckId }, _max: { sortIndex: true } });
       const now = new Date();
       const row = await this.prisma.question.create({
         data: {
-          deckId, externalId: q.id, type: q.type, payloadJson: toJson(q), contentHash: sha256(canonicalJson(q)), answerHash: sha256(canonicalJson(answerSignature(q))),
+          userId, deckId, externalId: q.id, type: q.type, payloadJson: toJson(q), contentHash: sha256(canonicalJson(q)), answerHash: sha256(canonicalJson(answerSignature(q))),
           sortIndex: (max._max.sortIndex ?? -1) + 1,
-          card: { create: { stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))), dueAt: now, status: CardStatus.NEW } },
+          card: { create: { userId, stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))), dueAt: now, status: CardStatus.NEW } },
         },
       });
-      return this.get(key, row.id);
+      return this.get(userId, key, row.id);
     }
     const payload = this.pickData(meta, data, 'create');
+    await this.assertRefsOwned(userId, meta, payload);
+    payload.userId = userId;
     if (meta.key === 'decks') {
       if (payload.tagsJson === undefined) payload.tagsJson = [];
-      if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(String(payload.id))) throw ApiError.badRequest('deck id must match ^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$');
+      if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(String(payload.slug))) throw ApiError.badRequest('deck slug must match ^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$');
     }
     if (meta.key === 'notes') {
-      const exists = await this.prisma.questionNote.findUnique({ where: { questionId_reviewRound: { questionId: String(payload.questionId), reviewRound: Number(payload.reviewRound) } } });
+      const exists = await this.prisma.questionNote.findUnique({ where: { questionId_reviewRound: { questionId: String(payload.questionId), reviewRound: Number(payload.reviewRound) }, userId } });
       if (exists) throw ApiError.conflict('A note for this question and round already exists (edit it instead)');
     }
     try {
       const row = await d.create({ data: payload });
-      return this.get(key, meta.key === 'question-subjects' ? `${row.questionId}:${row.subjectId}` : String(row[meta.pk]));
+      return this.get(userId, key, meta.key === 'question-subjects' ? `${row.questionId}:${row.subjectId}` : String(row[meta.pk]));
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw ApiError.conflict('A record with the same unique key already exists');
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') throw ApiError.badRequest('A referenced record does not exist');
@@ -246,62 +258,63 @@ export class AdminService {
     }
   }
 
-  async update(key: string, id: string, data: Record<string, unknown>) {
+  async update(userId: string, key: string, id: string, data: Record<string, unknown>) {
     const meta = this.meta(key);
-    await this.ensureSingleton(meta);
+    await this.ensureSingleton(userId, meta);
     const d = this.delegate(meta);
-    const where = this.whereUnique(meta, id);
+    const where = this.whereUnique(userId, meta, id);
     const current = await d.findUnique({ where });
     if (!current) throw ApiError.notFound(meta.label, id);
     const payload = this.pickData(meta, data, 'update');
+    await this.assertRefsOwned(userId, meta, payload);
     if (meta.key === 'questions' && payload.payloadJson !== undefined) {
       const q = this.validateQuestionPayload(payload.payloadJson);
       if (q.id !== current.externalId) {
-        const dup = await this.prisma.question.findUnique({ where: { deckId_externalId: { deckId: current.deckId, externalId: q.id } } });
+        const dup = await this.prisma.question.findUnique({ where: { deckId_externalId: { deckId: current.deckId, externalId: q.id }, userId } });
         if (dup && dup.id !== current.id) throw ApiError.conflict(`Question "${q.id}" already exists in this deck`);
       }
       const contentHash = sha256(canonicalJson(q));
       const answerHash = sha256(canonicalJson(answerSignature(q)));
       const answerChanged = answerHash !== current.answerHash;
       const row = await this.prisma.$transaction(async (tx) => {
-        const r = await tx.question.update({ where: { id: current.id }, data: { ...payload, payloadJson: toJson(q), externalId: q.id, type: q.type, contentHash, answerHash, ...(contentHash !== current.contentHash ? { revision: { increment: 1 } } : {}) } });
+        const r = await tx.question.update({ where: { id: current.id, userId }, data: { ...payload, payloadJson: toJson(q), externalId: q.id, type: q.type, contentHash, answerHash, ...(contentHash !== current.contentHash ? { revision: { increment: 1 } } : {}) } });
         if (answerChanged) {
           const now = new Date();
           await tx.cardState.upsert({
-            where: { questionId: current.id },
-            create: { questionId: current.id, stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))), dueAt: now, status: CardStatus.NEW },
+            where: { questionId: current.id, userId },
+            create: { questionId: current.id, userId, stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))), dueAt: now, status: CardStatus.NEW },
             update: { stateJson: toJson(serializeCard(this.fsrs.emptyCard(now))), dueAt: now, status: CardStatus.NEW, stability: 0, difficulty: 0, reps: 0, lapses: 0, lastReviewAt: null, version: { increment: 1 } },
           });
         }
         return r;
       });
-      return { ...(await this.get(key, row.id)), resetSchedule: answerChanged };
+      return { ...(await this.get(userId, key, row.id)), resetSchedule: answerChanged };
     }
     if (meta.key === 'decks' && typeof payload.subject === 'string' && payload.subject.trim() && payload.subject.trim() !== current.subject) {
       const newName = payload.subject.trim();
       await this.prisma.$transaction(async (tx) => {
-        await tx.deck.update({ where: { id: String(current.id) }, data: { ...payload, subject: newName } });
-        await this.subjects.relinkDeckSubject(tx, current.id, current.subject, newName);
+        await tx.deck.update({ where: { id: String(current.id), userId }, data: { ...payload, subject: newName } });
+        await this.subjects.relinkDeckSubject(tx, userId, current.id, current.subject, newName);
       });
-      return this.get(key, id);
+      return this.get(userId, key, id);
     }
     if (meta.key === 'cards') payload.version = { increment: 1 };
     if (meta.key === 'subjects' && payload.name !== undefined) {
-      const clash = await this.prisma.subject.findUnique({ where: { name: String(payload.name) } });
+      const clash = await this.prisma.subject.findUnique({ where: { userId_name: { userId, name: String(payload.name) } } });
       if (clash && clash.id !== id) throw ApiError.conflict(`Subject "${String(payload.name)}" already exists`);
     }
     if (meta.key === 'settings' && payload.timezone !== undefined) {
       try { new Intl.DateTimeFormat('en-US', { timeZone: String(payload.timezone) }); } catch { throw ApiError.badRequest('invalid timezone'); }
     }
     await d.update({ where, data: payload });
-    return this.get(key, id);
+    return this.get(userId, key, id);
   }
 
-  async remove(key: string, id: string, permanent = false) {
+  async remove(userId: string, key: string, id: string, permanent = false) {
     const meta = this.meta(key);
     if (meta.key === 'settings') throw ApiError.badRequest('Settings cannot be deleted');
     const d = this.delegate(meta);
-    const where = this.whereUnique(meta, id);
+    const where = this.whereUnique(userId, meta, id);
     const current = await d.findUnique({ where });
     if (!current) throw ApiError.notFound(meta.label, id);
     if (permanent || !meta.softDelete) {
@@ -312,26 +325,26 @@ export class AdminService {
     return { id, deleted: true, permanent: false };
   }
 
-  async restore(key: string, id: string) {
+  async restore(userId: string, key: string, id: string) {
     const meta = this.meta(key);
     if (!meta.softDelete) throw ApiError.badRequest(`${meta.label} has no soft delete`);
     const d = this.delegate(meta);
-    const where = this.whereUnique(meta, id);
+    const where = this.whereUnique(userId, meta, id);
     const current = await d.findUnique({ where });
     if (!current) throw ApiError.notFound(meta.label, id);
     await d.update({ where, data: { deletedAt: null } });
-    return this.get(key, id);
+    return this.get(userId, key, id);
   }
 
-  async bulk(key: string, ids: string[], action: BulkAction, data?: Record<string, unknown>) {
+  async bulk(userId: string, key: string, ids: string[], action: BulkAction, data?: Record<string, unknown>) {
     const meta = this.meta(key);
     const results: { id: string; ok: boolean; error?: string }[] = [];
     for (const id of ids) {
       try {
-        if (action === 'delete') await this.remove(key, id, false);
-        else if (action === 'permanent') await this.remove(key, id, true);
-        else if (action === 'restore') await this.restore(key, id);
-        else if (action === 'patch') await this.update(key, id, data ?? {});
+        if (action === 'delete') await this.remove(userId, key, id, false);
+        else if (action === 'permanent') await this.remove(userId, key, id, true);
+        else if (action === 'restore') await this.restore(userId, key, id);
+        else if (action === 'patch') await this.update(userId, key, id, data ?? {});
         results.push({ id, ok: true });
       } catch (e) {
         results.push({ id, ok: false, error: (e as Error).message });
@@ -341,19 +354,19 @@ export class AdminService {
   }
 
   /** Lightweight option lists for reference fields (id + label). */
-  async options(key: string, search?: string, limit = 30) {
+  async options(userId: string, key: string, search?: string, limit = 30) {
     this.meta(key); // validates the entity key
-    const rows = await this.list(key, { page: 1, pageSize: limit, search, deleted: 'live' });
+    const rows = await this.list(userId, key, { page: 1, pageSize: limit, search, deleted: 'live' });
     return rows.items.map((r: any) => ({ id: r._id, label: r._label }));
   }
 
-  async counts() {
+  async counts(userId: string) {
     const out: Record<string, { live: number; deleted: number }> = {};
     for (const meta of ENTITIES) {
       const d = this.delegate(meta);
       const [live, deleted] = await Promise.all([
-        d.count({ where: meta.softDelete ? { deletedAt: null } : {} }),
-        meta.softDelete ? d.count({ where: { deletedAt: { not: null } } }) : Promise.resolve(0),
+        d.count({ where: meta.softDelete ? { userId, deletedAt: null } : { userId } }),
+        meta.softDelete ? d.count({ where: { userId, deletedAt: { not: null } } }) : Promise.resolve(0),
       ]);
       out[meta.key] = { live, deleted };
     }

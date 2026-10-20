@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthUser } from '../auth/users.service';
 import { IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import type { AnswerPayload } from '@recall/contracts';
 import { QuestionsService } from './questions.service';
@@ -18,6 +20,7 @@ class SubjectsDto {
 }
 
 @ApiTags('questions')
+@ApiBearerAuth()
 @Controller('questions')
 export class QuestionsController {
   constructor(
@@ -26,35 +29,35 @@ export class QuestionsController {
     private readonly subjects: SubjectsService,
   ) {}
 
-  @Get(':id/subjects') listSubjects(@Param('id') id: string) {
-    return this.subjects.forQuestion(id);
+  @Get(':id/subjects') listSubjects(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.subjects.forQuestion(user.id, id);
   }
 
-  @Put(':id/subjects') setSubjects(@Param('id') id: string, @Body() dto: SubjectsDto) {
-    return this.subjects.setForQuestion(id, dto.names);
+  @Put(':id/subjects') setSubjects(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SubjectsDto) {
+    return this.subjects.setForQuestion(user.id, id, dto.names);
   }
 
-  @Get(':id') get(@Param('id') id: string, @Query('includeAnswer') includeAnswer?: string) {
-    return this.questions.get(id, includeAnswer === 'true');
+  @Get(':id') get(@CurrentUser() user: AuthUser, @Param('id') id: string, @Query('includeAnswer') includeAnswer?: string) {
+    return this.questions.get(user.id, id, includeAnswer === 'true');
   }
 
-  @Post(':id/grade') grade(@Param('id') id: string, @Body() dto: GradeDto) {
-    return this.questions.grade(id, dto.answerPayload ?? null);
+  @Post(':id/grade') grade(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: GradeDto) {
+    return this.questions.grade(user.id, id, dto.answerPayload ?? null);
   }
 
-  @Get(':id/answer-key') answerKey(@Param('id') id: string) {
-    return this.questions.answerKey(id);
+  @Get(':id/answer-key') answerKey(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.questions.answerKey(user.id, id);
   }
 
-  @Get(':id/notes') listNotes(@Param('id') id: string) {
-    return this.notes.listForQuestion(id);
+  @Get(':id/notes') listNotes(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.notes.listForQuestion(user.id, id);
   }
 
-  @Put(':id/notes/:round') upsertNote(@Param('id') id: string, @Param('round', ParseIntPipe) round: number, @Body() dto: NoteBodyDto) {
-    return this.notes.upsert(id, round, dto.body);
+  @Put(':id/notes/:round') upsertNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('round', ParseIntPipe) round: number, @Body() dto: NoteBodyDto) {
+    return this.notes.upsert(user.id, id, round, dto.body);
   }
 
-  @Delete(':id/notes/:round') deleteNote(@Param('id') id: string, @Param('round', ParseIntPipe) round: number) {
-    return this.notes.remove(id, round);
+  @Delete(':id/notes/:round') deleteNote(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('round', ParseIntPipe) round: number) {
+    return this.notes.remove(user.id, id, round);
   }
 }

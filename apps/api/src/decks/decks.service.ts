@@ -30,11 +30,11 @@ export class DecksService {
     private readonly subjectsService: SubjectsService,
   ) {}
 
-  async progressByDeck(deckIds?: string[]): Promise<Map<string, DeckProgress>> {
-    const settings = await this.settings.get();
+  async progressByDeck(userId: string, deckIds?: string[]): Promise<Map<string, DeckProgress>> {
+    const settings = await this.settings.get(userId);
     const now = new Date();
     const dayEnd = endOfDayInTz(now, settings.timezone);
-    const where: Prisma.QuestionWhereInput = { deletedAt: null, deck: { deletedAt: null }, ...(deckIds ? { deckId: { in: deckIds } } : {}) };
+    const where: Prisma.QuestionWhereInput = { userId, deletedAt: null, deck: { deletedAt: null }, ...(deckIds ? { deckId: { in: deckIds } } : {}) };
     const rows = await this.prisma.question.findMany({ where, select: { deckId: true, card: { select: { status: true, dueAt: true, suspended: true, flagged: true, lapses: true } } } });
     const map = new Map<string, DeckProgress>();
     for (const r of rows) {
@@ -53,18 +53,18 @@ export class DecksService {
     return map;
   }
 
-  async list(opts: { subject?: string; includeDeleted?: boolean } = {}) {
+  async list(userId: string, opts: { subject?: string; includeDeleted?: boolean } = {}) {
     const decks = await this.prisma.deck.findMany({
-      where: { ...(opts.includeDeleted ? {} : { deletedAt: null }), ...(opts.subject ? { subject: opts.subject } : {}) },
+      where: { userId, ...(opts.includeDeleted ? {} : { deletedAt: null }), ...(opts.subject ? { subject: opts.subject } : {}) },
       orderBy: [{ subject: 'asc' }, { updatedAt: 'desc' }],
     });
-    const progress = await this.progressByDeck();
+    const progress = await this.progressByDeck(userId);
     return decks.map((d) => ({ ...d, tags: d.tagsJson as string[], progress: progress.get(d.id) ?? emptyProgress() }));
   }
 
   /** Decks grouped by their primary (deck-level) subject. Question-level subjects live in SubjectsService. */
-  async subjects() {
-    const decks = await this.list();
+  async subjects(userId: string) {
+    const decks = await this.list(userId);
     const bySubject = new Map<string, { subject: string; deckCount: number; progress: DeckProgress; decks: typeof decks }>();
     for (const d of decks) {
       const s = bySubject.get(d.subject) ?? { subject: d.subject, deckCount: 0, progress: emptyProgress(), decks: [] };
@@ -76,42 +76,42 @@ export class DecksService {
     return [...bySubject.values()].sort((a, b) => a.subject.localeCompare(b.subject));
   }
 
-  async update(id: string, data: { title?: string; description?: string | null; subject?: string; language?: string; tags?: string[] }) {
-    const deck = await this.prisma.deck.findFirst({ where: { id, deletedAt: null }, select: { id: true, subject: true } });
+  async update(userId: string, id: string, data: { title?: string; description?: string | null; subject?: string; language?: string; tags?: string[] }) {
+    const deck = await this.prisma.deck.findFirst({ where: { id, userId, deletedAt: null }, select: { id: true, subject: true } });
     if (!deck) throw ApiError.notFound('Deck', id);
     const { tags, ...rest } = data;
     if (rest.subject !== undefined && !rest.subject.trim()) throw ApiError.badRequest('subject must not be empty');
     const updated = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.deck.update({ where: { id }, data: { ...rest, ...(rest.subject ? { subject: rest.subject.trim() } : {}), ...(tags ? { tagsJson: tags } : {}) } });
+      const row = await tx.deck.update({ where: { id, userId }, data: { ...rest, ...(rest.subject ? { subject: rest.subject.trim() } : {}), ...(tags ? { tagsJson: tags } : {}) } });
       // Changing the primary subject moves every question's deck-sourced subject link along with it.
-      if (rest.subject && rest.subject.trim() !== deck.subject) await this.subjectsService.relinkDeckSubject(tx, id, deck.subject, rest.subject.trim());
+      if (rest.subject && rest.subject.trim() !== deck.subject) await this.subjectsService.relinkDeckSubject(tx, userId, id, deck.subject, rest.subject.trim());
       return row;
     });
     return { ...updated, tags: updated.tagsJson as string[] };
   }
 
   /** Give every question of the deck an additional subject (keeps the primary subject). */
-  async addSubject(id: string, name: string) {
-    const deck = await this.prisma.deck.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+  async addSubject(userId: string, id: string, name: string) {
+    const deck = await this.prisma.deck.findFirst({ where: { id, userId, deletedAt: null }, select: { id: true } });
     if (!deck) throw ApiError.notFound('Deck', id);
-    return this.subjectsService.addSubjectToDeck(id, name);
+    return this.subjectsService.addSubjectToDeck(userId, id, name);
   }
 
-  async restore(id: string) {
-    const deck = await this.prisma.deck.findUnique({ where: { id }, select: { id: true, deletedAt: true } });
+  async restore(userId: string, id: string) {
+    const deck = await this.prisma.deck.findUnique({ where: { id, userId }, select: { id: true, deletedAt: true } });
     if (!deck) throw ApiError.notFound('Deck', id);
-    await this.prisma.deck.update({ where: { id }, data: { deletedAt: null } });
+    await this.prisma.deck.update({ where: { id, userId }, data: { deletedAt: null } });
     return { restored: id };
   }
 
-  async get(id: string) {
-    const deck = await this.prisma.deck.findFirst({ where: { id, deletedAt: null } });
+  async get(userId: string, id: string) {
+    const deck = await this.prisma.deck.findFirst({ where: { id, userId, deletedAt: null } });
     if (!deck) throw ApiError.notFound('Deck', id);
-    const progress = (await this.progressByDeck([id])).get(id) ?? emptyProgress();
+    const progress = (await this.progressByDeck(userId, [id])).get(id) ?? emptyProgress();
     const [notes, lastReview, tagRows] = await Promise.all([
-      this.prisma.questionNote.count({ where: { question: { deckId: id } } }),
-      this.prisma.reviewLog.findFirst({ where: { undone: false, question: { deckId: id } }, orderBy: { reviewedAt: 'desc' }, select: { reviewedAt: true } }),
-      this.prisma.question.findMany({ where: { deckId: id, deletedAt: null }, select: { payloadJson: true } }),
+      this.prisma.questionNote.count({ where: { userId, question: { deckId: id } } }),
+      this.prisma.reviewLog.findFirst({ where: { userId, undone: false, question: { deckId: id } }, orderBy: { reviewedAt: 'desc' }, select: { reviewedAt: true } }),
+      this.prisma.question.findMany({ where: { userId, deckId: id, deletedAt: null }, select: { payloadJson: true } }),
     ]);
     const tagCounts = new Map<string, number>();
     for (const r of tagRows) for (const t of (r.payloadJson as unknown as Question).tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
@@ -126,12 +126,14 @@ export class DecksService {
   }
 
   async questions(
+    userId: string,
     deckId: string,
     opts: { page: number; pageSize: number; type?: QuestionType; tag?: string; q?: string; includeAnswers: boolean; includeInactive: boolean; flagged?: boolean; suspended?: boolean; status?: CardStatus; sort?: string },
   ) {
-    const deck = await this.prisma.deck.findFirst({ where: { id: deckId, deletedAt: null }, select: { id: true } });
+    const deck = await this.prisma.deck.findFirst({ where: { id: deckId, userId, deletedAt: null }, select: { id: true } });
     if (!deck) throw ApiError.notFound('Deck', deckId);
     const where: Prisma.QuestionWhereInput = {
+      userId,
       deckId,
       ...(opts.includeInactive ? {} : { deletedAt: null }),
       ...(opts.type ? { type: opts.type } : {}),
@@ -188,14 +190,14 @@ export class DecksService {
 
   /** Soft delete by default: the deck and its history stay in the database and can be restored.
    *  `permanent` hard-deletes the deck with all questions, cards, reviews, notes and exams (cascade). */
-  async remove(id: string, permanent = false) {
-    const deck = await this.prisma.deck.findFirst({ where: { id, ...(permanent ? {} : { deletedAt: null }) }, select: { id: true } });
+  async remove(userId: string, id: string, permanent = false) {
+    const deck = await this.prisma.deck.findFirst({ where: { id, userId, ...(permanent ? {} : { deletedAt: null }) }, select: { id: true } });
     if (!deck) throw ApiError.notFound('Deck', id);
     if (permanent) {
-      await this.prisma.deck.delete({ where: { id } });
+      await this.prisma.deck.delete({ where: { id, userId } });
       return { deleted: id, permanent: true };
     }
-    await this.prisma.deck.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.prisma.deck.update({ where: { id, userId }, data: { deletedAt: new Date() } });
     return { deleted: id, permanent: false };
   }
 }
