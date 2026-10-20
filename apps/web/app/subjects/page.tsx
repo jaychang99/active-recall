@@ -8,6 +8,7 @@ import { api, type SubjectSummary } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, Skeleton } from '@/components/ui/misc';
+import { ShareDialog } from '@/components/shares/share-dialog';
 
 const COLORS = ['#0f766e', '#2458b3', '#9a6400', '#b3261e', '#6b21a8', '#1f7a3a', '#be185d', '#475569'];
 
@@ -63,6 +64,7 @@ export default function SubjectsPage() {
               <Link href={`/study/all?subject=${encodeURIComponent(s.name)}`}><Button size="sm"><Play className="h-3.5 w-3.5 text-accent" /> 예정 학습</Button></Link>
               <Link href={`/study/all?subject=${encodeURIComponent(s.name)}&mode=cram`}><Button size="sm">훑기</Button></Link>
               <Link href={`/insights?subject=${encodeURIComponent(s.name)}`}><Button size="sm" variant="ghost">통계</Button></Link>
+              {s.questionCount ? <ShareDialog target={{ kind: 'subject', subjectId: s.id }} name={s.name} count={s.questionCount} size="sm" variant="ghost" /> : null}
             </div>
           </Panel>
         ))}

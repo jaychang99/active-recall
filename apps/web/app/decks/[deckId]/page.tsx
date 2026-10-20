@@ -17,6 +17,7 @@ import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, Skeleton } fr
 import { Markdown } from '@/components/questions/markdown';
 import { NoteHistoryItem } from '@/components/study/notes-panel';
 import { DeckSubjectDialog } from '@/components/decks/deck-subject-dialog';
+import { ShareDialog } from '@/components/shares/share-dialog';
 import { STATUS_LABEL, TYPE_LABEL, cn, formatDate, relativeDue } from '@/lib/utils';
 
 const TYPES = Object.keys(TYPE_LABEL);
@@ -84,6 +85,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
             <Link href={`/study/${d.id}?mode=browse`} title="학습 상한·스케줄과 무관하게 모든 문제를 풀어보고 정답만 확인 (기록 없음)"><Button><Eye className="h-4 w-4" /> 구경</Button></Link>
             <Link href={`/exam?deckId=${d.id}`}><Button><GraduationCap className="h-4 w-4" /> 시험</Button></Link>
             <DeckSubjectDialog deckId={d.id} currentSubject={d.subject} questionCount={d.progress.total} onChanged={invalidate} />
+            <ShareDialog target={{ kind: 'deck', deckId: d.id }} name={d.title} count={d.progress.total} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="덱 더 보기"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent>
@@ -128,6 +130,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
               <Button size="sm" onClick={() => bulk.mutate({ ids, action: 'resume' })}>보류 해제</Button>
               <Button size="sm" onClick={() => { if (confirm('선택한 문항의 FSRS 스케줄을 초기화할까요? 기록은 유지됩니다.')) bulk.mutate({ ids, action: 'reset' }); }}><RotateCcw className="h-3.5 w-3.5" /> 스케줄 초기화</Button>
               <Button size="sm" onClick={() => { const n = prompt('추가할 과목 이름'); if (n) assignSubject.mutate({ ids, name: n }); }}><Tags className="h-3.5 w-3.5" /> 과목 추가</Button>
+              <ShareDialog target={{ kind: 'questions', questionIds: ids }} name={d.title} count={ids.length} size="sm" label="공유" onSent={() => setSelected(new Set())} />
               <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>선택 해제</Button>
             </div>
           ) : null}

@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BarChart3, Database, FolderTree, GraduationCap, Home, Keyboard, Layers, Menu, Search, Settings, Sparkles, Upload } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { BarChart3, Database, FolderTree, GraduationCap, Home, Inbox, Keyboard, Layers, Menu, Search, Settings, Share2, Sparkles, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useShortcuts } from '@/lib/shortcuts/provider';
@@ -14,11 +15,13 @@ import { Button } from '@/components/ui/button';
 import { useSettings } from './settings-context';
 import { UserMenu } from './user-menu';
 import { isBarePage } from '@/lib/public-pages';
+import { api } from '@/lib/api';
 
 export const NAV = [
   { href: '/', label: '대시보드', icon: Home, key: 'g d' },
   { href: '/decks', label: '덱', icon: Layers, key: 'g k' },
   { href: '/subjects', label: '과목', icon: FolderTree, key: 'g s' },
+  { href: '/shares', label: '공유', icon: Share2, key: 'g h' },
   { href: '/exam', label: '시험', icon: GraduationCap, key: 'g e' },
   { href: '/import', label: '가져오기', icon: Upload, key: 'g i' },
   { href: '/prompt', label: '프롬프트', icon: Sparkles, key: 'g p' },
@@ -58,6 +61,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const { settings } = useSettings();
   const focus = pathname.startsWith('/study') || pathname.startsWith('/exam/run');
   const bare = isBarePage(pathname);
+  const sharesPending = useQuery({ queryKey: ['shares', 'count'], queryFn: () => api<{ pending: number }>('/shares/received/count'), enabled: !bare, refetchInterval: 60_000, staleTime: 30_000 }).data?.pending ?? 0;
 
   useShortcuts(
     'global',
@@ -91,6 +95,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 >
                   <n.icon className="h-4 w-4 text-ink-3" />
                   {n.label}
+                  {n.href === '/shares' && sharesPending ? <span className="ml-auto rounded-full bg-accent px-1.5 text-[11px] leading-[18px] font-medium text-accent-ink tabular" aria-label={`받은 공유 ${sharesPending}건`}>{sharesPending}</span> : null}
                 </Link>
               );
             })}
@@ -119,6 +124,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Link href="/" className="flex items-center gap-2 rounded-md text-sm font-semibold"><Mark className="h-5 w-5 text-accent" /> Recall Studio</Link>
           )}
           <div className="ml-auto flex items-center gap-1.5">
+            {sharesPending && !focus ? (
+              <Link href="/shares" aria-label={`받은 공유 ${sharesPending}건`} className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-2 hover:bg-muted hover:text-ink" data-testid="shares-inbox">
+                <Inbox className="h-4 w-4" />
+                <span className="absolute top-1 right-1 min-w-4 rounded-full bg-accent px-1 text-center text-[10px] leading-4 font-medium text-accent-ink tabular">{sharesPending}</span>
+              </Link>
+            ) : null}
             <CopyPromptButton compact={focus} />
             <Button variant="ghost" size="icon" aria-label="단축키 도움말" onClick={() => setHelpOpen(true)}>
               <Keyboard className="h-4 w-4" />

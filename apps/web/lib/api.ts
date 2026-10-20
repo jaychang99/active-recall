@@ -101,3 +101,12 @@ export type Overview = {
   exams: { id: string; title: string; deck: { id: string; title: string }; submittedAt: string; score: ExamScore | null }[];
 };
 export interface Heatmap { timezone: string; days: { day: string; count: number }[]; max: number }
+export type ShareKind = 'deck' | 'subject' | 'questions';
+export type ShareStatus = 'pending' | 'accepted' | 'declined' | 'canceled' | 'expired';
+export interface ShareResultDeck { id: string; title: string; isNew: boolean; created: number; updated: number; unchanged: number; skipped: number }
+export interface ShareSummary { id: string; kind: ShareKind; title: string; message: string | null; deckCount: number; questionCount: number; status: ShareStatus; expiresAt: string; respondedAt: string | null; resultJson: { decks: ShareResultDeck[] } | null; createdAt: string }
+export interface SentShare extends ShareSummary { recipientEmail: string }
+export interface ReceivedShare extends ShareSummary { sender: { name: string | null; email: string } }
+/** Frozen copy of the shared content; questions carry answer keys (they become the recipient's own). */
+export interface ShareSnapshot { kind: ShareKind; subject: string | null; decks: { originId: string; slug: string; title: string; description: string | null; subject: string; language: string; tags: string[]; questions: { originId: string; subjects: string[]; question: import('@recall/contracts').Question }[] }[] }
+export interface ShareDetail extends ReceivedShare { snapshot: ShareSnapshot; suggestions: { decks: Record<string, { id: string; title: string }>; subjects: string[] } }
