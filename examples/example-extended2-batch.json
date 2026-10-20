@@ -134,7 +134,7 @@
       "type": "image_hotspot",
       "prompt": "OSI 7계층 그림에서 **TCP와 UDP가 동작하는 계층**을 클릭하시오.",
       "explanation": {
-        "summary": "TCP/UDP는 4계층 **전송 계층(Transport)**의 프로토콜이다. IP는 3계층(네트워크), HTTP는 7계층(응용)에 속한다."
+        "summary": "TCP/UDP는 4계층 **전송 계층**(Transport)의 프로토콜이다. IP는 3계층(네트워크), HTTP는 7계층(응용)에 속한다."
       },
       "difficulty": 1,
       "tags": ["네트워크", "OSI"],
