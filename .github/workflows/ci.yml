@@ -1,0 +1,98 @@
+name: CI / Deploy API
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  test:
+    name: lint · typecheck · unit · integration
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: recall
+          MYSQL_DATABASE: recall_studio_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -precall"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: mysql://root:recall@127.0.0.1:3306/recall_studio_test
+      TEST_DATABASE_URL: mysql://root:recall@127.0.0.1:3306/recall_studio_test
+      API_JWT_SECRET: ci-only-api-jwt-secret-0123456789abcdefghijklmn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # version from package.json "packageManager"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: API integration tests (MySQL service)
+        run: pnpm --filter @recall/api test:integration
+      - name: Web production build
+        run: pnpm --filter @recall/web build
+        env:
+          NEXT_PUBLIC_API_URL: https://example.invalid
+          AUTH_SECRET: ci-only-auth-secret-0123456789abcdefghijklmn
+          API_JWT_SECRET: ci-only-api-jwt-secret-0123456789abcdefghijklmn
+
+  deploy-api:
+    name: migrate TiDB · deploy Lambda
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write # OIDC → AWS role (no long-lived keys)
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }} # prisma generate/migrate read it through prisma.config.ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Prisma migrate deploy (TiDB)
+        run: pnpm --filter @recall/api db:deploy
+      - name: Lambda environment file
+        run: |
+          cat > infra/aws/.env.lambda <<EOF
+          DATABASE_URL="${{ secrets.DATABASE_URL }}"
+          API_JWT_SECRET=${{ secrets.API_JWT_SECRET }}
+          WEB_ORIGIN=${{ secrets.WEB_ORIGIN }}
+          EOF
+      - name: Build bundle, smoke test, deploy
+        run: bash infra/aws/deploy-api.sh
+      - name: Health check
+        run: |
+          URL=$(aws lambda get-function-url-config --function-name recall-studio-api --query FunctionUrl --output text)
+          for i in $(seq 1 10); do
+            BODY=$(curl -s -m 30 "${URL}health" || true)
+            echo "$BODY"
+            echo "$BODY" | grep -q '"db":"ok"' && exit 0
+            sleep 5
+          done
+          echo "::error::API health check failed"; exit 1

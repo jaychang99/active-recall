@@ -85,6 +85,14 @@ pnpm deploy:api                                          # 번들(apps/api/lambd
    - 몇 분 뒤 Vercel이 인증서를 발급하면 `https://ar.jaychang99.dev`가 열립니다.
 5. Lambda의 `WEB_ORIGIN`이 `https://ar.jaychang99.dev`인지 확인하고(아니면 `.env.lambda` 수정 후 `pnpm deploy:api`), Preview 배포도 쓰려면 `WEB_ORIGIN=https://ar.jaychang99.dev,https://<project>.vercel.app`처럼 쉼표로 추가합니다.
 
+## 4b. CI/CD (GitHub Actions)
+
+`.github/workflows/ci.yml`:
+- **모든 PR / 푸시**: `pnpm install` → `db:generate` → lint → typecheck → unit 테스트 → API 통합 테스트(MySQL 8.4 서비스 컨테이너) → 웹 프로덕션 빌드.
+- **main 푸시**: 위 테스트 통과 후 `deploy-api` 잡이 AWS OIDC로 `recall-studio-github-deploy` 역할을 맡아 `prisma migrate deploy`(TiDB) → `infra/aws/deploy-api.sh`(번들·smoke·Lambda 업데이트) → `/health`가 `db: ok`인지 확인. 웹은 Vercel의 GitHub 연동이 같은 푸시로 따로 배포합니다.
+- 설정값: 저장소 **Secrets** `DATABASE_URL`, `API_JWT_SECRET`, `WEB_ORIGIN`; **Variables** `AWS_ROLE_ARN`, `AWS_REGION`. 바꾸려면 `gh secret set <NAME> --body …`.
+- AWS 쪽: OIDC 프로바이더 `token.actions.githubusercontent.com` + IAM 역할 `recall-studio-github-deploy` (신뢰: `repo:jaychang99/active-recall:ref:refs/heads/main`만, 권한: `recall-studio-api` 함수의 Get*/UpdateFunctionCode/UpdateFunctionConfiguration/GetFunctionUrlConfig/GetPolicy). 함수·URL·실행 역할을 처음 만드는 것은 로컬 `pnpm deploy:api`(관리자 자격증명) 몫입니다.
+
 ## 5. 기존 로컬 데이터 옮기기
 
 1. (업그레이드 전에 받아둔) 백업 JSON — `/settings → 전체 백업 (JSON)` 또는 `GET /exports/backup.json`. v1(단일 사용자 시절)과 v2 백업 모두 복원됩니다.

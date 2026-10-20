@@ -118,7 +118,7 @@ docker/             init.sql (dev privileges + test DB)
 | `pnpm test` | contracts + api unit + web unit (Vitest) |
 | `pnpm --filter @recall/api test:integration` | API integration tests against `TEST_DATABASE_URL` (migrates it, truncates between tests) |
 | `pnpm test:e2e` | Playwright (needs web on :3000 and api on :4000 with `AUTH_DEV_LOGIN=1`; signs in as `e2e@test.local`) |
-| `pnpm build:lambda` · `pnpm deploy:api` | Lambda bundle (`apps/api/lambda-dist/lambda.zip`, smoke-tested) · deploy to AWS |
+| `pnpm build:lambda` · `pnpm deploy:api` | Lambda bundle (`apps/api/lambda-dist/lambda.zip`, smoke-tested) · deploy to AWS (CI does this on every `main` push — `.github/workflows/ci.yml`) |
 | `pnpm db:migrate` · `pnpm db:generate` · `pnpm db:seed` · `pnpm db:reset` | Prisma |
 
 ## Troubleshooting
