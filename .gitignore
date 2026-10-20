@@ -17,3 +17,4 @@ backups/
 apps/web/e2e/.auth/
 infra/aws/.env.lambda
 apps/api/lambda-dist/
+infra/handoff/
