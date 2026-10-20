@@ -1,5 +1,6 @@
 'use client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePathname } from 'next/navigation';
 import { createContext, useContext } from 'react';
 import { api, type Settings } from '@/lib/api';
 
@@ -12,7 +13,9 @@ const Ctx = createContext<{ settings: Settings; loaded: boolean; refresh: () => 
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['settings'], queryFn: () => api<Settings>('/settings'), staleTime: 60_000 });
+  const pathname = usePathname();
+  // The login page has no session yet: asking the API there would only bounce back to /login.
+  const q = useQuery({ queryKey: ['settings'], queryFn: () => api<Settings>('/settings'), staleTime: 60_000, enabled: pathname !== '/login' });
   return <Ctx.Provider value={{ settings: q.data ?? DEFAULTS, loaded: !!q.data, refresh: () => void qc.invalidateQueries({ queryKey: ['settings'] }) }}>{children}</Ctx.Provider>;
 }
 

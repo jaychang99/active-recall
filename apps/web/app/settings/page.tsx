@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { API_URL, api, type Settings } from '@/lib/api';
+import { downloadFromApi } from '@/lib/download';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
@@ -56,7 +57,7 @@ export default function SettingsPage() {
   };
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="설정" description="로컬 단일 프로필 설정입니다. 아래 값은 저장 버튼을 눌러야 반영됩니다." actions={<Button variant="primary" onClick={submit} disabled={save.isPending} data-testid="save-settings">{save.isPending ? '저장 중…' : '저장'}</Button>} />
+      <PageHeader title="설정" description="내 계정의 학습 설정입니다. 아래 값은 저장 버튼을 눌러야 반영됩니다." actions={<Button variant="primary" onClick={submit} disabled={save.isPending} data-testid="save-settings">{save.isPending ? '저장 중…' : '저장'}</Button>} />
       <Panel className="mb-6 px-5 py-2">
         <h2 className="pt-3 text-[13px] font-semibold text-ink-2">화면</h2>
         <Row label="테마" hint="바로 적용되고 이 브라우저에 저장됩니다 (저장 버튼과 무관)." id="theme">
@@ -99,13 +100,13 @@ export default function SettingsPage() {
       <Panel className="px-5 py-4">
         <h2 className="text-[13px] font-semibold text-ink-2">데이터</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          <a href={`${API_URL}/exports/backup.json`} download="recall-studio-backup.json"><Button><Download className="h-4 w-4" /> 전체 백업 (JSON)</Button></a>
-          <a href={`${API_URL}/exports/reviews.csv`} download="reviews.csv"><Button><Download className="h-4 w-4" /> 복습 기록 CSV</Button></a>
+          <Button onClick={() => downloadFromApi('/exports/backup.json', 'recall-studio-backup.json').catch((e: Error) => toast.error('백업 실패', { description: e.message }))}><Download className="h-4 w-4" /> 전체 백업 (JSON)</Button>
+          <Button onClick={() => downloadFromApi('/exports/reviews.csv', 'reviews.csv').catch((e: Error) => toast.error('내보내기 실패', { description: e.message }))}><Download className="h-4 w-4" /> 복습 기록 CSV</Button>
           <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" /> 백업 복원</Button>
-          <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f && confirm('백업을 복원하면 같은 ID의 데이터가 덮어써집니다. 계속할까요?')) restore.mutate(f); e.target.value = ''; }} />
+          <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f && confirm('백업을 복원하면 내 계정의 기존 데이터가 모두 백업 내용으로 교체됩니다. 계속할까요?')) restore.mutate(f); e.target.value = ''; }} />
           <a href={`${API_URL}/docs`} target="_blank" rel="noreferrer"><Button variant="ghost">API 문서 (Swagger)</Button></a>
         </div>
-        <p className="mt-2 text-[12px] text-ink-3">API는 인증이 없으므로 localhost 밖으로 노출하지 마세요.</p>
+        <p className="mt-2 text-[12px] text-ink-3">백업에는 내 계정의 덱·문항·복습 기록·메모·설정이 모두 담깁니다. 예전(단일 사용자) 백업 파일도 복원됩니다.</p>
       </Panel>
     </div>
   );

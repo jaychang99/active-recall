@@ -12,6 +12,7 @@ import { CommandPalette } from './command-palette';
 import { ShortcutHelp } from './shortcut-help';
 import { Button } from '@/components/ui/button';
 import { useSettings } from './settings-context';
+import { UserMenu } from './user-menu';
 
 export const NAV = [
   { href: '/', label: '대시보드', icon: Home, key: 'g d' },
@@ -55,6 +56,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [mobileNav, setMobileNav] = useState(false);
   const { settings } = useSettings();
   const focus = pathname.startsWith('/study') || pathname.startsWith('/exam/run');
+  const bare = pathname === '/login';
 
   useShortcuts(
     'global',
@@ -67,6 +69,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     settings.shortcutsEnabled,
   );
 
+  if (bare) return <main className="px-4 py-6 md:px-8">{children}</main>;
   return (
     <div className="flex min-h-dvh">
       {!focus ? (
@@ -120,6 +123,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </Button>
             <InstallAppButton size="sm" />
             <ThemeToggle />
+            <UserMenu />
           </div>
         </header>
         <main className={cn('flex-1', focus ? 'px-3 py-4 md:px-6' : 'px-4 py-6 md:px-8')}>{children}</main>

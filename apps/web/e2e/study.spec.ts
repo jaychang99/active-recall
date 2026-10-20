@@ -1,11 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { API, gotoStudy, seedDeck } from './helpers';
 
 test.describe('study flow (keyboard-first)', () => {
-  test.beforeEach(async ({ request }) => { await seedDeck(request); });
+  let deckId = '';
+  test.beforeEach(async ({ api }) => { ({ deckId } = await seedDeck(api)); });
 
-  test('answers all 8 question types with the keyboard and rates with FSRS', async ({ page, request }) => {
-    const deckId = 'computer_networks_01';
+  test('answers all 8 question types with the keyboard and rates with FSRS', async ({ page, api }) => {
     await gotoStudy(page, deckId, 'cram');
     // cram order is shuffled by minute seed; detect each type and answer accordingly
     const seen = new Set<string>();
@@ -79,24 +79,24 @@ test.describe('study flow (keyboard-first)', () => {
     }
     expect(seen.size).toBe(8);
     await expect(page.getByTestId('session-summary')).toBeVisible();
-    const reviews = await (await request.get(`${API}/analytics/overview`)).json();
+    const reviews = await (await api.get(`${API}/analytics/overview`)).json();
     expect(reviews.today.reviewed).toBeGreaterThanOrEqual(8);
   });
 
-  test('Space reveals without answering; 1-4 does not grade before reveal; U undoes', async ({ page, request }) => {
-    await request.patch(`${API}/settings`, { data: { autoAdvanceAfterRating: false } });
-    await gotoStudy(page, 'computer_networks_01', 'scheduled');
+  test('Space reveals without answering; 1-4 does not grade before reveal; U undoes', async ({ page, api }) => {
+    await api.patch(`${API}/settings`, { data: { autoAdvanceAfterRating: false } });
+    await gotoStudy(page, deckId, 'scheduled');
     const screen = page.getByTestId('study-screen');
     await page.keyboard.press('Space');
     await expect(screen).toHaveAttribute('data-phase', 'submitted');
     await expect(page.getByTestId('verdict')).toHaveAttribute('data-verdict', 'revealed');
     await page.keyboard.press('2'); // Hard
     await expect(screen).toHaveAttribute('data-phase', 'rated');
-    const q = await (await request.get(`${API}/study/queue?deckId=computer_networks_01&mode=cram&limit=100`)).json();
+    const q = await (await api.get(`${API}/study/queue?deckId=${deckId}&mode=cram&limit=100`)).json();
     expect(q.items.filter((i: { card: { reps: number } }) => i.card.reps === 1)).toHaveLength(1);
     await page.keyboard.press('u');
     await expect(screen).toHaveAttribute('data-phase', 'answering');
-    const q2 = await (await request.get(`${API}/study/queue?deckId=computer_networks_01&mode=cram&limit=100`)).json();
+    const q2 = await (await api.get(`${API}/study/queue?deckId=${deckId}&mode=cram&limit=100`)).json();
     expect(q2.items.filter((i: { card: { reps: number } }) => i.card.reps === 1)).toHaveLength(0);
     // Undo bumps the card version: rating the same card again must not 409 (regression: stale version in the frozen queue)
     await page.keyboard.press('Space');
@@ -117,7 +117,7 @@ test.describe('study flow (keyboard-first)', () => {
   });
 
   test('notes: one note per review round, visible as history after rating', async ({ page }) => {
-    await gotoStudy(page, 'computer_networks_01', 'scheduled');
+    await gotoStudy(page, deckId, 'scheduled');
     await page.keyboard.press('m');
     const note = page.getByTestId('note-input');
     await expect(note).toBeFocused();
@@ -151,7 +151,7 @@ test.describe('study flow (keyboard-first)', () => {
   });
 
   test('Korean IME composition Enter does not submit a short answer', async ({ page }) => {
-    await gotoStudy(page, 'computer_networks_01', 'cram');
+    await gotoStudy(page, deckId, 'cram');
     // navigate until a short-answer card appears (cram order is seeded by minute)
     for (let i = 0; i < 8; i++) {
       const screen = page.getByTestId('study-screen');
@@ -172,7 +172,7 @@ test.describe('study flow (keyboard-first)', () => {
   });
 
   test('the current card survives a reload and a refetch; progress is kept', async ({ page }) => {
-    await gotoStudy(page, 'computer_networks_01', 'cram');
+    await gotoStudy(page, deckId, 'cram');
     const screen = page.getByTestId('study-screen');
     const first = await screen.getAttribute('data-question-id');
     await page.getByTestId('reveal-btn').click();

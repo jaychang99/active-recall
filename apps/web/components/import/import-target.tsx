@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Panel } from '@/components/ui/misc';
 
-/** Deck/subject the batch will be imported into. 'json' = as written in the batch; 'new' = typed below; otherwise an existing deck id / subject name. */
+/** Deck/subject the batch will be imported into. 'json' = as written in the batch; 'new' = typed below; otherwise an existing deck slug / subject name. */
 export interface ImportTarget {
   deck: 'json' | 'new' | string;
   newDeckId: string;
@@ -29,19 +29,19 @@ export function readJsonDeck(value: unknown): JsonDeck | null {
 export const DECK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
 
 /** What the batch's deck block becomes after the target is applied. */
-export function resolveTarget(t: ImportTarget, json: JsonDeck | null, decks: Pick<Deck, 'id' | 'title' | 'subject'>[]): { id: string; title: string; subject: string; existing: boolean; overridden: boolean } | null {
+export function resolveTarget(t: ImportTarget, json: JsonDeck | null, decks: Pick<Deck, 'slug' | 'title' | 'subject'>[]): { id: string; title: string; subject: string; existing: boolean; overridden: boolean } | null {
   if (!json) return null;
   let id = json.id;
   let title = json.title;
-  let existing = decks.some((d) => d.id === json.id);
-  if (t.deck === 'new') { id = t.newDeckId.trim(); title = t.newDeckTitle.trim() || json.title; existing = decks.some((d) => d.id === id); }
-  else if (t.deck !== 'json') { const d = decks.find((x) => x.id === t.deck); if (d) { id = d.id; title = d.title; existing = true; } }
+  let existing = decks.some((d) => d.slug === json.id);
+  if (t.deck === 'new') { id = t.newDeckId.trim(); title = t.newDeckTitle.trim() || json.title; existing = decks.some((d) => d.slug === id); }
+  else if (t.deck !== 'json') { const d = decks.find((x) => x.slug === t.deck); if (d) { id = d.slug; title = d.title; existing = true; } }
   const subject = t.subject === 'json' ? json.subject : t.subject === 'new' ? t.newSubject.trim() : t.subject;
   return { id, title, subject, existing, overridden: id !== json.id || title !== json.title || subject !== json.subject };
 }
 
 /** Returns the batch with its deck block rewritten to the chosen target (the rest of the document is untouched). */
-export function applyTarget<T>(value: T, t: ImportTarget, decks: Pick<Deck, 'id' | 'title' | 'subject'>[]): T {
+export function applyTarget<T>(value: T, t: ImportTarget, decks: Pick<Deck, 'slug' | 'title' | 'subject'>[]): T {
   const json = readJsonDeck(value);
   const r = resolveTarget(t, json, decks);
   if (!r || !r.overridden) return value;
@@ -65,7 +65,7 @@ export function ImportTargetPanel({ value: t, onChange, json }: { value: ImportT
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => api<SubjectSummary[]>('/subjects') });
   const list = decks.data ?? [];
   const resolved = resolveTarget(t, json, list);
-  const jsonExists = !!json && list.some((d) => d.id === json.id);
+  const jsonExists = !!json && list.some((d) => d.slug === json.id);
   const set = <K extends keyof ImportTarget>(k: K, v: ImportTarget[K]) => onChange({ ...t, [k]: v });
   const problems = targetProblems(t);
 
@@ -86,7 +86,7 @@ export function ImportTargetPanel({ value: t, onChange, json }: { value: ImportT
           <Label htmlFor="import-target-deck">덱</Label>
           <Select id="import-target-deck" className="w-full" value={t.deck} onChange={(e) => set('deck', e.target.value)} data-testid="import-target-deck">
             <option value="json">{json ? `JSON의 덱: ${json.title || '(제목 없음)'} (${json.id || 'ID 없음'})${jsonExists ? ' · 기존 덱' : ' · 새 덱'}` : 'JSON의 덱 그대로'}</option>
-            {list.length ? <optgroup label="기존 덱에 추가">{list.map((d) => <option key={d.id} value={d.id}>{d.title} ({d.id}) · {d.subject}</option>)}</optgroup> : null}
+            {list.length ? <optgroup label="기존 덱에 추가">{list.map((d) => <option key={d.id} value={d.slug}>{d.title} ({d.slug}) · {d.subject}</option>)}</optgroup> : null}
             <option value="new">새 덱 만들기…</option>
           </Select>
           {t.deck === 'new' ? (

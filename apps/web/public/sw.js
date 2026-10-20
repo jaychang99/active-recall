@@ -1,9 +1,9 @@
 /* Recall Studio service worker.
  * - App shell + Next static assets: stale-while-revalidate.
  * - Navigations: network-first with an offline fallback to the cached shell.
- * - API (port 4000 / /api): never cached — study data must always be live.
+ * - API (cross-origin) and /api/* (Auth.js session, token minting): never cached — study data and auth must stay live.
  */
-const VERSION = 'rs-v3';
+const VERSION = 'rs-v4';
 const SHELL = ['/', '/decks', '/import', '/insights', '/settings', '/offline'];
 
 self.addEventListener('install', (event) => {

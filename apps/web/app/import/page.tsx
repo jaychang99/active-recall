@@ -65,7 +65,7 @@ export default function ImportPage() {
       setPlan(null);
       void qc.invalidateQueries({ queryKey: ['decks'] });
       void qc.invalidateQueries({ queryKey: ['subjects'] });
-      toast.success(`덱 "${r.deckId}" 가져오기 완료`, { description: `생성 ${r.counts.created} · 수정 ${r.counts.updated} · 동일 ${r.counts.unchanged} · 스케줄 초기화 ${r.counts.resetSchedule}` });
+      toast.success(`덱 "${r.deckSlug ?? r.deckId}" 가져오기 완료`, { description: `생성 ${r.counts.created} · 수정 ${r.counts.updated} · 동일 ${r.counts.unchanged} · 스케줄 초기화 ${r.counts.resetSchedule}` });
     },
     onError: (e: Error & { details?: { issues?: ValidationIssue[] } }) => {
       toast.error('가져오기 실패 — 아무것도 저장되지 않았습니다', { description: e.message });
@@ -91,7 +91,7 @@ export default function ImportPage() {
       setPlan(null);
       void qc.invalidateQueries({ queryKey: ['decks'] });
       void qc.invalidateQueries({ queryKey: ['subjects'] });
-      toast.success(`검증 통과 → 덱 "${r.deckId}" 가져오기 완료`, { description: `생성 ${r.counts.created} · 수정 ${r.counts.updated} · 동일 ${r.counts.unchanged} · 스케줄 초기화 ${r.counts.resetSchedule}` });
+      toast.success(`검증 통과 → 덱 "${r.deckSlug ?? r.deckId}" 가져오기 완료`, { description: `생성 ${r.counts.created} · 수정 ${r.counts.updated} · 동일 ${r.counts.unchanged} · 스케줄 초기화 ${r.counts.resetSchedule}` });
     },
     onError: (e: Error & { details?: { issues?: ValidationIssue[] } }) => {
       toast.error('원클릭 가져오기 중단 — 아무것도 저장되지 않았습니다', { description: e.message });
@@ -171,7 +171,7 @@ export default function ImportPage() {
             <Panel className="p-4" data-testid="plan">
               <div className="flex items-center gap-2 text-sm font-medium text-ok-ink"><CheckCircle2 className="h-4 w-4" /> 검증 통과 — 스키마 + 의미 검사</div>
               <dl className="mt-3 grid grid-cols-2 gap-y-1 text-sm">
-                <dt className="text-ink-3">덱</dt><dd>{plan.deck?.newTitle} <span className="text-[11px] text-ink-3">({plan.deck?.id}){plan.deck?.exists ? ' · 기존 덱 갱신' : ' · 새 덱'}</span></dd>
+                <dt className="text-ink-3">덱</dt><dd>{plan.deck?.newTitle} <span className="text-[11px] text-ink-3">({plan.deck?.slug}){plan.deck?.exists ? ' · 기존 덱 갱신' : ' · 새 덱'}</span></dd>
                 <dt className="text-ink-3">문항 수</dt><dd className="tabular">{plan.summary?.total}</dd>
                 <dt className="text-ink-3">생성 / 수정 / 동일</dt><dd className="tabular">{plan.counts.created} / {plan.counts.updated} / {plan.counts.unchanged}</dd>
                 <dt className="text-ink-3">스케줄 초기화</dt><dd className="tabular">{plan.counts.resetSchedule} <span className="text-[11px] text-ink-3">정답이 바뀐 문항</span></dd>

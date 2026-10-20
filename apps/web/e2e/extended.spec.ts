@@ -1,20 +1,19 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { API } from './helpers';
+import { API, importBatch } from './helpers';
 
 const batch = JSON.parse(readFileSync(join(__dirname, '..', '..', '..', 'examples', 'example-extended-batch.json'), 'utf8')) as { deck: { id: string }; questions: { id: string }[] };
 
 test.describe('extended question types', () => {
-  test.beforeEach(async ({ request }) => {
-    await request.delete(`${API}/decks/${batch.deck.id}?permanent=true`);
-    const res = await request.post(`${API}/imports/commit`, { data: { batch } });
-    expect(res.ok()).toBeTruthy();
-    await request.patch(`${API}/settings`, { data: { shuffleChoices: false, autoAdvanceAfterRating: true } });
+  let deckId = '';
+  test.beforeEach(async ({ api }) => {
+    deckId = await importBatch(api, batch);
+    await api.patch(`${API}/settings`, { data: { shuffleChoices: false, autoAdvanceAfterRating: true } });
   });
 
   test('all 8 extended types can be answered correctly in study mode', async ({ page }) => {
-    await page.goto(`/study/${batch.deck.id}?mode=cram`);
+    await page.goto(`/study/${deckId}?mode=cram`);
     const screen = page.getByTestId('study-screen');
     await expect(screen).toBeVisible();
     const seen = new Set<string>();
@@ -88,8 +87,8 @@ test.describe('extended question types', () => {
     await expect(page.getByTestId('session-summary')).toBeVisible();
   });
 
-  test('wrong answers show per-part feedback and never count as correct', async ({ page, request }) => {
-    await page.goto(`/study/${batch.deck.id}?mode=cram`);
+  test('wrong answers show per-part feedback and never count as correct', async ({ page, api }) => {
+    await page.goto(`/study/${deckId}?mode=cram`);
     const screen = page.getByTestId('study-screen');
     for (let i = 0; i < 8; i++) {
       await expect(screen).toHaveAttribute('data-phase', 'answering');
@@ -106,7 +105,7 @@ test.describe('extended question types', () => {
       await expect(screen).toHaveAttribute('data-phase', 'submitted');
       await page.locator('[data-rating="3"]').click();
     }
-    const q = await (await request.get(`${API}/study/queue?deckId=${batch.deck.id}&mode=cram`)).json();
+    const q = await (await api.get(`${API}/study/queue?deckId=${deckId}&mode=cram`)).json();
     expect(q.counts.total).toBe(8);
   });
 });

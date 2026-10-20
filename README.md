@@ -1,12 +1,12 @@
 # Recall Studio
 
-Local-first, keyboard-first active-recall study workstation. Import AI-generated question batches (8 question types) as JSON, study them with FSRS spaced repetition, take exams, keep per-round notes, and watch honest statistics.
+Keyboard-first active-recall study workstation. Import AI-generated question batches (8 question types) as JSON, study them with FSRS spaced repetition, take exams, keep per-round notes, and watch honest statistics. Sign in with Google (or a password-less dev login locally); every deck, review and note belongs to the signed-in user.
 
 - **Web**: Next.js 16 (App Router) · React 19 · Tailwind 4 · Radix · next-themes (light/dark)
 - **API**: NestJS 12 · Prisma 7 · MySQL 8 · [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) (no interval math reimplemented)
 - **Contract**: `packages/contracts` — JSON Schema 2020-12 + AJV validator + semantic checks + authoritative graders + shared types
 
-> ⚠️ The API has **no authentication**. It binds to `127.0.0.1` by default. Do not expose it publicly.
+> **Auth**: the web app signs users in with Auth.js (Google), mints a short-lived bearer token from the session (`GET /api/token`) and sends it on every API call. The API verifies it (`API_JWT_SECRET`, shared) and scopes every query to that user. Hosting for ~$0/month (Vercel Hobby + AWS Lambda + TiDB Cloud Starter): see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Quick start
 
@@ -15,12 +15,14 @@ Requirements: Node ≥ 22, pnpm ≥ 8, Docker (for MySQL) — or a local MySQL 8
 ```bash
 pnpm install                      # also builds packages/contracts
 pnpm db:up                        # MySQL 8.4 in Docker on 127.0.0.1:3306 (user recall / recall, db recall_studio)
-cp apps/api/.env.example apps/api/.env
+cp apps/api/.env.example apps/api/.env   # dev secrets + AUTH_DEV_LOGIN=1 (password-less local login)
 cp apps/web/.env.example apps/web/.env.local
 pnpm db:migrate                   # prisma migrate dev (creates tables; needs CREATE for the shadow DB — granted by docker/init.sql)
-pnpm db:seed                      # imports examples/example-question-batch.json (all 8 types)
+pnpm db:seed                      # imports examples/example-question-batch.json (all 8 types) for the dev user dev@local
 pnpm dev                          # web http://localhost:3000 · api http://localhost:4000 · Swagger http://localhost:4000/docs
 ```
+
+Open http://localhost:3000 → **개발용 로그인** with `dev@local` to see the seeded deck (any e-mail creates a fresh user). Google sign-in works locally too once `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` are set (redirect URI `http://localhost:3000/api/auth/callback/google`).
 
 If you already run MySQL locally, create the database/user yourself and set `DATABASE_URL` (and `TEST_DATABASE_URL` for integration tests) in `apps/api/.env`.
 
@@ -88,13 +90,22 @@ Every entity (decks, questions, FSRS card states, review logs, per-round notes, 
 ## Features
 Dashboard · decks grouped by subject · tag-like **subjects** (a question can belong to many) · 8 renderers with authoritative server grading · explanation/steps/misconceptions/sources on the same screen · FSRS rating bar with next-interval preview · undo · hints · flag / suspend / bury / reset · custom study (cram, mistakes, flagged, practice, tags, types, difficulty, cross-deck, by subject) · exam mode with timer, filters, essay rubric self-scoring, retry-wrong-only, history · Insights (daily series, due forecast, per-type accuracy with denominators, grade distribution, FSRS difficulty/stability, estimated retention labelled as an estimate, streaks, leeches, hardest questions, heatmap) · settings (daily limits, timezone, FSRS retention/interval/fuzz, shortcuts, theme) · deck JSON export (schema-valid) · full backup/restore · review CSV · command palette · shortcut help · light/dark mode.
 
+## Accounts & ownership
+
+`User` rows are created on first authenticated request (identity = provider + provider id: Google `sub`, or the e-mail for the dev login). Every other table carries `userId`; every service method takes the user id and every query is scoped by it, and `PrismaService` wraps the client in a tenant guard that throws if a tenant model is ever queried without `userId`. Deck ids are internal cuids; the batch's `deck.id` is stored as `slug`, unique per user, so two people can import the same batch. Settings, subjects and review idempotency keys are per user as well. Backups (`/settings`) export one user's data (v2); restoring a v1 or v2 backup replaces the signed-in user's data with new ids and re-mapped foreign keys.
+
+## Deployment
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): TiDB Cloud Starter (DB) → Google OAuth client → `pnpm deploy:api` (Lambda + Function URL, `infra/aws/deploy-api.sh`) → Vercel project with the `ar.jaychang99.dev` domain via a Route53 CNAME → restore the local backup into your account.
+
 ## Project layout
 ```
-apps/web            Next.js app (app/, components/, lib/shortcuts, e2e/)
-apps/api            NestJS API (src/<module>, prisma/schema.prisma, test/*.e2e-spec.ts)
+apps/web            Next.js app (app/, components/, lib/shortcuts, e2e/; auth.ts = Auth.js config, proxy.ts = signed-out redirect)
+apps/api            NestJS API (src/<module>, src/auth = bearer guard, prisma/schema.prisma, test/*.e2e-spec.ts, scripts/build-lambda.sh)
 packages/contracts  schema, validator, semantic checks, graders, types (+ tests)
+infra/aws           deploy-api.sh (Lambda + Function URL), .env.lambda.example
 examples/           example-question-batch.json (8 types)
-docs/               QUESTION_GENERATOR_PROMPT.md
+docs/               QUESTION_GENERATOR_PROMPT.md, DEPLOYMENT.md
 docker/             init.sql (dev privileges + test DB)
 ```
 
@@ -105,7 +116,8 @@ docker/             init.sql (dev privileges + test DB)
 | `pnpm lint` · `pnpm typecheck` · `pnpm build` | quality gates |
 | `pnpm test` | contracts + api unit + web unit (Vitest) |
 | `pnpm --filter @recall/api test:integration` | API integration tests against `TEST_DATABASE_URL` (migrates it, truncates between tests) |
-| `pnpm test:e2e` | Playwright (needs web on :3000 and api on :4000 with the example deck importable) |
+| `pnpm test:e2e` | Playwright (needs web on :3000 and api on :4000 with `AUTH_DEV_LOGIN=1`; signs in as `e2e@test.local`) |
+| `pnpm build:lambda` · `pnpm deploy:api` | Lambda bundle (`apps/api/lambda-dist/lambda.zip`, smoke-tested) · deploy to AWS |
 | `pnpm db:migrate` · `pnpm db:generate` · `pnpm db:seed` · `pnpm db:reset` | Prisma |
 
 ## Troubleshooting
@@ -115,4 +127,5 @@ docker/             init.sql (dev privileges + test DB)
 - **Web shows "API에 연결할 수 없습니다"**: start the API (`pnpm dev:api`) and check `NEXT_PUBLIC_API_URL`.
 
 ## API (Swagger at `/docs`)
+All routes except `GET /health` and `GET /schemas/*` require `Authorization: Bearer <api token>` and answer only with the caller's own data. `GET /auth/me` ·
 `GET /health` · `GET/PATCH /settings` · `GET /decks`, `/decks/by-subject`, `/decks/:id`, `/decks/:id/questions`, `/decks/:id/notes`, `PATCH/DELETE /decks/:id`, `POST /decks/:id/restore` · `GET /subjects`, `POST /subjects`, `PATCH/DELETE /subjects/:id`, `POST /subjects/bulk-assign` · `GET /questions/:id`, `POST /questions/:id/grade`, `GET /questions/:id/answer-key`, `GET/PUT/DELETE /questions/:id/notes[/:round]`, `GET/PUT /questions/:id/subjects` · `POST /imports/validate`, `POST /imports/commit` · `GET /study/queue`, `POST /study/sessions`, `PATCH /study/sessions/:id/end`, `GET /study/hint/:id`, `POST /study/practice` · `POST /reviews`, `POST /reviews/:id/undo`, `GET /reviews?questionId=` · `POST /cards/:id/{flag,unflag,suspend,resume,bury,unbury,reset}`, `POST /cards/bulk` · `POST /exams`, `GET /exams`, `GET /exams/:id`, `POST /exams/:id/submit` · `GET /analytics/overview`, `GET /analytics/heatmap` · `GET /exports/decks/:id/batch.json`, `GET /exports/backup.json`, `POST /exports/restore`, `GET /exports/reviews.csv` · `GET /schemas/question-batch.schema.json` · `GET /admin/entities`, `GET /admin/counts`, `GET/POST /admin/:entity`, `GET/PATCH/DELETE /admin/:entity/:id`, `POST /admin/:entity/:id/restore`, `POST /admin/:entity/bulk`, `GET /admin/:entity/options`

@@ -18,7 +18,6 @@ export type Tx = Omit<ExtendedClient, '$connect' | '$disconnect' | '$on' | '$tra
  * Nest-injectable Prisma client with the tenant guard applied. The constructor returns the extended client
  * (class/interface merge below gives it the extended type), so `this.prisma.deck.findMany(...)` is guarded.
  */
- 
 @Injectable()
 export class PrismaService implements OnModuleDestroy {
   constructor() {
@@ -32,4 +31,3 @@ export class PrismaService implements OnModuleDestroy {
 }
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface PrismaService extends ExtendedClient {}
-/* eslint-enable @typescript-eslint/no-unsafe-declaration-merging */

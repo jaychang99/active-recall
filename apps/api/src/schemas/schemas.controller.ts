@@ -9,7 +9,8 @@ function readRepoFile(...candidates: string[]): string | null {
   for (const c of candidates) if (existsSync(c)) return readFileSync(c, 'utf8');
   return null;
 }
-const ROOT = join(__dirname, '..', '..', '..', '..');
+// Monorepo checkout: <root>/apps/api/dist/schemas → four levels up. Lambda bundle: <bundle>/dist/schemas → two levels up.
+const ROOTS = [join(__dirname, '..', '..', '..', '..'), join(__dirname, '..', '..')];
 
 @ApiTags('schemas')
 @Public()
@@ -24,12 +25,12 @@ export class SchemasController {
   @Get('example-question-batch.json')
   @Header('Content-Type', 'application/json; charset=utf-8')
   example() {
-    return readRepoFile(join(ROOT, 'examples', 'example-question-batch.json')) ?? '{}';
+    return readRepoFile(...ROOTS.map((r) => join(r, 'examples', 'example-question-batch.json'))) ?? '{}';
   }
 
   @Get('question-generator-prompt.md')
   @Header('Content-Type', 'text/markdown; charset=utf-8')
   prompt() {
-    return readRepoFile(join(ROOT, 'docs', 'QUESTION_GENERATOR_PROMPT.md')) ?? '# prompt file missing';
+    return readRepoFile(...ROOTS.map((r) => join(r, 'docs', 'QUESTION_GENERATOR_PROMPT.md'))) ?? '# prompt file missing';
   }
 }

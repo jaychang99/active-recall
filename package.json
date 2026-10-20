@@ -23,10 +23,13 @@
     "db:seed": "pnpm --filter @recall/api db:seed",
     "db:up": "docker compose up -d mysql",
     "db:down": "docker compose down",
-    "postinstall": "pnpm --filter @recall/contracts build"
+    "postinstall": "pnpm --filter @recall/contracts build",
+    "build:lambda": "pnpm --filter @recall/api build:lambda",
+    "deploy:api": "bash infra/aws/deploy-api.sh"
   },
   "devDependencies": {
     "prettier": "^3.9.10",
     "typescript": "^5.9.3"
-  }
+  },
+  "packageManager": "pnpm@8.7.6"
 }

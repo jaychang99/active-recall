@@ -11,4 +11,6 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
+  // PrismaService deliberately merges a class (the DI token) with an interface (the extended client type).
+  { files: ['src/prisma/prisma.service.ts'], rules: { '@typescript-eslint/no-unsafe-declaration-merging': 'off' } },
 );

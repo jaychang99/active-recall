@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useState } from 'react';
 import { toast } from 'sonner';
 import type { Question } from '@recall/contracts';
-import { API_URL, api, type DeckDetail, type Note, type QuestionPage, type QuestionRow } from '@/lib/api';
+import { api, type DeckDetail, type Note, type QuestionPage, type QuestionRow } from '@/lib/api';
+import { downloadFromApi } from '@/lib/download';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
@@ -85,7 +86,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="덱 더 보기"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem asChild><a href={`${API_URL}/exports/decks/${d.id}/batch.json`} download={`${d.id}.json`}><Download className="h-4 w-4 text-ink-3" /> JSON 내보내기</a></DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void downloadFromApi(`/exports/decks/${d.id}/batch.json`, `${d.slug}.json`).catch((e: Error) => toast.error('내보내기 실패', { description: e.message }))}><Download className="h-4 w-4 text-ink-3" /> JSON 내보내기</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-bad-ink" onSelect={() => { if (confirm('이 덱을 삭제할까요? 복습 기록은 보존되며 복구할 수 있습니다.')) removeDeck.mutate(); }}><Trash2 className="h-4 w-4" /> 덱 삭제</DropdownMenuItem>
               </DropdownMenuContent>

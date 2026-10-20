@@ -1,4 +1,5 @@
 import type { AnswerPayload, GradeResult, PublicQuestion, ValidationIssue, QuestionType } from '@recall/contracts';
+import { clearApiToken, getApiToken, redirectToLogin } from './auth-token';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -13,6 +14,7 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** Every API call carries the signed-in user's bearer token; a 401 refreshes the token once, then goes to /login. */
 export async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json', ...(init?.headers as Record<string, string>) };
   let body = init?.body;
@@ -20,11 +22,27 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(init.json);
   }
-  let res: Response;
-  try {
-    res = await fetch(`${API_URL}${path}`, { ...init, headers, body, cache: 'no-store' });
-  } catch (e) {
-    throw new ApiRequestError(0, 'NETWORK', `API에 연결할 수 없습니다 (${API_URL}). API 서버가 실행 중인지 확인하세요.`, e);
+  const send = async (token: string | null) => {
+    try {
+      return await fetch(`${API_URL}${path}`, { ...init, headers: token ? { ...headers, Authorization: `Bearer ${token}` } : headers, body, cache: 'no-store' });
+    } catch (e) {
+      throw new ApiRequestError(0, 'NETWORK', `API에 연결할 수 없습니다 (${API_URL}). 네트워크와 API 상태를 확인하세요.`, e);
+    }
+  };
+  let token = await getApiToken();
+  if (!token) {
+    redirectToLogin();
+    throw new ApiRequestError(401, 'UNAUTHORIZED', '로그인이 필요합니다');
+  }
+  let res = await send(token);
+  if (res.status === 401) {
+    clearApiToken();
+    token = await getApiToken(true);
+    res = token ? await send(token) : res;
+    if (res.status === 401) {
+      redirectToLogin();
+      throw new ApiRequestError(401, 'UNAUTHORIZED', '세션이 만료되었습니다. 다시 로그인하세요.');
+    }
   }
   const text = await res.text();
   const ct = res.headers.get('content-type') ?? '';
@@ -39,7 +57,7 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
 // ---- Shared API types (mirrors the NestJS responses) ----
 export type CardStatus = 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
 export interface Progress { total: number; suspended: number; flagged: number; new: number; learning: number; review: number; relearning: number; dueToday: number }
-export interface Deck { id: string; title: string; description: string | null; subject: string; language: string; tags: string[]; createdAt: string; updatedAt: string; deletedAt: string | null; progress: Progress }
+export interface Deck { id: string; slug: string; title: string; description: string | null; subject: string; language: string; tags: string[]; createdAt: string; updatedAt: string; deletedAt: string | null; progress: Progress }
 export interface DeckDetail extends Deck { noteCount: number; lastReviewedAt: string | null; questionTags: { tag: string; count: number }[] }
 export interface SubjectSummary { id: string; name: string; color: string | null; description: string | null; questionCount: number; deckIds: string[]; progress: Progress; createdAt: string; updatedAt: string }
 export interface CardInfo { status: CardStatus; dueAt: string; version: number; reps: number; lapses: number; stability: number; difficulty: number; flagged: boolean; suspended: boolean; lastReviewAt: string | null; retrievability: number | null }
@@ -57,7 +75,7 @@ export interface Note { id: string; questionId: string; reviewRound: number; rev
 export interface NotesResponse { questionId: string; currentRound: number; notes: Note[] }
 export interface Settings { newCardsPerDay: number; reviewsPerDay: number; timezone: string; shortcutsEnabled: boolean; showIntervalPreview: boolean; autoAdvanceAfterRating: boolean; requestRetention: number; maximumInterval: number; enableFuzz: boolean; shuffleChoices: boolean; newCardOrder: string; dailyReviewGoal: number; leechThreshold: number; /** Partial overrides of the generator prompt's CONFIG block; null = the prompt's own values. */ promptDefaults: Record<string, unknown> | null; updatedAt: string }
 export type ImportIssue = ValidationIssue;
-export interface ImportPlan { ok: boolean; issues: ImportIssue[]; summary?: { deckId: string; title: string; total: number; byType: Record<string, number> }; deck?: { id: string; exists: boolean; currentTitle?: string; newTitle: string }; strategy: string; counts: { created: number; updated: number; unchanged: number; resetSchedule: number; deactivated: number; skipped: number }; items: { externalId: string; type: string; op: string; resetSchedule: boolean; reason?: string }[]; deactivate: string[]; committed?: boolean; deckId?: string }
+export interface ImportPlan { ok: boolean; issues: ImportIssue[]; summary?: { deckId: string; title: string; total: number; byType: Record<string, number> }; /** `id` = internal deck id (null until it exists); `slug` = the batch's deck.id */ deck?: { id: string | null; slug: string; exists: boolean; currentTitle?: string; newTitle: string }; strategy: string; counts: { created: number; updated: number; unchanged: number; resetSchedule: number; deactivated: number; skipped: number }; items: { externalId: string; type: string; op: string; resetSchedule: boolean; reason?: string }[]; deactivate: string[]; committed?: boolean; /** internal id of the imported deck (after commit) */ deckId?: string; deckSlug?: string }
 export interface QuestionRow { id: string; externalId: string; type: QuestionType; revision: number; active: boolean; deletedAt: string | null; updatedAt: string; question: PublicQuestion | (PublicQuestion & { answer?: unknown; blanks?: unknown }); card: (Omit<CardInfo, 'retrievability'> & { buriedUntil: string | null }) | null; noteCount: number; reviewCount: number; subjects: { id: string; name: string; color: string | null; source: string }[] }
 export interface QuestionPage { page: number; pageSize: number; total: number; items: QuestionRow[] }
 export interface ExamScore { objectiveTotal: number; objectiveCorrect: number; objectiveAccuracy: number | null; essayTotal: number; essaySelfScore: number; essayMaxScore: number; byType: Record<string, { total: number; correct: number }>; answered: number; durationSec: number | null }

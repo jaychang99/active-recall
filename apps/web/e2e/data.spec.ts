@@ -1,10 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { API, seedDeck } from './helpers';
+import { importBatch, seedDeck } from './helpers';
 
 test.describe('data manager & LaTeX', () => {
-  test.beforeEach(async ({ request }) => { await seedDeck(request); });
+  test.beforeEach(async ({ api }) => { await seedDeck(api); });
 
   test('data manager: filter, sort, paging, select, bulk patch, edit, soft delete + restore', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name.includes('mobile'), 'wide admin table is a desktop surface');
@@ -56,12 +56,10 @@ test.describe('data manager & LaTeX', () => {
     await expect(page.getByText(/patch: 1건 성공/)).toBeVisible();
   });
 
-  test('question payload edited through the data manager is validated; LaTeX renders everywhere', async ({ page, request }) => {
+  test('question payload edited through the data manager is validated; LaTeX renders everywhere', async ({ page, api }) => {
     const latex = JSON.parse(readFileSync(join(__dirname, '..', '..', '..', 'examples', 'example-latex-batch.json'), 'utf8')) as { deck: { id: string } };
-    await request.delete(`${API}/decks/${latex.deck.id}?permanent=true`);
-    const res = await request.post(`${API}/imports/commit`, { data: { batch: latex } });
-    expect(res.ok()).toBeTruthy();
-    await page.goto(`/study/${latex.deck.id}?mode=cram`);
+    const latexId = await importBatch(api, latex);
+    await page.goto(`/study/${latexId}?mode=cram`);
     const screen = page.getByTestId('study-screen');
     await expect(screen).toBeVisible();
     // KaTeX output present in prompt / choices / items for every card
@@ -75,7 +73,7 @@ test.describe('data manager & LaTeX', () => {
       if (i < 5) await expect(screen).toHaveAttribute('data-phase', 'answering');
     }
     // deck table + drawer render LaTeX too
-    await page.goto(`/decks/${latex.deck.id}`);
+    await page.goto(`/decks/${latexId}`);
     await expect(page.getByTestId('question-table').locator('.katex').first()).toBeVisible();
     // data manager rejects an invalid payload edit
     await page.goto('/data/questions');

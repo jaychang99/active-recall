@@ -1,6 +1,7 @@
 'use client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
+import { SessionProvider } from 'next-auth/react';
 import { useState } from 'react';
 import { Toaster } from 'sonner';
 import { ShortcutProvider } from '@/lib/shortcuts/provider';
@@ -11,18 +12,20 @@ import { PwaProvider } from '@/components/layout/pwa';
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 5_000, refetchOnWindowFocus: false } } }));
   return (
-    <QueryClientProvider client={client}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-        <SettingsProvider>
-          <PwaProvider>
-            <ShortcutGate>
-              <TooltipProvider>{children}</TooltipProvider>
-            </ShortcutGate>
-          </PwaProvider>
-        </SettingsProvider>
-        <Toaster position="bottom-right" richColors closeButton />
-      </ThemeProvider>
-    </QueryClientProvider>
+    <SessionProvider refetchOnWindowFocus={false}>
+      <QueryClientProvider client={client}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <SettingsProvider>
+            <PwaProvider>
+              <ShortcutGate>
+                <TooltipProvider>{children}</TooltipProvider>
+              </ShortcutGate>
+            </PwaProvider>
+          </SettingsProvider>
+          <Toaster position="bottom-right" richColors closeButton />
+        </ThemeProvider>
+      </QueryClientProvider>
+    </SessionProvider>
   );
 }
 

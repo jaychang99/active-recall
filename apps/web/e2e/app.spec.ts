@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { API, exampleBatch, seedDeck } from './helpers';
 
 test.describe('app surfaces', () => {
-  test.beforeEach(async ({ request }) => { await seedDeck(request); });
+  let deckId = '';
+  test.beforeEach(async ({ api }) => { ({ deckId } = await seedDeck(api)); });
 
   test('theme toggle switches dark/light and persists', async ({ page }) => {
     await page.goto('/');
@@ -60,7 +61,7 @@ test.describe('app surfaces', () => {
   });
 
   test('deck detail: answer-key review mode and question drawer', async ({ page }) => {
-    await page.goto('/decks/computer_networks_01');
+    await page.goto(`/decks/${deckId}`);
     await expect(page.getByTestId('question-table')).toBeVisible();
     await expect(page.getByTestId('question-table')).not.toContainText('인정 답안');
     await page.getByTestId('toggle-answers').click();
@@ -69,8 +70,8 @@ test.describe('app surfaces', () => {
     await expect(page.getByRole('dialog')).toContainText('DNS ↔ 도메인 이름 해석');
   });
 
-  test('exam: grades, excludes essay from objective accuracy, never touches FSRS', async ({ page, request }) => {
-    await page.goto('/exam?deckId=computer_networks_01');
+  test('exam: grades, excludes essay from objective accuracy, never touches FSRS', async ({ page, api }) => {
+    await page.goto(`/exam?deckId=${deckId}`);
     await page.getByRole('checkbox', { name: '문항 순서 섞기' }).uncheck();
     await page.getByTestId('start-exam').click();
     await expect(page.getByTestId('exam-run')).toBeVisible();
@@ -79,7 +80,7 @@ test.describe('app surfaces', () => {
     await page.getByTestId('submit-exam').click();
     await expect(page.getByTestId('exam-score')).toBeVisible();
     await expect(page.getByTestId('exam-score')).toContainText('/ 7 (서술형 제외)');
-    const cards = await (await request.get(`${API}/study/queue?deckId=computer_networks_01&mode=cram&limit=100`)).json();
+    const cards = await (await api.get(`${API}/study/queue?deckId=${deckId}&mode=cram&limit=100`)).json();
     expect(cards.items.every((i: { card: { reps: number } }) => i.card.reps === 0)).toBe(true);
   });
 
@@ -107,7 +108,7 @@ test.describe('app surfaces', () => {
 
   test('mobile: study screen has no horizontal overflow', async ({ page }, testInfo) => {
     test.skip(!testInfo.project.name.includes('mobile'), 'mobile project only');
-    await page.goto('/study/computer_networks_01?mode=cram');
+    await page.goto(`/study/${deckId}?mode=cram`);
     await expect(page.getByTestId('study-screen')).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
@@ -115,16 +116,17 @@ test.describe('app surfaces', () => {
 });
 
 test.describe('deck subject', () => {
-  test.beforeEach(async ({ request }) => { await seedDeck(request); });
-  test('replace the whole deck subject with an existing subject from the deck page', async ({ page, request }) => {
-    await request.post(`${API}/subjects`, { data: { name: 'Networking 101' } });
-    await page.goto('/decks/computer_networks_01');
+  let deckId = '';
+  test.beforeEach(async ({ api }) => { ({ deckId } = await seedDeck(api)); });
+  test('replace the whole deck subject with an existing subject from the deck page', async ({ page, api }) => {
+    await api.post(`${API}/subjects`, { data: { name: 'Networking 101' } });
+    await page.goto(`/decks/${deckId}`);
     await page.getByTestId('deck-subject-btn').click();
     await page.getByTestId('deck-subject-options').getByRole('button', { name: /Networking 101/ }).click();
     await page.getByTestId('deck-subject-apply').click();
     await expect(page.getByText(/과목을 "Networking 101"\(으\)로 변경했습니다/)).toBeVisible();
     await expect(page.getByTestId('deck-subject-btn')).toContainText('Networking 101');
-    const subjects = (await (await request.get(`${API}/subjects`)).json()) as { name: string; questionCount: number }[];
+    const subjects = (await (await api.get(`${API}/subjects`)).json()) as { name: string; questionCount: number }[];
     expect(subjects.find((s) => s.name === 'Networking 101')?.questionCount).toBe(8);
     expect(subjects.find((s) => s.name === 'Computer Networks')?.questionCount).toBe(0);
   });
