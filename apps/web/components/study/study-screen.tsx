@@ -20,6 +20,7 @@ import { ExplanationPanel, Verdict } from './explanation-panel';
 import { RATINGS, RatingBar } from './rating-bar';
 import { NotesPanel } from './notes-panel';
 import { CardInfoTable } from './card-info';
+import { CopyQuestionButtons } from './copy-question';
 import { useSettings } from '@/components/layout/settings-context';
 
 export interface StudyParams {
@@ -466,7 +467,10 @@ export function StudyScreen({ params }: { params: StudyParams }) {
           <div className="space-y-4" data-testid="result">
             <div className="flex flex-wrap items-center gap-3">
               <Verdict grade={grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} />
-              <Button size="sm" variant="ghost" onClick={() => setShowExplanation((v) => !v)} kbd="E" className="ml-auto">{showExplanation ? '해설 접기' : '해설 보기'}</Button>
+              <div className="ml-auto flex flex-wrap items-center gap-1">
+                <CopyQuestionButtons item={item} answer={answer} grade={revealedBeforeAnswer ? null : grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} hintUsed={hintUsed} />
+                <Button size="sm" variant="ghost" onClick={() => setShowExplanation((v) => !v)} kbd="E">{showExplanation ? '해설 접기' : '해설 보기'}</Button>
+              </div>
             </div>
             <ExplanationPanel explanation={grade.explanation} source={item.question.source} open={showExplanation} />
             {phase === 'submitted' ? (
