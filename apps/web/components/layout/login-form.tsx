@@ -1,5 +1,6 @@
 'use client';
 import { signIn } from 'next-auth/react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
@@ -30,7 +31,10 @@ export function LoginForm({ google, dev, next, error }: { google: boolean; dev: 
   const message = error ? (ERRORS[error] ?? '로그인에 실패했습니다. 다시 시도하세요.') : null;
   return (
     <div className="mx-auto flex min-h-[70dvh] max-w-sm flex-col justify-center py-12" data-testid="login">
-      <div className="mb-6 flex justify-center"><Wordmark /></div>
+      <div className="mb-6 flex flex-col items-center gap-2 text-center">
+        <Wordmark />
+        <p className="text-sm text-ink-3">문제 묶음을 가져와 간격 반복으로 복습하는 학습 도구</p>
+      </div>
       <Panel className="p-6">
         <h1 className="text-lg font-semibold">로그인</h1>
         <p className="mt-1 text-sm text-ink-3">덱, 복습 기록, 메모는 로그인한 계정에만 저장됩니다.</p>
@@ -55,6 +59,10 @@ export function LoginForm({ google, dev, next, error }: { google: boolean; dev: 
           {!google && !dev ? <p className="text-sm text-warn-ink">로그인 방법이 설정되지 않았습니다. <code>AUTH_GOOGLE_ID</code>/<code>AUTH_GOOGLE_SECRET</code> 또는 <code>AUTH_DEV_LOGIN=1</code>을 설정하세요.</p> : null}
         </div>
       </Panel>
+      <p className="mt-4 text-center text-xs leading-relaxed text-ink-3">
+        로그인하면 <Link href="/terms" className="underline underline-offset-4 hover:text-ink">이용약관</Link>과{' '}
+        <Link href="/privacy" className="underline underline-offset-4 hover:text-ink">개인정보처리방침</Link>에 동의하는 것으로 봅니다.
+      </p>
     </div>
   );
 }

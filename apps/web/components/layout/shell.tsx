@@ -13,6 +13,7 @@ import { ShortcutHelp } from './shortcut-help';
 import { Button } from '@/components/ui/button';
 import { useSettings } from './settings-context';
 import { UserMenu } from './user-menu';
+import { isBarePage } from '@/lib/public-pages';
 
 export const NAV = [
   { href: '/', label: '대시보드', icon: Home, key: 'g d' },
@@ -56,7 +57,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [mobileNav, setMobileNav] = useState(false);
   const { settings } = useSettings();
   const focus = pathname.startsWith('/study') || pathname.startsWith('/exam/run');
-  const bare = pathname === '/login';
+  const bare = isBarePage(pathname);
 
   useShortcuts(
     'global',
@@ -96,6 +97,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="mt-6 px-4 text-[11px] leading-relaxed text-ink-3">
             <p><kbd className="kbd">⌘K</kbd> 명령 팔레트 · <kbd className="kbd">?</kbd> 단축키</p>
+            <p className="mt-2"><Link href="/terms" className="hover:text-ink-2 hover:underline">이용약관</Link> · <Link href="/privacy" className="hover:text-ink-2 hover:underline">개인정보처리방침</Link></p>
           </div>
         </aside>
       ) : null}

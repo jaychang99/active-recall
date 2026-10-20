@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext } from 'react';
 import { api, type Settings } from '@/lib/api';
+import { isBarePage } from '@/lib/public-pages';
 
 const DEFAULTS: Settings = {
   newCardsPerDay: 20, reviewsPerDay: 200, timezone: 'Asia/Seoul', shortcutsEnabled: true, showIntervalPreview: true, autoAdvanceAfterRating: true,
@@ -14,8 +15,8 @@ const Ctx = createContext<{ settings: Settings; loaded: boolean; refresh: () => 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const pathname = usePathname();
-  // The login page has no session yet: asking the API there would only bounce back to /login.
-  const q = useQuery({ queryKey: ['settings'], queryFn: () => api<Settings>('/settings'), staleTime: 60_000, enabled: pathname !== '/login' });
+  // Login and policy pages may have no session: asking the API there would only bounce back to /login.
+  const q = useQuery({ queryKey: ['settings'], queryFn: () => api<Settings>('/settings'), staleTime: 60_000, enabled: !isBarePage(pathname) });
   return <Ctx.Provider value={{ settings: q.data ?? DEFAULTS, loaded: !!q.data, refresh: () => void qc.invalidateQueries({ queryKey: ['settings'] }) }}>{children}</Ctx.Provider>;
 }
 

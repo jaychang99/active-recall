@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { isLegalPage } from '@/lib/public-pages';
 
 /**
  * UX guard only: send signed-out visitors straight to /login instead of letting pages render and then
@@ -8,6 +9,7 @@ const SESSION_COOKIES = ['__Secure-authjs.session-token', 'authjs.session-token'
 
 export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
+  if (isLegalPage(pathname)) return NextResponse.next();
   const signedIn = SESSION_COOKIES.some((c) => req.cookies.has(c));
   if (pathname === '/login') {
     if (signedIn) return NextResponse.redirect(new URL(req.nextUrl.searchParams.get('next') || '/', req.url));
