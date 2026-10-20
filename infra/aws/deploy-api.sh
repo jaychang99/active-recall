@@ -43,7 +43,9 @@ PY
 )
 
 echo "▸ lambda $FN ($REGION)"
-if aws lambda get-function --function-name "$FN" --region "$REGION" >/dev/null 2>&1; then
+# Existence check that still surfaces permission errors (a silent AccessDenied here would wrongly take the create path).
+EXISTS=$(aws lambda get-function-configuration --function-name "$FN" --region "$REGION" --query FunctionName --output text 2>&1 || true)
+if [ "$EXISTS" = "$FN" ]; then
   # Update path: only the Lambda permissions the CI role has (no IAM / URL management needed).
   aws lambda update-function-code --function-name "$FN" --region "$REGION" --zip-file "fileb://$ZIP" --architectures arm64 >/dev/null
   aws lambda wait function-updated --function-name "$FN" --region "$REGION"
@@ -51,6 +53,7 @@ if aws lambda get-function --function-name "$FN" --region "$REGION" >/dev/null 2
   aws lambda wait function-updated --function-name "$FN" --region "$REGION"
   echo "   updated"
 else
+  case "$EXISTS" in *ResourceNotFoundException*|"") ;; *) echo "$EXISTS"; echo "cannot read function $FN (see above)"; exit 1;; esac
   echo "▸ iam role $ROLE"
   if ! aws iam get-role --role-name "$ROLE" >/dev/null 2>&1; then
     aws iam create-role --role-name "$ROLE" --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}' >/dev/null
