@@ -158,4 +158,24 @@ describe('shares', () => {
     await b.post(`/shares/received/${expired}/accept`).send({}).expect(409);
     expect(await ctx.prisma.deck.count({ where: { userId: await ctx.userId('b') } })).toBe(0);
   });
+
+  it('looks up exact addresses for the dialog: members with name, strangers, self; recent recipients', async () => {
+    await ctx.prisma.user.updateMany({ where: { email: 'b@test.local' }, data: { image: 'https://example.com/b.png' } });
+    const r = (await ctx.api.post('/shares/recipients/lookup').send({ emails: ['B@test.local', 'stranger@nowhere.dev', 'a@test.local', 'oops'] }).expect(200)).body;
+    expect(r).toEqual([
+      { email: 'b@test.local', valid: true, self: false, registered: true, name: 'User b', image: 'https://example.com/b.png' },
+      { email: 'stranger@nowhere.dev', valid: true, self: false, registered: false, name: null, image: null },
+      { email: 'a@test.local', valid: true, self: true, registered: false, name: null, image: null },
+      { email: 'oops', valid: false, self: false, registered: false, name: null, image: null },
+    ]);
+    // a prefix is not a match
+    expect((await ctx.api.post('/shares/recipients/lookup').send({ emails: ['b@test'] }).expect(200)).body[0].registered).toBe(false);
+
+    expect((await ctx.api.get('/shares/recipients/recent').expect(200)).body).toEqual([]);
+    await shareTo('stranger@nowhere.dev');
+    await shareTo('b@test.local');
+    const recent = (await ctx.api.get('/shares/recipients/recent').expect(200)).body as { email: string; registered: boolean }[];
+    expect(recent.map((x) => [x.email, x.registered])).toEqual([['b@test.local', true], ['stranger@nowhere.dev', false]]);
+    expect((await ctx.as('b').get('/shares/recipients/recent').expect(200)).body).toEqual([]);
+  });
 });

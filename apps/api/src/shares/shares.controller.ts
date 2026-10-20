@@ -16,6 +16,9 @@ class SendShareDto {
   @IsOptional() @IsString() @MaxLength(2000) message?: string;
   @IsOptional() @IsString() @MaxLength(200) title?: string;
 }
+class LookupRecipientsDto {
+  @IsArray() @ArrayMaxSize(MAX_RECIPIENTS) @IsString({ each: true }) @MaxLength(320, { each: true }) emails!: string[];
+}
 class AcceptTargetDto {
   @IsString() @MaxLength(16) group!: string;
   @IsIn(['new', 'existing']) mode!: 'new' | 'existing';
@@ -40,6 +43,15 @@ export class SharesController {
 
   @Post() send(@CurrentUser() user: AuthUser, @Body() dto: SendShareDto) {
     return this.shares.send(user, dto);
+  }
+
+  /** Name and photo for addresses that belong to members (exact match only), plus `self` for the caller's own address. */
+  @Post('recipients/lookup') @HttpCode(200) lookup(@CurrentUser() user: AuthUser, @Body() dto: LookupRecipientsDto) {
+    return this.shares.lookupRecipients(user, dto.emails);
+  }
+
+  @Get('recipients/recent') recent(@CurrentUser() user: AuthUser) {
+    return this.shares.recentRecipients(user);
   }
 
   @Get('sent') sent(@CurrentUser() user: AuthUser) {

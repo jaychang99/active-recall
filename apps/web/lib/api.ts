@@ -110,3 +110,5 @@ export interface ReceivedShare extends ShareSummary { sender: { name: string | n
 /** Frozen copy of the shared content; questions carry answer keys (they become the recipient's own). */
 export interface ShareSnapshot { kind: ShareKind; subject: string | null; decks: { originId: string; slug: string; title: string; description: string | null; subject: string; language: string; tags: string[]; questions: { originId: string; subjects: string[]; question: import('@recall/contracts').Question }[] }[] }
 export interface ShareDetail extends ReceivedShare { snapshot: ShareSnapshot; suggestions: { decks: Record<string, { id: string; title: string }>; subjects: string[] } }
+/** Share dialog lookup: exact-address match only; `self` = the caller's own address. */
+export interface RecipientInfo { email: string; valid: boolean; self: boolean; registered: boolean; name: string | null; image: string | null }

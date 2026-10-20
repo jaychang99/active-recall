@@ -55,6 +55,15 @@ export interface SendInput {
   title?: string;
 }
 
+export interface RecipientInfo {
+  email: string;
+  valid: boolean;
+  self: boolean;
+  registered: boolean;
+  name: string | null;
+  image: string | null;
+}
+
 export type AcceptStrategy = 'add_only' | 'upsert';
 export interface AcceptTarget {
   /** deck index in the snapshot ("0", "1", …) for layout "keep"; "*" for layout "merge" */
@@ -184,8 +193,32 @@ export class SharesService {
     }));
     await this.prisma.share.createMany({ data: rows });
     this.logger.log(`User ${user.id} shared ${input.kind} "${finalTitle}" (${questionCount} questions) with ${emails.length} recipient(s)`);
-    // Same answer whether or not the address has an account (no account enumeration).
     return { sent: emails.length, recipients: emails, title: finalTitle, kind: input.kind, deckCount: snapshot.decks.length, questionCount, expiresAt };
+  }
+
+  /**
+   * Exact-address lookup for the share dialog: is each address a member, and with which name and photo.
+   * Only addresses the sender typed in full are looked up (no prefix search over other people's e-mails).
+   */
+  async lookupRecipients(user: AuthUser, emails: string[]): Promise<RecipientInfo[]> {
+    const self = normalizeEmail(user.email);
+    const list = [...new Set(emails.map(normalizeEmail).filter(Boolean))].slice(0, MAX_RECIPIENTS);
+    const valid = list.filter((e) => EMAIL_RE.test(e) && e !== self);
+    const users = valid.length
+      ? await this.prisma.user.findMany({ where: { email: { in: valid }, deletedAt: null }, select: { email: true, name: true, image: true }, orderBy: { lastSeenAt: 'desc' } })
+      : [];
+    const byEmail = new Map<string, (typeof users)[number]>();
+    for (const u of users) if (!byEmail.has(normalizeEmail(u.email))) byEmail.set(normalizeEmail(u.email), u);
+    return list.map((email) => {
+      const u = byEmail.get(email);
+      return { email, valid: EMAIL_RE.test(email), self: email === self, registered: !!u, name: u?.name ?? null, image: u?.image ?? null };
+    });
+  }
+
+  /** People this user shared with before (most recent first), for suggestions. */
+  async recentRecipients(user: AuthUser): Promise<RecipientInfo[]> {
+    const rows = await this.prisma.share.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' }, take: 200, select: { recipientEmail: true } });
+    return this.lookupRecipients(user, [...new Set(rows.map((r) => r.recipientEmail))].slice(0, MAX_RECIPIENTS));
   }
 
   private async snapshot(userId: string, input: SendInput): Promise<{ snapshot: ShareSnapshot; title: string }> {
