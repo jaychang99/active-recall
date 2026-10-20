@@ -56,6 +56,10 @@ describe('explainPrompt', () => {
     const p = explainPrompt(buildQuestionExport(base));
     expect(p).toContain('자세한 해설');
     expect(p).toContain('틀렸습니다');
+    // the last request: a plain-text note the learner can paste into the question's 메모
+    expect(p).toContain("8. **메모**");
+    expect(p).toContain('plain text');
+    expect(p).toContain('```text');
     const json = p.slice(p.indexOf('```json') + 7, p.lastIndexOf('```'));
     expect(JSON.parse(json).question.data.source.document).toBe('산수 교과서');
   });
