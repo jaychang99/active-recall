@@ -17,6 +17,7 @@ import { SubjectsModule } from './subjects/subjects.module';
 import { ExportsModule } from './exports/exports.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
+import { SharesModule } from './shares/shares.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AuthModule } from './auth/auth.module';
     CardsModule,
     ExportsModule,
     AdminModule,
+    SharesModule,
   ],
   controllers: [HealthController, SchemasController],
 })

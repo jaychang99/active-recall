@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertTenantScoped, TenantScopeError, whereHasUserId } from './tenant-guard';
+import { assertTenantScoped, TenantScopeError, whereHasRecipient, whereHasUserId } from './tenant-guard';
 
 describe('tenant guard', () => {
   it('accepts userId directly, inside compound uniques and inside AND lists', () => {
@@ -33,5 +33,18 @@ describe('tenant guard', () => {
     expect(() => assertTenantScoped('CardState', 'upsert', { where: { questionId: 'q', userId: 'u1' }, create: { questionId: 'q', userId: 'u1' }, update: {} })).not.toThrow();
     expect(() => assertTenantScoped('User', 'findMany', {})).not.toThrow();
     expect(() => assertTenantScoped('User', 'create', { data: { email: 'x' } })).not.toThrow();
+  });
+
+  it('lets Share be scoped by sender (userId) or by recipient (recipientEmail), and nothing else', () => {
+    expect(whereHasRecipient({ recipientEmail: 'b@x' })).toBe(true);
+    expect(whereHasRecipient({ AND: [{ id: 's1' }, { recipientEmail: 'b@x' }] })).toBe(true);
+    expect(whereHasRecipient({ recipientEmail: '' })).toBe(false);
+    expect(whereHasRecipient({ recipientEmail: { contains: '@' } })).toBe(false);
+    expect(() => assertTenantScoped('Share', 'findMany', { where: { userId: 'u1' } })).not.toThrow();
+    expect(() => assertTenantScoped('Share', 'updateMany', { where: { id: 's1', recipientEmail: 'b@x', status: 'pending' }, data: {} })).not.toThrow();
+    expect(() => assertTenantScoped('Share', 'findFirst', { where: { id: 's1' } })).toThrow(TenantScopeError);
+    expect(() => assertTenantScoped('Share', 'findMany', { where: { recipientId: 'u2' } })).toThrow(TenantScopeError);
+    // recipientEmail scoping is Share-only
+    expect(() => assertTenantScoped('Deck', 'findMany', { where: { recipientEmail: 'b@x' } })).toThrow(TenantScopeError);
   });
 });

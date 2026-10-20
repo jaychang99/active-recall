@@ -37,14 +37,14 @@ export class SubjectsService {
     return tx.subject.create({ data: { userId, name: n } });
   }
 
-  /** Assign `name` to every question (used by imports for deck.subject). Keeps manual assignments. */
-  async assignDeckSubject(tx: Tx, userId: string, questionIds: string[], name: string) {
+  /** Assign `name` to every question (used by imports for deck.subject; shares also add `manual` ones). Keeps manual assignments. */
+  async assignDeckSubject(tx: Tx, userId: string, questionIds: string[], name: string, source: 'deck' | 'manual' = 'deck') {
     if (!questionIds.length) return;
     const subject = await this.ensure(tx, userId, name);
     const existing = await tx.questionSubject.findMany({ where: { userId, subjectId: subject.id, questionId: { in: questionIds } }, select: { questionId: true, deletedAt: true } });
     const have = new Map(existing.map((e) => [e.questionId, e.deletedAt]));
     const toCreate = questionIds.filter((id) => !have.has(id));
-    if (toCreate.length) await tx.questionSubject.createMany({ data: toCreate.map((questionId) => ({ userId, questionId, subjectId: subject.id, source: 'deck' })) });
+    if (toCreate.length) await tx.questionSubject.createMany({ data: toCreate.map((questionId) => ({ userId, questionId, subjectId: subject.id, source })) });
     const toRestore = questionIds.filter((id) => have.get(id));
     if (toRestore.length) await tx.questionSubject.updateMany({ where: { userId, subjectId: subject.id, questionId: { in: toRestore } }, data: { deletedAt: null } });
   }

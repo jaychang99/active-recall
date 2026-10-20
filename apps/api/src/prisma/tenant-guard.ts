@@ -14,6 +14,8 @@ export class TenantScopeError extends Error {
 }
 
 const TENANT_FREE_MODELS = new Set(['User']);
+/** `Share` has two parties: the sender owns the row (`userId`), the recipient reaches it by `recipientEmail`. */
+const RECIPIENT_SCOPED_MODELS = new Set(['Share']);
 const WHERE_OPERATIONS = new Set(['findFirst', 'findFirstOrThrow', 'findMany', 'findUnique', 'findUniqueOrThrow', 'update', 'updateMany', 'updateManyAndReturn', 'delete', 'deleteMany', 'count', 'aggregate', 'groupBy', 'upsert']);
 const CREATE_OPERATIONS = new Set(['create', 'createMany', 'createManyAndReturn']);
 
@@ -44,11 +46,22 @@ function dataHasUserId(data: unknown): boolean {
   return isRecord(user) && (isRecord(user.connect) || isRecord(user.connectOrCreate) || isRecord(user.create));
 }
 
+/** True when a `where` pins `recipientEmail` to one address (directly or in an AND branch). */
+export function whereHasRecipient(where: unknown): boolean {
+  if (!isRecord(where)) return false;
+  if (typeof where.recipientEmail === 'string' && where.recipientEmail.length > 0) return true;
+  const and = where.AND;
+  if (Array.isArray(and)) return and.some((w) => whereHasRecipient(w));
+  if (isRecord(and)) return whereHasRecipient(and);
+  return false;
+}
+
 /** Throws unless the operation on `model` is scoped to a tenant. Exported for unit tests. */
 export function assertTenantScoped(model: string, operation: string, args: unknown): void {
   if (TENANT_FREE_MODELS.has(model)) return;
   const a = isRecord(args) ? args : {};
-  if (WHERE_OPERATIONS.has(operation) && !whereHasUserId(a.where)) throw new TenantScopeError(model, operation, 'where.userId');
+  const scoped = (w: unknown) => whereHasUserId(w) || (RECIPIENT_SCOPED_MODELS.has(model) && whereHasRecipient(w));
+  if (WHERE_OPERATIONS.has(operation) && !scoped(a.where)) throw new TenantScopeError(model, operation, 'where.userId');
   if (operation === 'upsert' && !dataHasUserId(a.create)) throw new TenantScopeError(model, operation, 'create.userId');
   if (CREATE_OPERATIONS.has(operation)) {
     const rows = Array.isArray(a.data) ? a.data : [a.data];

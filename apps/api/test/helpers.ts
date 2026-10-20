@@ -44,12 +44,12 @@ export async function createApp() {
 
 export async function resetDb(prisma: PrismaService) {
   // children first; pooled connections make SET FOREIGN_KEY_CHECKS unreliable
-  for (const t of ['ExamResponse', 'ExamAttempt', 'PracticeLog', 'QuestionNote', 'ReviewLog', 'StudySession', 'CardState', 'QuestionSubject', 'Subject', 'Question', 'Deck', 'AppSettings', 'User']) {
+  for (const t of ['Share', 'ExamResponse', 'ExamAttempt', 'PracticeLog', 'QuestionNote', 'ReviewLog', 'StudySession', 'CardState', 'QuestionSubject', 'Subject', 'Question', 'Deck', 'AppSettings', 'User']) {
     await prisma.$executeRawUnsafe(`DELETE FROM \`${t}\``);
   }
 }
 
-export function exampleBatch(): QuestionBatch {
-  const file = join(__dirname, '..', '..', '..', 'examples', 'example-question-batch.json');
+export function exampleBatch(name = 'example-question-batch'): QuestionBatch {
+  const file = join(__dirname, '..', '..', '..', 'examples', `${name}.json`);
   return JSON.parse(readFileSync(file, 'utf8')) as QuestionBatch;
 }

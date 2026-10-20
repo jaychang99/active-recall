@@ -61,6 +61,20 @@ enum SessionMode {
   exam
 }
 
+enum ShareKind {
+  deck
+  subject
+  questions
+}
+
+// `expired` is never stored: a pending share past `expiresAt` is reported as expired.
+enum ShareStatus {
+  pending
+  accepted
+  declined
+  canceled
+}
+
 // A signed-in person. `provider` + `providerSub` identify the identity (google sub, or "dev" email locally).
 model User {
   id          String    @id @default(cuid())
@@ -86,6 +100,8 @@ model User {
   examAttempts     ExamAttempt[]
   examResponses    ExamResponse[]
   settings         AppSettings?
+  sharesSent       Share[]           @relation("SharesSent")
+  sharesAccepted   Share[]           @relation("SharesAccepted")
 
   @@unique([provider, providerSub])
   @@index([email])
@@ -101,6 +117,7 @@ model Deck {
   subject     String    @db.VarChar(200)
   language    String    @db.VarChar(35)
   tagsJson    Json
+  originId    String?   @db.VarChar(64) // root deck id this deck was copied from through a share (null = authored here)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
@@ -112,6 +129,7 @@ model Deck {
 
   @@unique([userId, slug])
   @@index([userId, subject])
+  @@index([userId, originId])
   @@index([deletedAt])
 }
 
@@ -126,6 +144,7 @@ model Question {
   answerHash  String       @db.Char(64)
   revision    Int          @default(1)
   sortIndex   Int          @default(0)
+  originId    String?      @db.VarChar(64) // root question id this was copied from through a share (matches re-shared copies on merge)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime? // soft delete (also set by replace_deck imports)
@@ -349,6 +368,36 @@ model ExamResponse {
 
   @@unique([attemptId, questionId])
   @@index([userId])
+}
+
+// A deck / subject / question selection sent to another person by e-mail. The content is frozen into
+// `snapshotJson` at send time; accepting copies it into the recipient's account (fresh learning state).
+// Owned by the sender (`userId`); the recipient side is scoped by `recipientEmail` (see tenant-guard.ts).
+model Share {
+  id             String      @id @default(cuid())
+  userId         String // sender
+  recipientEmail String      @db.VarChar(320) // lower-cased
+  recipientId    String? // the user who accepted or declined
+  kind           ShareKind
+  title          String      @db.VarChar(200)
+  message        String?     @db.Text
+  snapshotJson   Json
+  deckCount      Int
+  questionCount  Int
+  status         ShareStatus @default(pending)
+  expiresAt      DateTime
+  respondedAt    DateTime?
+  resultJson     Json? // what accepting created: { decks: [{ id, title, created, updated, skipped }] }
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  deletedAt      DateTime?
+
+  user      User  @relation("SharesSent", fields: [userId], references: [id], onDelete: Cascade)
+  recipient User? @relation("SharesAccepted", fields: [recipientId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([recipientEmail, status])
+  @@index([recipientId])
 }
 
 // One row per user (created lazily on first read).
