@@ -33,6 +33,7 @@ If you already run MySQL locally, create the database/user yourself and set `DAT
    The prompt's CONFIG block (question count, output language, difficulty and type mix, choice count, …) is filled from your saved defaults (**설정 → LLM 프롬프트 기본값**, stored as `Settings.promptDefaults`; only values that differ from the document are saved). For a one-off change, open **프롬프트** (`/prompt`, or *옵션 조정해서 복사…* in the same menu): adjust with sliders and fields, see the resulting CONFIG, copy, and optionally save those values as the new defaults.
 2. Paste it into your LLM together with a PDF / lecture notes / topic. The LLM must answer with one JSON object.
 3. Open **가져오기** (`/import`), paste the JSON, **검증** (client schema check → server schema + semantic + diff preview), then **가져오기 확정**.
+   The **다중** tab takes several `.json` files at once: set a bulk deck/subject for all of them, override either per file, and each file is validated and committed as its own transaction (conflicts such as two files feeding one deck under *replace_deck*, or the same question id in two files, are flagged before anything is sent).
 
 Re-importing the same JSON is idempotent. Changed prompt text keeps scheduling; a changed *answer key* resets that card's schedule (reported before commit). Strategies: `upsert` (default), `add_only`, `replace_deck`.
 

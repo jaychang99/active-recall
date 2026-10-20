@@ -60,7 +60,7 @@ export function targetProblems(t: ImportTarget): string[] {
   return out;
 }
 
-export function ImportTargetPanel({ value: t, onChange, json }: { value: ImportTarget; onChange: (next: ImportTarget) => void; json: JsonDeck | null }) {
+export function ImportTargetPanel({ value: t, onChange, json, heading = '가져올 위치', hint = 'JSON을 붙여넣으면 JSON의 덱·과목이 기본값으로 표시됩니다.', jsonDeckLabel = 'JSON의 덱 그대로', jsonSubjectLabel = 'JSON의 과목 그대로', disabled, testId = 'import-target' }: { value: ImportTarget; onChange: (next: ImportTarget) => void; json: JsonDeck | null; heading?: string; /** Shown instead of the resolved summary when `json` is null. */ hint?: string; jsonDeckLabel?: string; jsonSubjectLabel?: string; disabled?: boolean; testId?: string }) {
   const decks = useQuery({ queryKey: ['decks'], queryFn: () => api<Deck[]>('/decks') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => api<SubjectSummary[]>('/subjects') });
   const list = decks.data ?? [];
@@ -70,40 +70,40 @@ export function ImportTargetPanel({ value: t, onChange, json }: { value: ImportT
   const problems = targetProblems(t);
 
   return (
-    <Panel className="p-4" data-testid="import-target">
+    <Panel className="p-4" data-testid={testId}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[13px] font-semibold text-ink-2">가져올 위치</h2>
+        <h2 className="text-[13px] font-semibold text-ink-2">{heading}</h2>
         {resolved ? (
           <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-ink-3" data-testid="import-target-summary">
             <ArrowRight className="h-3.5 w-3.5" /> 덱 <span className="font-mono text-ink">{resolved.id}</span> · 과목 <span className="text-ink">{resolved.subject || '—'}</span>
             {resolved.overridden ? <Badge tone="accent">JSON과 다름</Badge> : <Badge>JSON 그대로</Badge>}
             {resolved.existing ? <Badge tone="warn">기존 덱 갱신</Badge> : <Badge tone="ok">새 덱</Badge>}
           </span>
-        ) : <span className="text-[12px] text-ink-3">JSON을 붙여넣으면 JSON의 덱·과목이 기본값으로 표시됩니다.</span>}
+        ) : <span className="text-[12px] text-ink-3">{hint}</span>}
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="import-target-deck">덱</Label>
-          <Select id="import-target-deck" className="w-full" value={t.deck} onChange={(e) => set('deck', e.target.value)} data-testid="import-target-deck">
-            <option value="json">{json ? `JSON의 덱: ${json.title || '(제목 없음)'} (${json.id || 'ID 없음'})${jsonExists ? ' · 기존 덱' : ' · 새 덱'}` : 'JSON의 덱 그대로'}</option>
+          <Label htmlFor={`${testId}-deck`}>덱</Label>
+          <Select id={`${testId}-deck`} className="w-full" value={t.deck} onChange={(e) => set('deck', e.target.value)} disabled={disabled} data-testid={`${testId}-deck`}>
+            <option value="json">{json ? `JSON의 덱: ${json.title || '(제목 없음)'} (${json.id || 'ID 없음'})${jsonExists ? ' · 기존 덱' : ' · 새 덱'}` : jsonDeckLabel}</option>
             {list.length ? <optgroup label="기존 덱에 추가">{list.map((d) => <option key={d.id} value={d.slug}>{d.title} ({d.slug}) · {d.subject}</option>)}</optgroup> : null}
             <option value="new">새 덱 만들기…</option>
           </Select>
           {t.deck === 'new' ? (
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <Input aria-label="새 덱 ID" placeholder="예: os_midterm_02" value={t.newDeckId} onChange={(e) => set('newDeckId', e.target.value)} className="font-mono text-[13px]" spellCheck={false} data-testid="import-target-new-deck-id" />
-              <Input aria-label="새 덱 제목" placeholder={json?.title ? `제목 (비우면 "${json.title}")` : '덱 제목'} value={t.newDeckTitle} onChange={(e) => set('newDeckTitle', e.target.value)} />
+              <Input aria-label="새 덱 ID" placeholder="예: os_midterm_02" value={t.newDeckId} onChange={(e) => set('newDeckId', e.target.value)} className="font-mono text-[13px]" spellCheck={false} disabled={disabled} data-testid={`${testId}-new-deck-id`} />
+              <Input aria-label="새 덱 제목" placeholder={json?.title ? `제목 (비우면 "${json.title}")` : '덱 제목'} value={t.newDeckTitle} onChange={(e) => set('newDeckTitle', e.target.value)} disabled={disabled} />
             </div>
           ) : t.deck !== 'json' ? <p className="text-[12px] text-ink-3">기존 덱의 제목은 유지되고, 문항은 선택한 덮어쓰기 전략에 따라 추가·갱신됩니다.</p> : null}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="import-target-subject">과목</Label>
-          <Select id="import-target-subject" className="w-full" value={t.subject} onChange={(e) => set('subject', e.target.value)} data-testid="import-target-subject">
-            <option value="json">{json?.subject ? `JSON의 과목: ${json.subject}` : 'JSON의 과목 그대로'}</option>
+          <Label htmlFor={`${testId}-subject`}>과목</Label>
+          <Select id={`${testId}-subject`} className="w-full" value={t.subject} onChange={(e) => set('subject', e.target.value)} disabled={disabled} data-testid={`${testId}-subject`}>
+            <option value="json">{json?.subject ? `JSON의 과목: ${json.subject}` : jsonSubjectLabel}</option>
             {subjects.data?.length ? <optgroup label="기존 과목">{subjects.data.map((s) => <option key={s.id} value={s.name}>{s.name} · {s.questionCount}문항</option>)}</optgroup> : null}
             <option value="new">새 과목 만들기…</option>
           </Select>
-          {t.subject === 'new' ? <Input aria-label="새 과목 이름" placeholder="예: 운영체제" value={t.newSubject} onChange={(e) => set('newSubject', e.target.value)} data-testid="import-target-new-subject" /> : <p className="text-[12px] text-ink-3">가져온 문항 전체에 덱 과목으로 부여됩니다. 문항별 추가 과목은 덱 상세에서 지정합니다.</p>}
+          {t.subject === 'new' ? <Input aria-label="새 과목 이름" placeholder="예: 운영체제" value={t.newSubject} onChange={(e) => set('newSubject', e.target.value)} disabled={disabled} data-testid={`${testId}-new-subject`} /> : <p className="text-[12px] text-ink-3">가져온 문항 전체에 덱 과목으로 부여됩니다. 문항별 추가 과목은 덱 상세에서 지정합니다.</p>}
         </div>
       </div>
       {problems.length ? <ul className="mt-2 space-y-0.5 text-[12px] text-warn-ink" role="status">{problems.map((p) => <li key={p}>· {p}</li>)}</ul> : null}
