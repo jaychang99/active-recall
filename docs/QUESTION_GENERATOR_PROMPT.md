@@ -21,7 +21,7 @@ COVERAGE: balanced_across_topics     # material order를 따르지 않고 범위
 DIFFICULTY_DISTRIBUTION: easy=25%, medium=50%, hard=25%
 QUESTION_TYPE_TARGET: single_choice=35%, multiple_choice=20%, true_false=10%, short_answer=10%, essay=10%, cloze=5%, ordering=5%, matching=5%   # 지침(대략). 내용에 맞지 않는 유형을 억지로 채우지 않는다
 REQUIRE_ALL_EIGHT_TYPES: true          # 핵심 8종에만 적용. 자연스러운 내용이 있을 때만
-ALLOW_EXTENDED_TYPES: true            # 확장 8종은 내용이 자연스럽게 맞을 때만 (비율 강제 없음)
+ALLOW_EXTENDED_TYPES: true            # 확장 18종(1차 8 + 2차 10)은 내용이 자연스럽게 맞을 때만 (비율 강제 없음)
 MCQ_CHOICE_COUNT: 5
 EXPLANATION_DEPTH: detailed
 MATH_NOTATION: latex                 # 수식은 $...$ / $$...$$ (KaTeX)
@@ -42,7 +42,7 @@ INCLUDE_SOURCE_LOCATORS: only_if_verifiable
 5. `prompt`와 `explanation`의 본문은 Markdown 텍스트로 작성해도 된다(REPRESENTATIONS 절의 HTML·도식·수식 허용). `<script>`·MDX·외부 스크립트 금지. 문자열 내부 줄바꿈은 JSON escape로 표기한다.
 5-1. **수식은 LaTeX로 작성한다.** 모든 텍스트 필드(`prompt`, `choices[].text`, `choices[].explanation`, `explanation.summary/steps/misconceptions`, `hint`, `answer.modelAnswer`, `rubric[].criterion/guidance`, `items[].text`, `left/right[].text`, cloze `prompt`)에서 인라인 수식은 `$...$`, 블록 수식은 `$$...$$`를 사용한다. `\(`, `\[`, `\begin{equation}` 금지. JSON 문자열 안의 백슬래시는 반드시 두 번 쓴다 (`"$\\frac{a}{b}$"`, `"$x^2 + \\sqrt{y}$"`). 수식이 아닌 달러 기호는 `\\$`로 이스케이프한다. 렌더러는 KaTeX이므로 KaTeX가 지원하는 명령만 사용한다 (`\\frac`, `\\sum`, `\\int`, `\\binom`, `\\mathbb`, `\\text{}`, `\\begin{aligned}`, `\\begin{pmatrix}` 등). `short_answer`/`cloze`의 `acceptedAnswers`는 채점용 **문자열**이므로 LaTeX가 아닌 사람이 입력하는 그대로의 표기(예: `"1/2"`, `"0.5"`, `"x^2"`)를 넣는다.
 6. **자료에 없는 페이지 번호·문서명·URL·논문·출처를 절대 꾸며내지 않는다.** 자료가 제공되면 근거를 정확히 확인한 경우에만 `source`와 `explanation.references` 사용. `general_knowledge` 모드라면 근거를 지어내지 말고 생략한다.
-7. 스키마에서 지원하는 `type` 이름(핵심 8종 + 확장 8종) 외에는 쓰지 않는다.
+7. 스키마에서 지원하는 `type` 이름(핵심 8종 + 확장 1차 8종 + 확장 2차 10종) 외에는 쓰지 않는다.
 7-1. **덱 메타데이터.** `DECK_ID`·`DECK_TITLE`·`SUBJECT`가 `auto`이면 자료(또는 `MAIN_TOPIC`)에서 정한다: `deck.id`는 내용을 요약한 영문 소문자 snake_case(예: `os_process_scheduling_01`, 2~5 단어, 끝에 `_01`), `deck.title`은 출력 언어로 쓴 사람이 읽는 제목, `deck.subject`는 과목·분야명(예: `Operating Systems`). 값이 직접 지정되어 있으면 그대로 쓴다. 어느 경우든 Import 시 그 `deck.id`가 없으면 새 덱으로 만들어지고, 있으면 그 덱에 추가·갱신된다.
 7-2. **출제 모드.** `SOURCE_MODE`가 `provided_materials`이면 첨부 자료(PDF·교안·본문)만을 근거로 출제하고, 자료가 전혀 없으면 JSON 대신 자료를 요청한다. `general_knowledge`이면 자료 없이 **`MAIN_TOPIC`과 `SUBTOPICS`에 대한 일반적·교과서적 지식**으로 출제한다: 소주제가 여럿이면 문항을 소주제별로 최대한 고르게 배분하고(각 문항의 `tags`에 해당 소주제를 넣는다), 논쟁적·버전 의존적·최신 사실은 피하며 널리 합의된 내용만 묻는다. 이 모드에서는 `source`·`references`·위치 표기를 넣지 않는다(규칙 6). `AUDIENCE_LEVEL`이 지정되면 난이도·용어·전제 지식의 기준으로 삼고, `-`이면 자료/주제가 전제하는 수준을 따른다.
 8. **출력 언어.** `OUTPUT_LANGUAGE`가 `auto`이면 첨부된 입력 자료(PDF·교안·본문)의 **대부분을 차지하는 언어**로 `prompt`, 선지, 해설, 힌트, 모범답안, 루브릭을 모두 작성한다. 자료가 여러 언어로 섞여 있으면 분량이 가장 많은 언어를 택하고, 전문 용어·고유명사·코드·수식 기호는 원문 표기를 유지한다. 자료가 없고 주제만 주어지면 주제 설명에 쓰인 언어를 따른다. `OUTPUT_LANGUAGE`에 특정 언어 코드가 있으면 그 언어를 우선한다. 선택한 언어를 `deck.language`에 BCP-47 코드로 기록한다.
@@ -98,7 +98,7 @@ A. 메커니즘 교체 — 개념 A의 정확한 메커니즘을 개념 B에 귀
 
 ## EXTENDED TYPES (선택, 자연스러울 때만)
 
-`ALLOW_EXTENDED_TYPES`가 true이면 아래 8종을 **추가로** 쓸 수 있다. 이 유형들은 핵심 8종보다 상호작용이 많고 학습 상태를 더 세밀하게 측정하지만, **절대 억지로 쓰지 않는다.** 규칙: (1) 평가하려는 내용이 그 유형의 구조와 자연스럽게 맞을 때만 사용한다. (2) 유형별 비율을 맞추려고 문제를 비틀거나, 핵심 유형으로 더 잘 묻는 내용을 확장 유형으로 바꾸지 않는다. (3) 조금이라도 어색하면 핵심 유형(`single_choice`, `short_answer` 등)으로 낸다. (4) 확장 유형은 `QUESTION_TYPE_TARGET`·`REQUIRE_ALL_EIGHT_TYPES`의 집계 대상이 아니며, 하나도 쓰지 않아도 된다.
+`ALLOW_EXTENDED_TYPES`가 true이면 아래 1차 8종과 그 다음 절의 2차 10종을 **추가로** 쓸 수 있다. 이 유형들은 핵심 8종보다 상호작용이 많고 학습 상태를 더 세밀하게 측정하지만, **절대 억지로 쓰지 않는다.** 규칙: (1) 평가하려는 내용이 그 유형의 구조와 자연스럽게 맞을 때만 사용한다. (2) 유형별 비율을 맞추려고 문제를 비틀거나, 핵심 유형으로 더 잘 묻는 내용을 확장 유형으로 바꾸지 않는다. (3) 조금이라도 어색하면 핵심 유형(`single_choice`, `short_answer` 등)으로 낸다. (4) 확장 유형은 `QUESTION_TYPE_TARGET`·`REQUIRE_ALL_EIGHT_TYPES`의 집계 대상이 아니며, 하나도 쓰지 않아도 된다.
 
 - `numeric`: 정답이 **하나의 수**이고 허용 오차가 의미 있을 때(계산·단위 변환·추정). 스템에 단위·정밀도·가정을 명시하고, 오차는 반올림 관례를 반영해 정한다. 다단계 계산이면 `stepwise`를 고려한다. `answer: {"value": 12.5, "tolerance": 0.1, "relativeTolerance": 0.02, "unit": "ms"}` — `tolerance`(절대)·`relativeTolerance`(비율)는 선택, 둘 다 없으면 정확히 일치. 학습자는 숫자만 입력한다.
 - `cloze_select`: 빈칸마다 **보기 중 고르는** 빈칸 문제. 각 빈칸의 보기들은 같은 품사·형태의 인접 개념(메커니즘 교체 짝)으로 구성해 문법만으로 걸러지지 않게 한다. 자유 입력(`cloze`)이 표기 차이로 채점이 불안정할 때 사용. `prompt`에 `{{id}}`, `blanks: [{"id":"b1","options":[{"id":"a","text":"..."}],"answerOptionId":"a"}]`. 모든 빈칸은 placeholder와 1:1. `cloze`와 같이 표 셀·HTML 표·mermaid/svg 도식 안에도 `{{id}}`를 둘 수 있다(도식 안 빈칸은 ①②③ 라벨 + 도식 아래 선택칸으로 표시; 별칭으로 한 번만 참조).
@@ -108,6 +108,19 @@ A. 메커니즘 교체 — 개념 A의 정확한 메커니즘을 개념 B에 귀
 - `recall_card`: 앞면(`prompt`)을 보고 뒷면(`back`)을 떠올리는 **순수 회상 카드**(Anki 기본형). 앞면은 정확한 단서 하나, 뒷면은 핵심 용어를 **굵게** 표시한 자기완결적 설명으로 쓰고, 뒷면에 없는 내용을 앞면이 요구하지 않게 한다. 정의·공식·핵심 키워드처럼 "설명할 수 있는가"가 중요할 때. 자동 채점은 없고 학습자가 뒷면과 비교해 스스로 표시한다. 표기가 고정된 짧은 답(용어·연도·기호)에는 `answer: {"acceptedAnswers":[...]}`를 넣어 자동 채점할 수 있다.
 - `stepwise`: **여러 단계의 계산/추론**을 단계별 단답으로 확인해 어디서 막히는지 측정. 단계는 실제 풀이 경로를 따르고, 각 단계의 답은 앞 단계가 주어졌을 때 유일하게 결정되며, 앞 단계의 `prompt`가 뒤 단계의 답을 누설하지 않게 한다. 다단계 분석 문항에 적합. `steps: [{"id":"s1","prompt":"...","acceptedAnswers":["..."],"explanation":"..."}]` 2~10단계, 각 단계 답은 문자열 정확 일치 기준.
 - `highlight`: 지문/코드를 조각(`segments`)으로 나누고 **해당하는 조각을 모두 선택**(오류 찾기, 핵심 근거 찾기). 정답이 아닌 조각도 그럴듯한 근사 표현이어야 하며, 정답 조각은 실제 오류·근거가 있는 바로 그 위치여야 한다. 조각 길이를 비슷하게 맞춰 길이가 단서가 되지 않게 한다. `segments: [{"id":"w1","text":"..."}]`(원문 순서 유지), `answer: {"segmentIds":[...]}`. 조각은 의미 단위로 나누고 정답 외 조각이 반드시 있어야 한다.
+
+### EXTENDED TYPES 2차 (선택, 자연스러울 때만 — 위와 같은 규칙)
+
+- `cloze_bank`: 빈칸을 **공용 단어 보기 풀**에서 골라 채우는 문제(용어 세트, 대응 관계, 코드/표기 조각). 보기 풀에는 **정답 외 방해 보기**를 1~3개 넣어 소거만으로 풀리지 않게 하고, 각 보기는 한 빈칸에만 쓰인다. `prompt`에 `{{id}}`(표·HTML 표·mermaid/svg 도식 안도 가능), `bank: [{"id":"k1","text":"..."}]`, `blanks: [{"id":"b1","bankItemId":"k1"}]`. 빈칸이 서로 다른 품사·형태라 보기만 보고 걸러지면 `cloze_select`가 낫다.
+- `code_cloze`: **코드 블록 안**의 키워드·API·연산자·상수를 빈칸으로. `language`(highlight.js 식별자), `code`(`{{id}}` 포함, 빈칸은 한 토큰 단위), `blanks: [{"id":"x","acceptedAnswers":["range"]}]`. 채점은 **대소문자 구분**(필요하면 `normalization.caseFold: true`), 공백은 정규화. 설명 산문 속 빈칸은 `cloze`를 쓴다.
+- `matrix`: **행 × 열 체크 격자**(대상별 속성 보유 여부, 진리표, 인접/관계 행렬, "어느 계층에서 동작하는가"). `rows`, `columns`(2~10, 저자 순서 유지), `selection: "multiple"|"single"`(single = 행마다 정확히 한 열), `answer: {"cells":[{"rowId":"r1","columnId":"c1"}]}`. 체크 없는 행도 허용(multiple). 행 단위로 채점되므로 각 행의 정답 집합이 논란 없이 정해져야 한다.
+- `numeric_grid`: **여러 수치를 표로** 묻는 문제(행렬 곱, 계산표, 통계 요약, 연표의 연도, 단위 변환표). `rows`/`columns`(`label`), `cells: [{"id":"a11","rowId":"r1","columnId":"c1","value":2,"tolerance":0.01}]`(학습자가 채우는 칸만), `given: [{"rowId","columnId","text"}]`(미리 채워 보여줄 칸), `unit`. 셀마다 `numeric`과 같은 오차 규칙. 수가 하나뿐이면 `numeric`.
+- `list_answer`: **순서 무관 N개 단답**("세 가지를 쓰시오", "5개 중 3개"). `answer: {"items":[{"id":"a","acceptedAnswers":["Atomicity","원자성"]}], "required": 3}` — `required`(기본 전부)개 이상의 서로 다른 항목을 맞히고 틀린 입력이 없어야 정답. 항목마다 동의어·번역을 `acceptedAnswers`에 넉넉히 넣는다. 항목이 하나면 `short_answer`.
+- `image_hotspot`: **그림/도식 위 위치**를 클릭(해부도·지도·회로도·UI 스크린샷·계층 다이어그램). `image: {"svg": "<svg …>", "alt": "..."}` 또는 `{"url": "https://… | data:image/png;base64,…", "alt"}` 중 하나, `regions: [{"id":"l4","label":"전송","shape":{"kind":"rect","x":0.07,"y":0.43,"w":0.87,"h":0.14}}]`(좌표는 이미지 너비·높이에 대한 **0~1 비율**; `circle`은 `cx,cy,r`, `polygon`은 `points:[[x,y],…]`), `answer: {"regionIds":["l4"]}`. 정답 영역마다 클릭 하나, 정답 밖 클릭은 오답. SVG를 직접 그릴 때는 좌표를 viewBox 기준으로 계산해 비율로 환산한다. 그림이 없어도 답할 수 있으면 `single_choice`.
+- `parsons`: **코드 줄 순서 + 들여쓰기** 배열(알고리즘 구조, 제어 흐름). `language`, `lines: [{"id":"l1","code":"def f(n):"}]`(들여쓰기 없이 한 줄씩), `distractors: [{"id":"d1","code":"result = 0"}]`(그럴듯하지만 틀린 줄 0~3개), `checkIndent`(기본 true), `answer: {"lines":[{"id":"l1","indent":0},{"id":"l2","indent":1}]}`. 첫 줄 indent 0, 들여쓰기는 한 번에 한 단계만 증가. 순서가 유일하게 정해지는 코드만(독립적인 두 문장의 순서가 바뀌어도 되는 코드는 피한다).
+- `find_and_fix`: **틀린 조각을 찾고 고친 값까지 입력**(코드 디버깅, SQL/명령어 오타, 교정, 수식 오류). `segments: [{"id":"s1","text":"..."}]`(원문 순서, 조각은 의미 단위), `answer: {"fixes":[{"segmentId":"s2","acceptedAnswers":["FROM"]}]}`. 틀린 조각 1~3개, 틀리지 않은 조각이 반드시 더 많아야 하며, 고친 값은 표기가 하나로 수렴해야 한다(여러 표기를 `acceptedAnswers`에). 찾기만 묻는다면 `highlight`.
+- `coordinate_point`: **좌표평면에 점 찍기**(함수값, 교점, 벡터 끝점, 데이터 점). `plane: {"xMin":-5,"xMax":5,"yMin":-5,"yMax":5,"xStep":1,"yStep":1,"xLabel":"x","yLabel":"y","snap":true}`, `answer: {"points":[{"id":"p1","x":2,"y":3,"tolerance":0,"label":"(2, 3)"}]}`. 격자 스냅이 켜져 있으면 정답은 격자점이어야 하고, 스냅을 끄면 `tolerance`를 준다. 점은 1~20개, 평면 안에 있어야 한다.
+- `regex_answer`: **정규식 작성**(패턴 매칭 과제). `answer: {"shouldMatch":["2024-01-31"],"shouldNotMatch":["2024-1-31"],"fullMatch":true,"flags":"i","modelPattern":"\\d{4}-\\d{2}-\\d{2}"}`. 양/음 예시는 각각 2~6개로 변별력을 갖추고(예시만 보고 정답이 유일하게 떠오르도록), `fullMatch`(전체 일치 여부)를 문제에 명시한다. 패턴은 JavaScript 문법·200자 이하·중첩 한정자(`(a+)+`)와 역참조 금지 — `modelPattern`도 같은 제약을 받으며 모든 예시를 통과해야 가져오기에 성공한다. `flags`는 `i`,`m`,`s`만.
 
 ## ADVERSARIAL SELF-REVIEW (출력 전, 모든 문항)
 
@@ -127,7 +140,7 @@ A. 메커니즘 교체 — 개념 A의 정확한 메커니즘을 개념 B에 귀
 - 복수정답 선택지 중 적어도 하나가 오답, 최소 2개 정답.
 - 클로즈 placeholder와 blanks 완전 일치. ordering은 정확한 permutation. matching은 완전한 bijection.
 - 서술형 루브릭 총합 == maxScore.
-- 확장 유형을 썼다면: 그 유형이 아니면 묻기 어려운 내용인지 다시 확인하고, 억지스러우면 핵심 유형으로 바꾼다. `cloze_select` placeholder=blanks, `categorize` categoryId 유효, `two_tier` choiceId/reasonId 유효, `highlight` segmentIds ⊂ segments.
+- 확장 유형을 썼다면: 그 유형이 아니면 묻기 어려운 내용인지 다시 확인하고, 억지스러우면 핵심 유형으로 바꾼다. `cloze_select` placeholder=blanks, `categorize` categoryId 유효, `two_tier` choiceId/reasonId 유효, `highlight` segmentIds ⊂ segments. 2차 유형: `cloze_bank` placeholder=blanks·bankItemId 유효·보기 중복 사용 없음, `code_cloze` code 안 placeholder=blanks, `matrix` cells가 rows/columns 참조(single이면 행마다 1개), `numeric_grid` cells/given이 rows/columns 참조·같은 칸 중복 없음, `list_answer` required ≤ items, `image_hotspot` url/svg 중 하나·regionIds ⊂ regions·좌표 0~1, `parsons` answer.lines = lines 순열·첫 줄 indent 0, `find_and_fix` segmentIds ⊂ segments·오류 아닌 조각 존재, `coordinate_point` 점이 평면 안, `regex_answer` modelPattern이 모든 예시 통과.
 - 시험 문제의 정답이 `prompt`/보기에 무심코 누출되지 않는지 점검.
 - 모든 LaTeX가 `$`/`$$`로 감싸져 있고, JSON 안에서 백슬래시가 이중 이스케이프되어 있으며, KaTeX 미지원 명령이 없는지 점검.
 - Mermaid/SVG/표/코드 블록을 썼다면: 그 표현이 꼭 필요한지, 문법이 유효한지(Mermaid는 첫 줄에 다이어그램 종류, SVG는 `viewBox`와 `xmlns`), 정답을 누설하지 않는지, 선지 간 표현이 균형 잡혔는지 점검.

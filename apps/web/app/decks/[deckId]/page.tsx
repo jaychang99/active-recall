@@ -212,6 +212,16 @@ function AnswerSummary({ q }: { q: Question }) {
     case 'recall_card': return <>뒷면: {q.back.slice(0, 120)}{q.answer?.acceptedAnswers?.length ? ` · 인정: ${q.answer.acceptedAnswers.join(' / ')}` : ''}</>;
     case 'stepwise': return <>{q.steps.map((s, i) => `${i + 1}) ${s.acceptedAnswers[0]}`).join(' → ')}</>;
     case 'highlight': return <>선택: {q.answer.segmentIds.map((id) => q.segments.find((s) => s.id === id)?.text).join(' / ')}</>;
+    case 'cloze_bank': return <>{q.blanks.map((b) => `${b.id}=${q.bank.find((k) => k.id === b.bankItemId)?.text}`).join(', ')}</>;
+    case 'code_cloze': return <>{q.blanks.map((b) => `${b.id}=${b.acceptedAnswers[0]}`).join(', ')}</>;
+    case 'matrix': return <>{q.rows.map((r) => `${r.text}: ${q.answer.cells.filter((c) => c.rowId === r.id).map((c) => q.columns.find((x) => x.id === c.columnId)?.text).join(', ') || '—'}`).join(' | ')}</>;
+    case 'numeric_grid': return <>{q.cells.map((c) => `${q.rows.find((r) => r.id === c.rowId)?.label}×${q.columns.find((x) => x.id === c.columnId)?.label}=${c.value}${c.tolerance ? `±${c.tolerance}` : ''}`).join(', ')}{q.unit ? ` (${q.unit})` : ''}</>;
+    case 'list_answer': return <>{q.answer.required && q.answer.required < q.answer.items.length ? `${q.answer.items.length}개 중 ${q.answer.required}개: ` : ''}{q.answer.items.map((i) => i.acceptedAnswers[0]).join(' / ')}</>;
+    case 'image_hotspot': return <>정답 영역: {q.answer.regionIds.map((id) => q.regions.find((r) => r.id === id)?.label ?? id).join(', ')}</>;
+    case 'parsons': return <>{q.answer.lines.map((l) => `${'·'.repeat(l.indent)}${q.lines.find((x) => x.id === l.id)?.code}`).join(' ⏎ ')}{q.distractors?.length ? ` (방해 줄 ${q.distractors.length}개)` : ''}</>;
+    case 'find_and_fix': return <>{q.answer.fixes.map((f) => `${q.segments.find((s) => s.id === f.segmentId)?.text} → ${f.acceptedAnswers[0]}`).join(' · ')}</>;
+    case 'coordinate_point': return <>{q.answer.points.map((p) => `${p.label ? `${p.label} ` : ''}(${p.x}, ${p.y})${p.tolerance ? `±${p.tolerance}` : ''}`).join(', ')}</>;
+    case 'regex_answer': return <>{q.answer.modelPattern ? `/${q.answer.modelPattern}/${q.answer.flags ?? ''}` : '모범 패턴 없음'} · 일치 {q.answer.shouldMatch.length}개 / 불일치 {q.answer.shouldNotMatch.length}개{q.answer.fullMatch ? ' · 전체 일치' : ''}</>;
   }
 }
 

@@ -57,13 +57,14 @@ Shortcuts never fire inside inputs, textareas or during Korean IME composition.
 ### Notes per review round
 Every question keeps one note per **review round** (round N = the N-th effective review). Press `M` while studying; earlier rounds are listed with the rating they were written under, and the deck page has a notes tab.
 
-## Question types (8 core + 8 extended)
+## Question types (8 core + 18 extended)
 
 | Core (unchanged since v1.0.0) | Extended (additive; the LLM uses them only when the content fits) |
 |---|---|
 | `single_choice`, `multiple_choice`, `true_false`, `short_answer`, `essay`, `cloze`, `ordering`, `matching` | `numeric` (value ± tolerance, unit), `cloze_select` (dropdown blanks), `statement_set` (several T/F statements), `categorize` (items → categories), `two_tier` (answer + reason), `recall_card` (front/back self-check, optional auto-grade), `stepwise` (chained sub-answers graded per step), `highlight` (select passage segments) |
+| | **Set 2:** `cloze_bank` (blanks filled from one shared word bank with distractors), `code_cloze` (blanks inside a code block, case-sensitive), `matrix` (row × column check grid, per-row grading), `numeric_grid` (table of numbers with per-cell tolerance), `list_answer` (order-independent list of short answers, "name three of five"), `image_hotspot` (click target regions on an image or inline SVG), `parsons` (order code lines and set indentation, with distractors), `find_and_fix` (select the wrong segments and type the correction), `coordinate_point` (place points on a coordinate plane), `regex_answer` (write a regex that satisfies positive/negative examples) |
 
-All sixteen are graded server-side with per-part feedback; `essay` and `recall_card` (without accepted answers) are self-assessed and excluded from auto-graded accuracy. Where position carries no meaning the view is shuffled every review round (choices, reasons, statements, category items, dropdown options, matching right column) so answers cannot be memorised by place; sequences and passages are never shuffled. `examples/example-extended-batch.json` shows one of each extended type. Existing JSON batches keep working unchanged.
+All twenty-six are graded server-side with per-part feedback; `essay` and `recall_card` (without accepted answers) are self-assessed and excluded from auto-graded accuracy. Where position carries no meaning the view is shuffled every review round (choices, reasons, statements, category items, dropdown options, matching right column, word-bank options, matrix rows; the Parsons pool is scrambled like `ordering`) so answers cannot be memorised by place; sequences and passages are never shuffled. `examples/example-extended-batch.json` and `examples/example-extended2-batch.json` show one of each extended type. Regex answers are compiled only after a safety check (≤ 200 chars, no nested quantifiers or back-references) and tested against ≤ 200-char examples, so grading stays linear-time; image regions and Parsons answers never reach the client before grading. Existing JSON batches keep working unchanged.
 
 ## Desktop app (PWA)
 

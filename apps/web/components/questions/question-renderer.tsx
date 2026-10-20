@@ -17,6 +17,16 @@ import { TwoTier } from './two-tier';
 import { RecallCard } from './recall-card';
 import { Stepwise } from './stepwise';
 import { Highlight } from './highlight';
+import { ClozeBank } from './cloze-bank';
+import { CodeCloze } from './code-cloze';
+import { Matrix } from './matrix';
+import { NumericGrid } from './numeric-grid';
+import { ListAnswer } from './list-answer';
+import { ImageHotspot } from './image-hotspot';
+import { Parsons } from './parsons';
+import { FindAndFix } from './find-and-fix';
+import { CoordinatePoint } from './coordinate-point';
+import { RegexAnswer } from './regex-answer';
 import { Markdown } from './markdown';
 import { TYPE_LABEL } from '@/lib/utils';
 
@@ -24,8 +34,8 @@ import { TYPE_LABEL } from '@/lib/utils';
 export function QuestionPrompt({ question, hidePrompt, extra }: { question: RendererProps['question']; hidePrompt?: boolean; extra?: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      {!hidePrompt && question.type !== 'cloze' && question.type !== 'cloze_select' ? <Markdown className="text-[1.125rem] md:text-[1.2rem] leading-relaxed">{question.prompt}</Markdown> : null}
-      <div className={question.type === 'cloze' || hidePrompt ? 'flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-3' : 'mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-3'}>
+      {!hidePrompt && question.type !== 'cloze' && question.type !== 'cloze_select' && question.type !== 'cloze_bank' ? <Markdown className="text-[1.125rem] md:text-[1.2rem] leading-relaxed">{question.prompt}</Markdown> : null}
+      <div className={question.type === 'cloze' || question.type === 'cloze_bank' || hidePrompt ? 'flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-3' : 'mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-3'}>
         <span className="font-medium text-ink-2">{TYPE_LABEL[question.type] ?? question.type}</span>
         <span>난이도 {question.difficulty}/5</span>
         {question.tags.slice(0, 4).map((t) => <span key={t}>#{t}</span>)}
@@ -72,5 +82,25 @@ export function QuestionRenderer(props: RendererProps) {
       return <Stepwise {...(props as RendererProps<Extract<RendererProps['question'], { type: 'stepwise' }>>)} />;
     case 'highlight':
       return <Highlight {...(props as RendererProps<Extract<RendererProps['question'], { type: 'highlight' }>>)} />;
+    case 'cloze_bank':
+      return <ClozeBank {...(props as RendererProps<Extract<RendererProps['question'], { type: 'cloze_bank' }>>)} />;
+    case 'code_cloze':
+      return <CodeCloze {...(props as RendererProps<Extract<RendererProps['question'], { type: 'code_cloze' }>>)} />;
+    case 'matrix':
+      return <Matrix {...(props as RendererProps<Extract<RendererProps['question'], { type: 'matrix' }>>)} />;
+    case 'numeric_grid':
+      return <NumericGrid {...(props as RendererProps<Extract<RendererProps['question'], { type: 'numeric_grid' }>>)} />;
+    case 'list_answer':
+      return <ListAnswer {...(props as RendererProps<Extract<RendererProps['question'], { type: 'list_answer' }>>)} />;
+    case 'image_hotspot':
+      return <ImageHotspot {...(props as RendererProps<Extract<RendererProps['question'], { type: 'image_hotspot' }>>)} />;
+    case 'parsons':
+      return <Parsons {...(props as RendererProps<Extract<RendererProps['question'], { type: 'parsons' }>>)} />;
+    case 'find_and_fix':
+      return <FindAndFix {...(props as RendererProps<Extract<RendererProps['question'], { type: 'find_and_fix' }>>)} />;
+    case 'coordinate_point':
+      return <CoordinatePoint {...(props as RendererProps<Extract<RendererProps['question'], { type: 'coordinate_point' }>>)} />;
+    case 'regex_answer':
+      return <RegexAnswer {...(props as RendererProps<Extract<RendererProps['question'], { type: 'regex_answer' }>>)} />;
   }
 }

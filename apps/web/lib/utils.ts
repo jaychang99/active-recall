@@ -45,6 +45,16 @@ export const TYPE_LABEL: Record<string, string> = {
   recall_card: '회상 카드',
   stepwise: '단계별',
   highlight: '구간 선택',
+  cloze_bank: '단어 보기 빈칸',
+  code_cloze: '코드 빈칸',
+  matrix: '격자 체크',
+  numeric_grid: '수치 표',
+  list_answer: '목록 단답',
+  image_hotspot: '이미지 위치',
+  parsons: '코드 순서',
+  find_and_fix: '찾아 고치기',
+  coordinate_point: '좌표 점찍기',
+  regex_answer: '정규식',
 };
 
 export const STATUS_LABEL: Record<string, string> = { NEW: '새 카드', LEARNING: '학습 중', REVIEW: '복습', RELEARNING: '재학습' };

@@ -234,6 +234,16 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       case 'recall_card': return (p.text ?? '').trim().length > 0 || typeof p.selfCorrect === 'boolean';
       case 'stepwise': return Object.values(p.answers).some((v) => v.trim().length > 0);
       case 'highlight': return p.segmentIds.length > 0;
+      case 'cloze_bank': return Object.values(p.blanks).some(Boolean);
+      case 'code_cloze': return Object.values(p.blanks).some((v) => v.trim().length > 0);
+      case 'matrix': return p.cells.length > 0;
+      case 'numeric_grid': return Object.values(p.values).some((v) => v !== null && v !== undefined);
+      case 'list_answer': return p.entries.some((e) => e.trim().length > 0);
+      case 'image_hotspot': return p.points.length > 0;
+      case 'parsons': return p.lines.length > 0;
+      case 'find_and_fix': return p.fixes.length > 0;
+      case 'coordinate_point': return p.points.length > 0;
+      case 'regex_answer': return p.pattern.trim().length > 0;
     }
   };
 
