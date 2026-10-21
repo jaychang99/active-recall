@@ -9,7 +9,7 @@ import { api, type Deck, type ImportPlan, type SubjectSummary } from '@/lib/api'
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input, Select } from '@/components/ui/input';
+import { Input, Label, Select } from '@/components/ui/input';
 import { Panel } from '@/components/ui/misc';
 import { ProgressBar, Spinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
@@ -148,36 +148,60 @@ export function MultiImport() {
 
   return (
     <div className="space-y-4">
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={(e) => { e.preventDefault(); setDrag(false); if (!busy) void addFiles(e.dataTransfer.files); }}
-        className={cn('flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-dashed px-4 py-4 transition-colors', drag ? 'border-accent bg-accent-soft/30' : 'border-line-strong')}
-        data-testid="multi-dropzone"
-      >
-        <div className="text-sm text-ink-2">
-          <p className="font-medium text-ink">.json 파일 여러 개를 여기에 끌어다 놓거나 추가하세요.</p>
-          <p className="mt-0.5 text-[12px] text-ink-3">파일마다 5 MB / 1,000문항 한도. 파일은 각각 별도 트랜잭션으로 저장됩니다.</p>
+      <div className="flex flex-wrap items-center gap-2" data-testid="multi-import-actions">
+        <Button loading={running === 'both'} progress={percentage} loadingLabel={`${work.phase} ${work.completed}/${work.total}개…`} variant="primary" size="lg" className="max-sm:w-full" onClick={() => void run('both')} disabled={!canRun} data-testid="multi-validate-and-commit-btn" title="모든 파일을 검증한 뒤 바로 가져옵니다">{running === 'both' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />} 검증 + 가져오기 (원클릭)</Button>
+        <Button loading={running === 'validate'} progress={percentage} loadingLabel={`${work.phase} ${work.completed}/${work.total}개…`} onClick={() => void run('validate')} disabled={!canRun} data-testid="multi-validate-btn">{running === 'validate' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} 전체 검증</Button>
+        <Button loading={running === 'commit'} progress={percentage} loadingLabel={`${work.phase} ${work.completed}/${work.total}개…`} onClick={() => void run('commit')} disabled={busy || validCount === 0 || rowProblems.length > 0} data-testid="multi-commit-btn">{running === 'commit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} 검증 통과한 {validCount}개 가져오기</Button>
+        <span className="ml-auto text-[12px] text-ink-3 tabular">{rows.length}개 파일 · {rows.reduce((n, r) => n + r.questionCount, 0)}문항{doneCount ? ` · 완료 ${doneCount}` : ''}</span>
+      </div>
+      {busy ? <Panel className="space-y-3 p-4" role="status" aria-live="polite" aria-busy="true" data-testid="multi-progress"><div className="flex items-center gap-2 text-sm"><Spinner className="text-accent" /><span>파일 {work.phase} 중… {work.completed} / {work.total}개 완료</span></div><ProgressBar value={percentage} label={`파일 ${work.phase} 진행률`} /><p className="text-[12px] text-ink-3">파일을 순서대로 처리하고 있습니다. 완료할 때까지 이 화면에서 기다려 주세요.</p></Panel> : null}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); if (!busy) void addFiles(e.dataTransfer.files); }}
+          className={cn('flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-dashed px-4 py-4 transition-colors', drag ? 'border-accent bg-accent-soft/30' : 'border-line-strong')}
+          data-testid="multi-dropzone"
+        >
+          <div className="text-sm text-ink-2">
+            <p className="font-medium text-ink">.json 파일 여러 개를 여기에 끌어다 놓거나 추가하세요.</p>
+            <p className="mt-0.5 text-[12px] text-ink-3">파일마다 5 MB / 1,000문항 한도. 파일은 각각 별도 트랜잭션으로 저장됩니다.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => fileRef.current?.click()} disabled={busy} data-testid="multi-add-files"><FileUp className="h-4 w-4" /> 파일 추가</Button>
+            <input ref={fileRef} type="file" multiple accept="application/json,.json" className="hidden" data-testid="multi-file-input" onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
+            <Button variant="ghost" onClick={() => void addClipboard()} disabled={busy}><ClipboardPaste className="h-4 w-4" /> 클립보드에서 추가</Button>
+            {rows.length ? <Button variant="ghost" onClick={() => setRows([])} disabled={busy}><Trash2 className="h-4 w-4" /> 모두 비우기</Button> : null}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => fileRef.current?.click()} disabled={busy} data-testid="multi-add-files"><FileUp className="h-4 w-4" /> 파일 추가</Button>
-          <input ref={fileRef} type="file" multiple accept="application/json,.json" className="hidden" data-testid="multi-file-input" onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
-          <Button variant="ghost" onClick={() => void addClipboard()} disabled={busy}><ClipboardPaste className="h-4 w-4" /> 클립보드에서 추가</Button>
-          {rows.length ? <Button variant="ghost" onClick={() => setRows([])} disabled={busy}><Trash2 className="h-4 w-4" /> 모두 비우기</Button> : null}
+
+        <div className="min-w-0 space-y-4" data-testid="multi-import-settings">
+          <ImportTargetPanel
+            value={bulk}
+            onChange={(next) => { setBulk(next); resetResults(); }}
+            json={null}
+            heading="일괄 설정 — 모든 파일의 기본 덱·과목"
+            hint="파일별로 아래 표에서 따로 지정하면 그 파일은 일괄 설정 대신 그 값을 씁니다."
+            jsonDeckLabel="각 파일 JSON의 덱 그대로"
+            jsonSubjectLabel="각 파일 JSON의 과목 그대로"
+            disabled={busy}
+            testId="multi-target"
+          />
+          <Panel className="space-y-3 p-4">
+            <Label htmlFor="multi-import-strategy">덮어쓰기 전략</Label>
+            <Select id="multi-import-strategy" className="w-full" value={strategy} onChange={(e) => { setStrategy(e.target.value as Strategy); resetResults(); }} disabled={busy}>
+              <option value="upsert">업서트 — 새 문항 추가, 변경된 문항 갱신 (기본)</option>
+              <option value="add_only">추가만 — 기존 문항은 건드리지 않음</option>
+              <option value="replace_deck">덱 교체 — JSON에 없는 기존 문항은 비활성화</option>
+            </Select>
+            <label className="flex items-start gap-2 text-[13px] text-ink-2">
+              <Checkbox checked={allOrNothing} onCheckedChange={(v) => setAllOrNothing(v === true)} disabled={busy} aria-label="하나라도 실패하면 전체 중단" />
+              원클릭: 한 파일이라도 검증 실패 시 아무것도 저장 안 함
+            </label>
+            {strategy === 'replace_deck' ? <p className="text-[12px] text-warn-ink">덱 교체: JSON에 없는 기존 문항은 비활성화됩니다 (복습 기록은 보존).</p> : null}
+          </Panel>
         </div>
       </div>
-
-      <ImportTargetPanel
-        value={bulk}
-        onChange={(next) => { setBulk(next); resetResults(); }}
-        json={null}
-        heading="일괄 설정 — 모든 파일의 기본 덱·과목"
-        hint="파일별로 아래 표에서 따로 지정하면 그 파일은 일괄 설정 대신 그 값을 씁니다."
-        jsonDeckLabel="각 파일 JSON의 덱 그대로"
-        jsonSubjectLabel="각 파일 JSON의 과목 그대로"
-        disabled={busy}
-        testId="multi-target"
-      />
 
       <Panel className="min-w-0 overflow-x-auto" data-testid="multi-rows" role="region" aria-label="파일별 가져오기 설정" tabIndex={0}>
         {rows.length === 0 ? (
@@ -208,26 +232,6 @@ export function MultiImport() {
           {conflicts.map((c, i) => <p key={i} className="flex items-start gap-1.5 text-warn-ink"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {c.message}</p>)}
         </Panel>
       ) : null}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={strategy} onChange={(e) => { setStrategy(e.target.value as Strategy); resetResults(); }} disabled={busy} aria-label="덮어쓰기 전략">
-          <option value="upsert">업서트 — 새 문항 추가, 변경된 문항 갱신 (기본)</option>
-          <option value="add_only">추가만 — 기존 문항은 건드리지 않음</option>
-          <option value="replace_deck">덱 교체 — JSON에 없는 기존 문항은 비활성화</option>
-        </Select>
-        <label className="flex items-center gap-2 text-[13px] text-ink-2">
-          <Checkbox checked={allOrNothing} onCheckedChange={(v) => setAllOrNothing(v === true)} disabled={busy} aria-label="하나라도 실패하면 전체 중단" />
-          원클릭: 한 파일이라도 검증 실패 시 아무것도 저장 안 함
-        </label>
-        <span className="ml-auto text-[12px] text-ink-3 tabular">{rows.length}개 파일 · {rows.reduce((n, r) => n + r.questionCount, 0)}문항{doneCount ? ` · 완료 ${doneCount}` : ''}</span>
-        <div className="flex basis-full flex-wrap gap-2">
-          <Button loading={running === 'validate'} progress={percentage} loadingLabel={`${work.phase} ${work.completed}/${work.total}개…`} onClick={() => void run('validate')} disabled={!canRun} data-testid="multi-validate-btn">{running === 'validate' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} 전체 검증</Button>
-          <Button loading={running === 'commit'} progress={percentage} loadingLabel={`${work.phase} ${work.completed}/${work.total}개…`} variant="primary" onClick={() => void run('commit')} disabled={busy || validCount === 0 || rowProblems.length > 0} data-testid="multi-commit-btn">{running === 'commit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} 검증 통과한 {validCount}개 가져오기</Button>
-          <Button loading={running === 'both'} progress={percentage} loadingLabel={`${work.phase} ${work.completed}/${work.total}개…`} variant="soft" onClick={() => void run('both')} disabled={!canRun} data-testid="multi-validate-and-commit-btn" title="모든 파일을 검증한 뒤 바로 가져옵니다">{running === 'both' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />} 검증 + 가져오기 (원클릭)</Button>
-        </div>
-      </div>
-
-      {busy ? <Panel className="space-y-3 p-4" role="status" aria-live="polite" aria-busy="true" data-testid="multi-progress"><div className="flex items-center gap-2 text-sm"><Spinner className="text-accent" /><span>파일 {work.phase} 중… {work.completed} / {work.total}개 완료</span></div><ProgressBar value={percentage} label={`파일 ${work.phase} 진행률`} /><p className="text-[12px] text-ink-3">파일을 순서대로 처리하고 있습니다. 완료할 때까지 이 화면에서 기다려 주세요.</p></Panel> : null}
 
       {doneCount ? (
         <Panel className="border-ok/40 p-4 text-sm" data-testid="multi-report">

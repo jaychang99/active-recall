@@ -8,7 +8,7 @@ import { parseBatchJson, validateBatch, type ValidationIssue } from '@recall/con
 import { api, type Deck, type ImportPlan } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select } from '@/components/ui/input';
+import { Label, Select } from '@/components/ui/input';
 import { Panel } from '@/components/ui/misc';
 import { TYPE_LABEL, cn, copyToClipboard } from '@/lib/utils';
 import { DEFAULT_TARGET, ImportTargetPanel, applyTarget, readJsonDeck, targetProblems, type ImportTarget } from './import-target';
@@ -111,8 +111,22 @@ export function SingleImport() {
   const busy = validate.isPending || commit.isPending || validateAndCommit.isPending;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="flex flex-wrap items-center gap-2 lg:col-span-2" data-testid="import-actions">
+        <Button loading={validateAndCommit.isPending} loadingLabel="검증 + 저장 중…" variant="primary" size="lg" className="max-sm:w-full" onClick={() => validateAndCommit.mutate()} disabled={!text.trim() || busy || !!report || targetIssues.length > 0} data-testid="validate-and-commit-btn" title="검증을 통과하면 바로 가져옵니다 (⌘/Ctrl+Enter)"><Zap className="h-4 w-4" /> 검증 + 가져오기 (원클릭)</Button>
+        <Button loading={validate.isPending} onClick={() => validate.mutate()} disabled={!text.trim() || busy || targetIssues.length > 0} data-testid="validate-btn"><CheckCircle2 className="h-4 w-4" /> {validate.isPending ? '검증 중…' : '검증'}</Button>
+        <Button loading={commit.isPending} onClick={() => commit.mutate()} disabled={!plan?.ok || busy || !!report} data-testid="commit-btn"><Play className="h-4 w-4" /> {commit.isPending ? '저장 중…' : '가져오기 확정'}</Button>
+        <span className="ml-auto text-[12px] text-ink-3 tabular">{(new TextEncoder().encode(text).length / 1024).toFixed(1)} KB · 한도 5 MB / 1,000문항</span>
+      </div>
       <div className="min-w-0 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button disabled={busy} onClick={() => navigator.clipboard.readText().then((t) => { setText(t); setPlan(null); setReport(null); }).catch(() => toast.error('클립보드를 읽을 수 없습니다'))}><ClipboardPaste className="h-4 w-4" /> 클립보드에서 붙여넣기</Button>
+          <Button disabled={busy} onClick={() => fileRef.current?.click()}><FileUp className="h-4 w-4" /> 파일 열기</Button>
+          <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f && !busy) void loadFile(f); e.target.value = ''; }} />
+          <Button disabled={busy} variant="ghost" onClick={() => { setText(JSON.stringify(exampleBatch, null, 2)); setPlan(null); setReport(null); setClientIssues(null); }} data-testid="load-example">8종 예제 불러오기</Button>
+          <Button variant="ghost" onClick={() => void copyToClipboard(JSON.stringify(exampleBatch, null, 2)).then(() => toast.success('예제 JSON 복사됨'))}>예제 복사</Button>
+          <Button variant="ghost" onClick={() => void copyToClipboard(schemaText()).then(() => toast.success('스키마 복사됨'))}>스키마 복사</Button>
+        </div>
         <div
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
@@ -130,30 +144,19 @@ export function SingleImport() {
             className="h-[min(420px,45svh)] min-h-56 w-full resize-y rounded-lg bg-elevated p-3 sm:p-4 font-mono text-[13px] leading-relaxed outline-none"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button disabled={busy} onClick={() => navigator.clipboard.readText().then((t) => { setText(t); setPlan(null); setReport(null); }).catch(() => toast.error('클립보드를 읽을 수 없습니다'))}><ClipboardPaste className="h-4 w-4" /> 클립보드에서 붙여넣기</Button>
-          <Button disabled={busy} onClick={() => fileRef.current?.click()}><FileUp className="h-4 w-4" /> 파일 열기</Button>
-          <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f && !busy) void loadFile(f); e.target.value = ''; }} />
-          <Button disabled={busy} variant="ghost" onClick={() => { setText(JSON.stringify(exampleBatch, null, 2)); setPlan(null); setReport(null); setClientIssues(null); }} data-testid="load-example">8종 예제 불러오기</Button>
-          <Button variant="ghost" onClick={() => void copyToClipboard(JSON.stringify(exampleBatch, null, 2)).then(() => toast.success('예제 JSON 복사됨'))}>예제 복사</Button>
-          <Button variant="ghost" onClick={() => void copyToClipboard(schemaText()).then(() => toast.success('스키마 복사됨'))}>스키마 복사</Button>
-        </div>
+      </div>
+
+      <div className="min-w-0 space-y-4" data-testid="import-settings">
         <ImportTargetPanel disabled={busy} value={target} onChange={(next) => { setTarget(next); setPlan(null); setReport(null); }} json={jsonDeck} />
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="order-last ml-auto text-[12px] text-ink-3 tabular">{(new TextEncoder().encode(text).length / 1024).toFixed(1)} KB · 한도 5 MB / 1,000문항</span>
-          <Select disabled={busy} value={strategy} onChange={(e) => { setStrategy(e.target.value as Strategy); setPlan(null); }} aria-label="덮어쓰기 전략">
+        <Panel className="space-y-2 p-4">
+          <Label htmlFor="single-import-strategy">덮어쓰기 전략</Label>
+          <Select id="single-import-strategy" className="w-full" disabled={busy} value={strategy} onChange={(e) => { setStrategy(e.target.value as Strategy); setPlan(null); }}>
             <option value="upsert">업서트 — 새 문항 추가, 변경된 문항 갱신 (기본)</option>
             <option value="add_only">추가만 — 기존 문항은 건드리지 않음</option>
             <option value="replace_deck">덱 교체 — JSON에 없는 기존 문항은 비활성화</option>
           </Select>
-          {strategy === 'replace_deck' ? <p className="order-last basis-full text-[12px] text-warn-ink">덱 교체: JSON에 없는 기존 문항은 비활성화됩니다 (복습 기록은 보존).</p> : null}
-          <Button loading={validate.isPending} variant={plan?.ok ? 'secondary' : 'primary'} onClick={() => validate.mutate()} disabled={!text.trim() || busy || targetIssues.length > 0} data-testid="validate-btn"><CheckCircle2 className="h-4 w-4" /> {validate.isPending ? '검증 중…' : '검증'}</Button>
-          <Button loading={commit.isPending} variant="primary" onClick={() => commit.mutate()} disabled={!plan?.ok || busy || !!report} data-testid="commit-btn"><Play className="h-4 w-4" /> {commit.isPending ? '저장 중…' : '가져오기 확정'}</Button>
-          <Button loading={validateAndCommit.isPending} variant="soft" onClick={() => validateAndCommit.mutate()} disabled={!text.trim() || busy || !!report || targetIssues.length > 0} data-testid="validate-and-commit-btn" title="검증을 통과하면 바로 가져옵니다 (⌘/Ctrl+Enter)"><Zap className="h-4 w-4" /> {validateAndCommit.isPending ? '검증 + 저장 중…' : '검증 + 가져오기 (원클릭)'}</Button>
-        </div>
-      </div>
-
-      <div className="min-w-0 space-y-4">
+          {strategy === 'replace_deck' ? <p className="text-[12px] text-warn-ink">덱 교체: JSON에 없는 기존 문항은 비활성화됩니다 (복습 기록은 보존).</p> : null}
+        </Panel>
         {parseError ? <Panel className="border-bad/40 p-4 text-sm"><div className="flex items-center gap-2 font-medium text-bad-ink"><XCircle className="h-4 w-4" /> JSON 파싱 오류</div><p className="mt-1 text-ink-2">{parseError}</p></Panel> : null}
         {issues.length ? (
           <Panel className="border-bad/40 p-4" data-testid="issues">
@@ -197,14 +200,15 @@ export function SingleImport() {
         ) : null}
         {!plan && !report && !issues.length && !parseError ? (
           <Panel className="p-4 text-sm text-ink-2">
-            <h3 className="mb-2 font-medium text-ink">작업 순서</h3>
-            <ol className="list-decimal space-y-1 pl-5">
-              <li>상단 <strong>LLM 프롬프트</strong> 버튼으로 프롬프트+스키마를 복사해 LLM에 붙여넣고 자료(PDF·교안·주제)를 첨부합니다.</li>
-              <li>LLM이 출력한 JSON 전체를 왼쪽에 붙여넣습니다. <strong>가져올 위치</strong>에 JSON의 덱·과목이 기본값으로 뜨며, 기존 덱·과목을 고르거나 새로 만들어 바꿀 수 있습니다.</li>
-              <li><strong>검증</strong>: 브라우저에서 즉시 스키마 검사 → 서버에서 스키마·의미(참조 무결성)·변경 미리보기.</li>
-              <li><strong>가져오기 확정</strong>: 트랜잭션으로 저장됩니다. 같은 JSON을 다시 가져와도 중복되지 않습니다.</li>
-              <li>급하면 <strong>검증 + 가져오기 (원클릭)</strong> 또는 입력창에서 ⌘/Ctrl+Enter: 검증을 통과할 때만 바로 저장됩니다.</li>
-            </ol>
+            <details>
+              <summary className="cursor-pointer font-medium text-ink">가져오기 도움말</summary>
+              <ol className="mt-2 list-decimal space-y-1 pl-5">
+                <li>상단 <strong>LLM 프롬프트</strong> 버튼으로 프롬프트+스키마를 복사해 LLM에 붙여넣고 자료(PDF·교안·주제)를 첨부합니다.</li>
+                <li>LLM이 출력한 JSON 전체를 입력창에 붙여넣습니다. <strong>가져올 위치</strong>에 JSON의 덱·과목이 기본값으로 뜨며, 기존 덱·과목을 고르거나 새로 만들어 바꿀 수 있습니다.</li>
+                <li>상단 <strong>검증 + 가져오기 (원클릭)</strong> 또는 입력창에서 ⌘/Ctrl+Enter를 누르면 검증을 통과할 때만 바로 저장됩니다. 같은 JSON을 다시 가져와도 중복되지 않습니다.</li>
+                <li>변경 내용을 먼저 보려면 <strong>검증</strong>으로 미리보기를 확인한 뒤 <strong>가져오기 확정</strong>을 누르세요.</li>
+              </ol>
+            </details>
           </Panel>
         ) : null}
       </div>

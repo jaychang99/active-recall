@@ -428,6 +428,52 @@ test('prompt auto count, saved defaults, source switching, custom fields and lon
   await page.screenshot({ path: `/tmp/recall-prompt-${page.viewportSize()!.width}.png`, fullPage: true });
 });
 
+test('primary import actions are above the input, settings sit alongside on desktop, and one click validates before saving', async ({ page }) => {
+  const requests: string[] = [];
+  await page.route('**/imports/*', async (route) => {
+    const operation = new URL(route.request().url()).pathname.split('/').pop()!;
+    requests.push(operation);
+    return route.fulfill({ json: {
+      ok: true, issues: [], items: [], strategy: 'upsert', deactivate: [], deckId: 'imported-deck', deckSlug: batch.deck.id,
+      deck: { id: null, slug: batch.deck.id, exists: false, newTitle: batch.deck.title },
+      summary: { total: batch.questions.length, byType: {} },
+      counts: { created: batch.questions.length, updated: 0, unchanged: 0, resetSchedule: 0, deactivated: 0, skipped: 0 },
+    } });
+  });
+  await page.goto('/import');
+  for (const multi of [false, true]) {
+    if (multi) await page.getByTestId('tab-multi').click();
+    const primary = page.getByTestId(multi ? 'multi-validate-and-commit-btn' : 'validate-and-commit-btn');
+    const input = page.getByTestId(multi ? 'multi-dropzone' : 'import-textarea');
+    const settings = page.getByTestId(multi ? 'multi-import-settings' : 'import-settings');
+    await expect(primary).toBeInViewport();
+    const buttonBox = (await primary.boundingBox())!;
+    const inputBox = (await input.boundingBox())!;
+    const settingsBox = (await settings.boundingBox())!;
+    expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(inputBox.y);
+    if (page.viewportSize()!.width >= 1024) {
+      expect(settingsBox.x).toBeGreaterThanOrEqual(inputBox.x + inputBox.width);
+      expect(settingsBox.y + settingsBox.height).toBeLessThan(page.viewportSize()!.height);
+    } else {
+      expect(settingsBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height);
+    }
+    if (multi) {
+      await page.getByTestId('multi-file-input').setInputFiles({ name: 'batch.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(batch)) });
+    } else {
+      await page.getByTestId('load-example').click();
+    }
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expectNoOverflow(page);
+    await page.screenshot({ path: `/tmp/recall-import-${multi ? 'multi' : 'single'}-actions-${page.viewportSize()!.width}.png` });
+    await expect(primary).toBeEnabled();
+    await primary.click();
+    await expect(page.getByTestId(multi ? 'multi-report' : 'report')).toBeVisible();
+    expect(requests).toEqual(multi ? ['validate', 'commit', 'validate', 'commit'] : ['validate', 'commit']);
+    await expect(primary).toBeDisabled();
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+});
+
 test('single and multi import contain long text, selects and file tables', async ({ page, isMobile }) => {
   await page.goto('/import');
   await page.getByTestId('load-example').click();
@@ -469,6 +515,35 @@ test('typing, answer reveal, grading and next question keep mobile controls reac
   }
   await expect(page.getByTestId('session-summary')).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('browse next stays beside the notice at the mobile right edge and advances every question', async ({ page }) => {
+  await page.goto('/study/all?mode=browse');
+  const screen = page.getByTestId('study-screen');
+  for (const q of questions) {
+    await expect(screen).toHaveAttribute('data-question-id', q.id);
+    await page.getByTestId('reveal-btn').click();
+    const next = page.getByTestId('next-btn');
+    const notice = page.getByTestId('study-mode-notice');
+    await expect(next).toBeVisible();
+    await expect(notice).toContainText('구경 모드');
+    await expect(page.getByTestId('rating-bar')).toHaveCount(0);
+    await expectActions(page);
+    await expectNoOverflow(page);
+    const nextBox = (await next.boundingBox())!;
+    const noticeBox = (await notice.boundingBox())!;
+    if (page.viewportSize()!.width < 768) {
+      expect(nextBox.x).toBeGreaterThanOrEqual(noticeBox.x + noticeBox.width);
+      expect(nextBox.x + nextBox.width).toBeCloseTo(page.viewportSize()!.width - 12, 0);
+      expect(nextBox.y + nextBox.height / 2).toBeCloseTo(noticeBox.y + noticeBox.height / 2, 0);
+      expect(nextBox.height).toBeGreaterThanOrEqual(44);
+    } else {
+      expect(nextBox.x + nextBox.width).toBeLessThanOrEqual(noticeBox.x);
+    }
+    if (q === questions[0]) await page.screenshot({ path: `/tmp/recall-browse-actions-${page.viewportSize()!.width}.png` });
+    await next.click();
+  }
+  await expect(page.getByTestId('session-summary')).toBeVisible();
 });
 
 test('exam navigation and submit use the same mobile action bar', async ({ page }) => {
