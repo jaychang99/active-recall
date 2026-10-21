@@ -15,6 +15,7 @@ export class UpdateSettingsDto {
   @IsOptional() @IsBoolean() hideTags?: boolean;
   @IsOptional() @IsBoolean() hideSubject?: boolean;
   @IsOptional() @IsBoolean() hideSource?: boolean;
+  @IsOptional() @IsBoolean() hideRound?: boolean;
   @IsOptional() @IsBoolean() revealMetaOnAnswer?: boolean;
   @IsOptional() @IsIn(['plain', 'scored']) essayAnswerView?: string;
   @IsOptional() @IsIn(['deck', 'random']) newCardOrder?: string;

@@ -7,7 +7,7 @@ import { isBarePage } from '@/lib/public-pages';
 
 const DEFAULTS: Settings = {
   newCardsPerDay: 20, reviewsPerDay: 200, timezone: 'Asia/Seoul', shortcutsEnabled: true, showIntervalPreview: true, autoAdvanceAfterRating: true,
-  requestRetention: 0.9, maximumInterval: 36500, enableFuzz: false, shuffleChoices: true, hideDifficulty: false, hideTags: false, hideSubject: false, hideSource: false, revealMetaOnAnswer: false, essayAnswerView: 'plain', newCardOrder: 'deck', dailyReviewGoal: 50, leechThreshold: 8, promptDefaults: null, updatedAt: '',
+  requestRetention: 0.9, maximumInterval: 36500, enableFuzz: false, shuffleChoices: true, hideDifficulty: false, hideTags: false, hideSubject: false, hideSource: false, hideRound: false, revealMetaOnAnswer: false, essayAnswerView: 'plain', newCardOrder: 'deck', dailyReviewGoal: 50, leechThreshold: 8, promptDefaults: null, updatedAt: '',
 };
 
 const Ctx = createContext<{ settings: Settings; loaded: boolean; refresh: () => void }>({ settings: DEFAULTS, loaded: false, refresh: () => {} });

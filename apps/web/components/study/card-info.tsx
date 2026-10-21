@@ -2,10 +2,11 @@
 import type { CardInfo } from '@/lib/api';
 import { STATUS_LABEL, formatDateTime, pct, relativeDue } from '@/lib/utils';
 
-export function CardInfoTable({ card, round }: { card: CardInfo; round: number }) {
+/** `hideRound` (study mask) blanks the rows that say how often the card has been seen. */
+export function CardInfoTable({ card, round, hideRound }: { card: CardInfo; round: number; hideRound?: boolean }) {
   const rows: [string, string][] = [
-    ['상태', STATUS_LABEL[card.status] ?? card.status],
-    ['회차', `${round}회차 (복습 ${card.reps}회, 실패 ${card.lapses}회)`],
+    ['상태', hideRound ? '가려짐' : (STATUS_LABEL[card.status] ?? card.status)],
+    ['회차', hideRound ? '가려짐' : `${round}회차 (복습 ${card.reps}회, 실패 ${card.lapses}회)`],
     ['예정', `${formatDateTime(card.dueAt)} (${relativeDue(card.dueAt)})`],
     ['마지막 복습', card.lastReviewAt ? formatDateTime(card.lastReviewAt) : '—'],
     ['FSRS 안정성', card.stability ? `${card.stability.toFixed(1)}일` : '—'],

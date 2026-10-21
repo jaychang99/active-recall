@@ -68,12 +68,12 @@ describe('exams & analytics', () => {
 
   it('settings validate timezone; backup round-trips', async () => {
     await ctx.api.patch('/settings').send({ timezone: 'Mars/Olympus' }).expect(400);
-    const s = await ctx.api.patch('/settings').send({ timezone: 'America/New_York', newCardsPerDay: 5, hideTags: true, hideSource: true }).expect(200);
+    const s = await ctx.api.patch('/settings').send({ timezone: 'America/New_York', newCardsPerDay: 5, hideTags: true, hideSource: true, hideRound: true }).expect(200);
     expect(s.body.timezone).toBe('America/New_York');
-    // study metadata mask: four independent booleans, default off, persisted
-    expect([s.body.hideDifficulty, s.body.hideTags, s.body.hideSubject, s.body.hideSource]).toEqual([false, true, false, true]);
+    // study metadata mask: five independent booleans, default off, persisted
+    expect([s.body.hideDifficulty, s.body.hideTags, s.body.hideSubject, s.body.hideSource, s.body.hideRound]).toEqual([false, true, false, true, true]);
     const g = await ctx.api.get('/settings').expect(200);
-    expect([g.body.hideDifficulty, g.body.hideTags, g.body.hideSubject, g.body.hideSource]).toEqual([false, true, false, true]);
+    expect([g.body.hideDifficulty, g.body.hideTags, g.body.hideSubject, g.body.hideSource, g.body.hideRound]).toEqual([false, true, false, true, true]);
     expect(g.body.revealMetaOnAnswer).toBe(false);
     expect((await ctx.api.patch('/settings').send({ revealMetaOnAnswer: true }).expect(200)).body.revealMetaOnAnswer).toBe(true);
     // essay model answer view: plain by default, scored persists, anything else is rejected

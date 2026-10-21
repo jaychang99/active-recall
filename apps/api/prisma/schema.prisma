@@ -419,6 +419,7 @@ model AppSettings {
   hideTags               Boolean   @default(false)
   hideSubject            Boolean   @default(false)
   hideSource             Boolean   @default(false)
+  hideRound              Boolean   @default(false)
   /// Show every hidden item once the answer is revealed (until the next card); the hide flags stay as they are.
   revealMetaOnAnswer     Boolean   @default(false)
   /// How an essay's model answer is shown after submitting: plain (the text) | scored (segments with their points; falls back to plain when the question has no segments).

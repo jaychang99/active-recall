@@ -24,7 +24,7 @@ import { CopyQuestionButtons } from './copy-question';
 import { MetaMaskMenu, useMetaMask } from './meta-mask-menu';
 import { useEssayAnswerView } from '@/components/questions/essay-answer-view';
 import { MetaChip } from '@/components/questions/masked-chip';
-import type { MetaControl } from '@/components/questions/meta-mask';
+import { slotState, type MetaControl } from '@/components/questions/meta-mask';
 import { useSettings } from '@/components/layout/settings-context';
 
 export interface StudyParams {
@@ -383,6 +383,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
   const cardKey = item ? `${item.questionId}:${item.reviewRound}` : null;
   const metaControl: MetaControl = { mask: meta.mask, revealed: meta.revealOnAnswer && phase !== 'answering' && cardKey !== null && metaRevealedFor === cardKey, onToggle: meta.toggle };
+  const roundHidden = slotState(metaControl, 'round') === 'masked';
   const phaseForRenderer: Phase = phase === 'answering' ? 'answering' : revealedBeforeAnswer ? 'revealed' : 'submitted';
   const shortcutsOn = settings.shortcutsEnabled;
   const typing = item?.type === 'essay' || item?.type === 'short_answer' || item?.type === 'cloze' || item?.type === 'numeric' || item?.type === 'stepwise' || item?.type === 'recall_card';
@@ -448,8 +449,10 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             question={item.question}
             meta={metaControl}
             extra={<>
-              <span>{item.reviewRound}회차</span>
-              <span>{item.card.status === 'NEW' ? '새 카드' : item.card.status === 'REVIEW' ? '복습' : '학습 중'}</span>
+              <MetaChip k="round" label="회차" control={metaControl} testId="meta-round">
+                <span>{item.reviewRound}회차</span>
+                <span className="ml-3">{item.card.status === 'NEW' ? '새 카드' : item.card.status === 'REVIEW' ? '복습' : '학습 중'}</span>
+              </MetaChip>
               {item.noteCount ? <span>메모 {item.noteCount}</span> : null}
             </>}
           />
@@ -522,13 +525,13 @@ export function StudyScreen({ params }: { params: StudyParams }) {
           </div>
         ) : null}
 
-        {!isBrowse ? <NotesPanel questionId={item.questionId} round={item.reviewRound} focusSignal={notesFocus} defaultOpen={false} /> : null}
+        {!isBrowse ? <NotesPanel questionId={item.questionId} round={item.reviewRound} hideRound={roundHidden} focusSignal={notesFocus} defaultOpen={false} /> : null}
 
       </article>
 
       <Dialog open={showInfo} onOpenChange={setShowInfo}>
         <DialogContent title="카드 정보" description={`${meta.mask.subject && !metaControl.revealed ? '덱 (가려짐)' : item.deck.title} · ${meta.mask.source && !metaControl.revealed ? 'ID (가려짐)' : item.externalId}`}>
-          <CardInfoTable card={item.card} round={item.reviewRound} />
+          <CardInfoTable card={item.card} round={item.reviewRound} hideRound={roundHidden} />
           <div className="mt-4 flex flex-wrap gap-2">
             {!unrated ? <Button size="sm" onClick={() => { setShowInfo(false); cardMut.mutate({ action: 'suspend' }); }}><PauseCircle className="h-4 w-4" /> 이 문제 보류</Button> : null}
             <Link href={`/decks/${item.deck.id}?q=${encodeURIComponent(item.externalId)}`} className="inline-flex h-8 items-center rounded-md border border-line px-2.5 text-[13px]">덱에서 보기</Link>

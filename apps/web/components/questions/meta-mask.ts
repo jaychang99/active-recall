@@ -2,14 +2,17 @@ import type { Settings } from '@/lib/api';
 
 /**
  * Question metadata the learner can hide during study because it can hint at the answer
- * (a "hard" tag narrows the options, the source names the chapter, the subject names the topic…).
+ * (a "hard" tag narrows the options, the source names the chapter, the subject names the topic,
+ * "5회차 · 복습" says the card has been seen before…).
  * Each key maps to one boolean on the user's settings row so the choice follows them across devices.
  */
-export const META_KEYS = ['difficulty', 'tags', 'subject', 'source'] as const;
+export const META_KEYS = ['difficulty', 'tags', 'subject', 'source', 'round'] as const;
 export type MetaKey = (typeof META_KEYS)[number];
 
-export const META_SETTING: Record<MetaKey, 'hideDifficulty' | 'hideTags' | 'hideSubject' | 'hideSource'> = {
-  difficulty: 'hideDifficulty', tags: 'hideTags', subject: 'hideSubject', source: 'hideSource',
+type MaskSetting = 'hideDifficulty' | 'hideTags' | 'hideSubject' | 'hideSource' | 'hideRound';
+
+export const META_SETTING: Record<MetaKey, MaskSetting> = {
+  difficulty: 'hideDifficulty', tags: 'hideTags', subject: 'hideSubject', source: 'hideSource', round: 'hideRound',
 };
 
 export const META_LABEL: Record<MetaKey, { label: string; hint: string }> = {
@@ -17,6 +20,7 @@ export const META_LABEL: Record<MetaKey, { label: string; hint: string }> = {
   tags: { label: '태그(소재)', hint: '#태그가 주제를 그대로 알려줍니다.' },
   subject: { label: '과목 · 덱 이름', hint: '"모든 덱" 학습에서 어느 과목인지 숨깁니다.' },
   source: { label: '출처', hint: '해설의 출처 문서·위치(장·절)를 숨깁니다.' },
+  round: { label: '회차 · 카드 상태', hint: '"3회차 · 복습"처럼 몇 번째로 보는 카드인지 숨깁니다.' },
 };
 
 export type MetaMask = Record<MetaKey, boolean>;
@@ -34,8 +38,8 @@ export function slotState(control: MetaControl | undefined, key: MetaKey): MetaS
   return control.revealed ? 'revealed' : 'masked';
 }
 
-export function maskFromSettings(s: Pick<Settings, 'hideDifficulty' | 'hideTags' | 'hideSubject' | 'hideSource'>): MetaMask {
-  return { difficulty: s.hideDifficulty, tags: s.hideTags, subject: s.hideSubject, source: s.hideSource };
+export function maskFromSettings(s: Pick<Settings, MaskSetting>): MetaMask {
+  return { difficulty: s.hideDifficulty, tags: s.hideTags, subject: s.hideSubject, source: s.hideSource, round: s.hideRound };
 }
 
 export function hiddenCount(mask: MetaMask) {
@@ -47,8 +51,8 @@ export function isAllHidden(mask: MetaMask) {
 }
 
 /** Settings patch that sets every key to `hidden`. */
-export function allPatch(hidden: boolean): Pick<Settings, 'hideDifficulty' | 'hideTags' | 'hideSubject' | 'hideSource'> {
-  return { hideDifficulty: hidden, hideTags: hidden, hideSubject: hidden, hideSource: hidden };
+export function allPatch(hidden: boolean): Pick<Settings, MaskSetting> {
+  return { hideDifficulty: hidden, hideTags: hidden, hideSubject: hidden, hideSource: hidden, hideRound: hidden };
 }
 
 /** Settings patch for the "toggle all" shortcut: hide everything unless everything is already hidden. */

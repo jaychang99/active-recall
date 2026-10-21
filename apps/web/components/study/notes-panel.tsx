@@ -18,7 +18,7 @@ const AUTOSAVE_MS = 900;
  * Per-question notes, one per review round. The current round's note is editable;
  * earlier rounds are listed with the review they were written during.
  */
-export function NotesPanel({ questionId, round, focusSignal, className, defaultOpen = true }: { questionId: string; round: number; focusSignal?: number; className?: string; defaultOpen?: boolean }) {
+export function NotesPanel({ questionId, round, hideRound, focusSignal, className, defaultOpen = true }: { questionId: string; round: number; hideRound?: boolean; focusSignal?: number; className?: string; defaultOpen?: boolean }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['notes', questionId], queryFn: () => api<NotesResponse>(`/questions/${questionId}/notes`) });
   const current = q.data?.notes.find((n) => n.reviewRound === round) ?? null;
@@ -108,9 +108,9 @@ export function NotesPanel({ questionId, round, focusSignal, className, defaultO
     <section className={cn('rounded-lg border border-line bg-elevated', className)} data-testid="notes-panel" aria-label="문항 메모">
       <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left">
         <NotebookPen className="h-4 w-4 text-ink-3" />
-        <span className="text-[13px] font-semibold text-ink-2">메모 · {round}회차</span>
+        <span className="text-[13px] font-semibold text-ink-2">{hideRound ? '메모 · 이번 회차' : `메모 · ${round}회차`}</span>
         {dirty ? <Badge tone="warn">저장 대기</Badge> : save.isPending ? <Badge>저장 중…</Badge> : current ? <Badge tone="ok">저장됨</Badge> : null}
-        {history.length ? <span className="text-[12px] text-ink-3">이전 회차 메모 {history.length}개</span> : null}
+        {history.length ? <span className="text-[12px] text-ink-3">{hideRound ? '이전 회차 메모 있음' : `이전 회차 메모 ${history.length}개`}</span> : null}
         <kbd className="kbd ml-auto" aria-hidden>M</kbd>
         {open ? <ChevronUp className="h-4 w-4 text-ink-3" /> : <ChevronDown className="h-4 w-4 text-ink-3" />}
       </button>
@@ -120,8 +120,8 @@ export function NotesPanel({ questionId, round, focusSignal, className, defaultO
             ref={ref}
             value={draft}
             rows={3}
-            placeholder={`${round}회차 복습에서 기억할 점, 헷갈린 이유, 암기 팁을 적어두세요. (자동 저장, Esc로 나가기)`}
-            aria-label={`${round}회차 메모`}
+            placeholder={`${hideRound ? '이번 회차' : `${round}회차`} 복습에서 기억할 점, 헷갈린 이유, 암기 팁을 적어두세요. (자동 저장, Esc로 나가기)`}
+            aria-label={hideRound ? '이번 회차 메모' : `${round}회차 메모`}
             data-testid="note-input"
             onChange={(e) => {
               setDraftBoth(e.target.value);

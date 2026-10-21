@@ -13,7 +13,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { useSettings } from '@/components/layout/settings-context';
 import { META_KEYS, META_LABEL, META_SETTING, allPatch, hiddenCount, isAllHidden, maskFromSettings, toggleAllPatch, togglePatch, type MetaKey, type MetaMask } from '@/components/questions/meta-mask';
 
-type MaskPatch = Partial<Pick<Settings, 'hideDifficulty' | 'hideTags' | 'hideSubject' | 'hideSource' | 'revealMetaOnAnswer'>>;
+type MaskPatch = Partial<Pick<Settings, 'hideDifficulty' | 'hideTags' | 'hideSubject' | 'hideSource' | 'hideRound' | 'revealMetaOnAnswer'>>;
 
 /**
  * The study-time metadata mask, read from (and written straight back to) the user's global settings.
