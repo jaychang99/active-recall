@@ -17,6 +17,8 @@ async function mockApp(page: Page) {
   await page.route('**/*', async (route) => {
     const request = route.request();
     if (!['fetch', 'xhr'].includes(request.resourceType())) return route.continue();
+    // Next route payloads may use the same path as API resources; let them reach the web server.
+    if (request.headers()['rsc'] === '1') return route.continue();
     const path = new URL(request.url()).pathname;
     const json = (value: unknown) => route.fulfill({ json: value });
     if (path === '/api/auth/session') return json({ user: { name: 'UI tester', email: 'ui@test.local' }, expires: '2099-01-01' });
@@ -66,7 +68,102 @@ async function expectActions(page: Page, mobile = page.viewportSize()!.width < 7
   }
 }
 
+async function mockSidebarCollections(page: Page) {
+  const progress = { total: 8, new: 7, learning: 1, review: 0, relearning: 0, dueToday: 0, flagged: 0, suspended: 0 };
+  const rows = Array.from({ length: 9 }, (_, i) => ({
+    id: String(i),
+    lastReviewedAt: i === 0 ? null : `2026-10-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
+    archivedAt: i === 8 ? '2026-10-20T10:00:00Z' : null,
+    createdAt: '2026-10-01T10:00:00Z', updatedAt: '2026-10-01T10:00:00Z', deletedAt: null,
+    description: null, progress,
+  }));
+  const name = (i: string) => `과목 ${i} ${i === '7' ? '긴 과목 이름으로 모바일 줄바꿈과 너비 확인' : ''}`.trim();
+  const decks = rows.map((row) => ({ ...row, id: `deck-${row.id}`, slug: `deck_${row.id}`, title: `덱 ${row.id}`, subject: name(row.id), tags: [], language: 'ko', noteCount: 0, questionTags: [] }));
+  const subjects = rows.map((row) => ({ ...row, id: `subject-${row.id}`, name: name(row.id), color: null, questionCount: 8, deckIds: [`deck-${row.id}`] }));
+  await page.route('**/*', async (route) => {
+    if (!['fetch', 'xhr'].includes(route.request().resourceType())) return route.fallback();
+    if (route.request().headers()['rsc'] === '1') return route.fallback();
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/decks') return route.fulfill({ json: decks });
+    if (path === '/subjects') return route.fulfill({ json: subjects });
+    if (path === '/decks/deck-7') return route.fulfill({ json: decks[7] });
+    if (path === '/decks/deck-7/questions') return route.fulfill({ json: { page: 1, pageSize: 50, total: 0, items: [] } });
+    return route.fallback();
+  });
+  return { subjectName: name('7') };
+}
+
 test.beforeEach(async ({ page }) => { await mockApp(page); });
+
+test('sidebar stays fixed and scrolls independently while showing five recent collections', async ({ page }) => {
+  await mockSidebarCollections(page);
+  await page.goto('/prompt');
+  const sidebar = page.getByTestId('sidebar');
+  const mobile = page.viewportSize()!.width < 768;
+  if (mobile) await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
+  await expect(sidebar).toHaveCSS('position', 'fixed');
+  await sidebar.getByRole('button', { name: '덱', exact: true }).click();
+  await sidebar.getByRole('button', { name: '과목', exact: true }).click();
+  for (const kind of ['덱', '과목']) {
+    const recent = sidebar.getByRole('list', { name: `최근 복습한 ${kind}` });
+    await expect(recent.getByRole('link')).toHaveCount(5);
+    for (let i = 0; i < 5; i++) await expect(recent.getByRole('link').nth(i)).toHaveText(new RegExp(`^${kind} ${7 - i}`));
+  }
+  await expect(sidebar.getByRole('link', { name: '전체 덱 보기', exact: true })).toHaveAttribute('href', '/decks');
+  await expect(sidebar.getByRole('link', { name: '전체 과목 보기', exact: true })).toHaveAttribute('href', '/subjects');
+  const before = (await sidebar.boundingBox())!;
+  expect(before.y).toBe(0);
+  expect(before.height).toBe(page.viewportSize()!.height);
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  const after = (await sidebar.boundingBox())!;
+  expect(after.y).toBe(0);
+  expect(after.height).toBe(before.height);
+  const mainScroll = await page.evaluate(() => window.scrollY);
+  await sidebar.evaluate((element) => { element.scrollTop = 300; });
+  await expect.poll(() => sidebar.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(mainScroll);
+  await expectNoOverflow(page);
+  if (!mobile) expect((await page.locator('main').boundingBox())!.x).toBe(240);
+  await sidebar.evaluate((element) => { element.scrollTop = 0; });
+  await page.screenshot({ path: `/tmp/recall-sidebar-${page.viewportSize()!.width}.png` });
+});
+
+test('collection submenu toggles and links navigate on desktop and close the mobile drawer', async ({ page }) => {
+  const { subjectName } = await mockSidebarCollections(page);
+  await page.goto('/prompt');
+  const sidebar = page.getByTestId('sidebar');
+  const mobile = page.viewportSize()!.width < 768;
+  if (mobile) await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
+  const deckToggle = sidebar.getByRole('button', { name: '덱', exact: true });
+  await expect(deckToggle).toHaveAttribute('aria-expanded', 'false');
+  await deckToggle.click();
+  await expect(deckToggle).toHaveAttribute('aria-expanded', 'true');
+  await deckToggle.click();
+  await expect(page.locator('#sidebar-decks')).toBeHidden();
+  await deckToggle.click();
+  await sidebar.getByRole('list', { name: '최근 복습한 덱' }).getByRole('link', { name: '덱 7', exact: true }).click();
+  await expect(page).toHaveURL(/\/decks\/deck-7$/);
+  await expect(page.getByRole('heading', { name: '덱 7', exact: true })).toBeVisible();
+  if (mobile) {
+    await expect(page.getByRole('button', { name: '메뉴 열기', exact: true })).toHaveAttribute('aria-expanded', 'false');
+    await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
+  }
+  await sidebar.getByRole('button', { name: '과목', exact: true }).click();
+  const subject = sidebar.getByRole('list', { name: '최근 복습한 과목' }).getByRole('link', { name: subjectName, exact: true });
+  await expect(subject).toHaveAttribute('href', `/decks?subject=${encodeURIComponent(subjectName)}`);
+  await subject.click();
+  await expect.poll(() => new URL(page.url()).searchParams.get('subject')).toBe(subjectName);
+  if (mobile) {
+    await expect(page.getByRole('button', { name: '메뉴 열기', exact: true })).toHaveAttribute('aria-expanded', 'false');
+    await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
+  }
+  await expect(sidebar.getByRole('list', { name: '최근 복습한 과목' }).getByRole('link', { name: subjectName, exact: true })).toHaveAttribute('aria-current', 'page');
+  await sidebar.getByRole('link', { name: '전체 과목 보기', exact: true }).click();
+  await expect(page).toHaveURL(/\/subjects$/);
+  await expect(page.getByRole('heading', { name: '과목', exact: true })).toBeVisible();
+  await expectNoOverflow(page);
+});
 
 for (const kind of ['decks', 'subjects'] as const) {
   test(`${kind} keep recent review order and support archive tabs and restoration`, async ({ page }) => {

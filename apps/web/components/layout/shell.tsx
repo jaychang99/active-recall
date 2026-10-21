@@ -10,6 +10,7 @@ import { ThemeToggle } from './theme-toggle';
 import { InstallAppButton } from './pwa';
 import { CopyPromptButton } from './copy-prompt-button';
 import { CommandPalette } from './command-palette';
+import { CollectionMenu } from './collection-menu';
 import { ShortcutHelp } from './shortcut-help';
 import { Button } from '@/components/ui/button';
 import { useSettings } from './settings-context';
@@ -78,12 +79,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh">
       {!focus ? (
-        <aside className={cn('fixed inset-y-0 left-0 z-30 w-60 shrink-0 border-r border-line overflow-y-auto bg-sunken transition-transform md:static md:translate-x-0', mobileNav ? 'translate-x-0' : '-translate-x-full')} aria-label="주 메뉴">
+        <aside id="app-sidebar" data-testid="sidebar" className={cn('fixed inset-y-0 left-0 z-30 h-dvh w-60 shrink-0 overflow-y-auto overscroll-contain border-r border-line bg-sunken transition-transform md:translate-x-0', mobileNav ? 'translate-x-0' : '-translate-x-full')} aria-label="주 메뉴">
           <div className="flex h-14 items-center gap-2 px-4">
             <Link href="/" className="rounded-md" onClick={() => setMobileNav(false)}><Wordmark /></Link>
           </div>
           <nav className="mt-2 flex flex-col gap-0.5 px-2">
             {NAV.map((n) => {
+              if (n.href === '/decks' || n.href === '/subjects') return <CollectionMenu key={n.href} kind={n.href === '/decks' ? 'decks' : 'subjects'} onNavigate={() => setMobileNav(false)} />;
               const active = n.href === '/' ? pathname === '/' : pathname.startsWith(n.href);
               return (
                 <Link
@@ -109,11 +111,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
       ) : null}
       {mobileNav ? <button aria-label="메뉴 닫기" className="fixed inset-0 z-20 bg-black/30 md:hidden" onClick={() => setMobileNav(false)} /> : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className={cn('flex min-w-0 flex-1 flex-col', !focus && 'md:pl-60')}>
         <header className={cn('sticky top-0 z-10 flex h-14 items-center gap-1 border-b border-line bg-bg px-2 sm:gap-2 md:px-6', focus && 'h-12')}>
           {!focus ? (
             <>
-              <Button variant="ghost" size="icon" className="md:hidden" aria-label="메뉴 열기" onClick={() => setMobileNav(true)}>
+              <Button variant="ghost" size="icon" className="md:hidden" aria-label="메뉴 열기" aria-expanded={mobileNav} aria-controls="app-sidebar" onClick={() => setMobileNav(true)}>
                 <Menu className="h-4 w-4" />
               </Button>
               <Link href="/" className="rounded-md md:hidden"><Wordmark compact /></Link>
