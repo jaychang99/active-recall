@@ -41,7 +41,7 @@ export function Stepwise({ question, value, onChange, onSubmit, phase, grade, an
                     {p?.correct ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                     <span>입력: {answers[s.id] || '—'}</span>
                     {!p?.correct ? <span className="font-normal text-ink-2">· 정답: {key.get(s.id)?.acceptedAnswers.join(' / ')}</span> : null}
-                    {key.get(s.id)?.explanation ? <span className="font-normal text-ink-2">— {key.get(s.id)?.explanation}</span> : null}
+                    {key.get(s.id)?.explanation ? <span className="font-normal text-ink-2">— <Markdown inline className="prose-inherit">{key.get(s.id)!.explanation!}</Markdown></span> : null}
                   </div>
                 ) : null}
               </div>

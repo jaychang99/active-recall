@@ -52,7 +52,7 @@ export function ChoiceList({ choices, multiple, onToggle, disabled, showKeyHints
               </span>
               <span className="min-w-0 flex-1">
                 <Markdown className="prose-sm">{c.text}</Markdown>
-                {revealed && c.explanation ? <span className="mt-1 block text-[13px] text-ink-2">{c.explanation}</span> : null}
+                {revealed && c.explanation ? <span className="mt-1 block text-[13px] leading-relaxed text-ink-2"><Markdown className="prose-inherit">{c.explanation}</Markdown></span> : null}
               </span>
               {revealed ? (
                 <span className={cn('ml-2 flex shrink-0 items-center gap-1 text-[12px] font-medium', state === 'hit' || state === 'missed' ? 'text-ok-ink' : state === 'wrong' ? 'text-bad-ink' : 'text-transparent')}>

@@ -226,6 +226,8 @@ input[type='checkbox'] {
 .prose-q h1 { font-size: 1.35em; } .prose-q h2 { font-size: 1.2em; } .prose-q h3 { font-size: 1.05em; }
 .prose-q .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.25em 0; }
 .prose-sm { font-size: 0.9375rem; }
+/* Small annotations (per-choice / per-statement explanations): keep the surrounding text size instead of the prose size. */
+.prose-q.prose-inherit { font-size: inherit; line-height: inherit; }
 
 kbd.kbd {
   font-family: var(--font-sans);

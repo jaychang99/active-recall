@@ -37,7 +37,7 @@ export function StatementSet({ question, value, onChange, phase, grade, answerKe
                   <div className={cn('mt-1 flex items-center gap-1 text-[12px] font-medium', p?.correct ? 'text-ok-ink' : 'text-bad-ink')}>
                     {p?.correct ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                     정답: {key.get(s.id)?.value ? 'O (참)' : 'X (거짓)'}{cur === undefined || cur === null ? ' · 미응답' : ''}
-                    {key.get(s.id)?.explanation ? <span className="ml-1 font-normal text-ink-2">— {key.get(s.id)?.explanation}</span> : null}
+                    {key.get(s.id)?.explanation ? <span className="ml-1 font-normal text-ink-2">— <Markdown inline className="prose-inherit">{key.get(s.id)!.explanation!}</Markdown></span> : null}
                   </div>
                 ) : null}
               </div>
