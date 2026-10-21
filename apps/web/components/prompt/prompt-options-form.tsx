@@ -184,7 +184,7 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
         <Row label="객관식 선지 수" {...row('mcqChoiceCount')} htmlFor={id('mcq')}>
           <NumberRange id={id('mcq')} value={o.mcqChoiceCount} min={LIMITS.mcqChoiceCount.min} max={LIMITS.mcqChoiceCount.max} unit="개" onChange={(v) => set('mcqChoiceCount', v)} />
         </Row>
-        <Row label="해설 깊이" {...row('explanationDepth')} htmlFor={id('depth')}>
+        <Row label="해설 깊이" hint="상세 = 핵심 용어 정의, 단계적 정답 근거, 정답이 속한 분류의 다른 항목 전부, 모든 선지별 해설, 흔한 오개념까지 담은 미니 강의. 보통 = 근거와 핵심 정의, 선지별 1~2문장. 간략 = 정답 근거 1~2문장." {...row('explanationDepth')} htmlFor={id('depth')}>
           <Select id={id('depth')} className="w-full" value={o.explanationDepth} onChange={(e) => set('explanationDepth', e.target.value as PromptOptions['explanationDepth'])}>{EXPLANATION_DEPTHS.map((d) => <option key={d} value={d}>{DEPTH_KO[d]}</option>)}</Select>
         </Row>
         <Row label="수식 표기" {...row('mathNotation')} htmlFor={id('math')}>
