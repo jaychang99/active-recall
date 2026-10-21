@@ -1,10 +1,10 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ArrowRight, Flag, Flame, Play, Upload } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { api, type Deck, type Overview, type SubjectSummary } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { EmptyState, ErrorState, Panel, ProgressStrip, Skeleton, Stat } from '@/components/ui/misc';
+import { EmptyState, ErrorState, Panel, ProgressStrip, Skeleton, Stat, LoadingState } from '@/components/ui/misc';
 import { pct } from '@/lib/utils';
 import { CopyPromptButton } from '@/components/layout/copy-prompt-button';
 import { ActivityHeatmap } from '@/components/insights/heatmap';
@@ -76,7 +76,7 @@ export default function DashboardPage() {
           <h2 className="text-base font-semibold">덱</h2>
           <Link href="/decks" className="text-sm text-accent">전체 보기</Link>
         </div>
-        {decks.isLoading ? <Skeleton className="h-28" /> : null}
+        {decks.isLoading ? <LoadingState label="덱 목록을 불러오는 중…" className="min-h-28" /> : null}
         {decks.data?.length ? (
           <Panel>
             <ul className="divide-y divide-line">

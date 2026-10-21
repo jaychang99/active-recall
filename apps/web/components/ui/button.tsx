@@ -2,6 +2,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef } from 'react';
 import { cn } from '@/lib/utils';
+import { Spinner } from './loading';
 
 export const buttonVariants = cva(
   'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 disabled:pointer-events-none select-none',
@@ -30,12 +31,18 @@ export const buttonVariants = cva(
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   /** Small keyboard hint rendered at the right. */
   kbd?: string;
+  loading?: boolean;
+  loadingLabel?: string;
+  /** Real measured percentage, when available. Otherwise the busy bar is indeterminate. */
+  progress?: number;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({ className, variant, size, kbd, children, type = 'button', ...props }, ref) => (
-  <button ref={ref} type={type} className={cn(buttonVariants({ variant, size }), className)} {...props}>
-    {children}
-    {kbd ? <kbd className="kbd ml-1 opacity-80" aria-hidden>{kbd}</kbd> : null}
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({ className, variant, size, kbd, children, type = 'button', loading = false, loadingLabel, progress, disabled, ...props }, ref) => (
+  <button ref={ref} type={type} className={cn(buttonVariants({ variant, size }), loading && 'relative overflow-hidden', className)} {...props} disabled={disabled || loading} aria-busy={loading || undefined}>
+    {loading ? <Spinner /> : null}
+    <span className={cn('inline-flex min-w-0 items-center justify-center gap-1.5', loading && '[&>svg]:hidden', loading && (size === 'icon' || size === 'iconSm') && 'sr-only')}>{loading && loadingLabel ? loadingLabel : children}</span>
+    {kbd && !loading ? <kbd className="kbd ml-1 opacity-80" aria-hidden>{kbd}</kbd> : null}
+    {loading && size !== 'icon' && size !== 'iconSm' ? <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-current/15"><span className={cn('block h-full bg-current/60', progress === undefined ? 'rs-progress-indeterminate w-1/3' : '')} style={progress === undefined ? undefined : { width: `${Math.max(0, Math.min(100, progress))}%` }} /></span> : null}
   </button>
 ));
 Button.displayName = 'Button';

@@ -58,7 +58,7 @@ export function DeckSubjectDialog({ deckId, currentSubject, questionCount, onCha
               <p className="mt-2 text-[12px] text-ink-3">{chosen ? (existing ? `기존 과목 "${chosen}"에 연결합니다.` : `"${chosen}" 과목을 새로 만듭니다.`) : '과목을 선택하거나 입력하세요.'}</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="primary" disabled={!chosen || mut.isPending || (mode === 'replace' && chosen === currentSubject)} onClick={() => mut.mutate()} data-testid="deck-subject-apply">{mode === 'replace' ? '과목 교체' : '과목 추가'}</Button>
+              <Button loading={mut.isPending} variant="primary" disabled={!chosen || mut.isPending || (mode === 'replace' && chosen === currentSubject)} onClick={() => mut.mutate()} data-testid="deck-subject-apply">{mode === 'replace' ? '과목 교체' : '과목 추가'}</Button>
               <Button variant="ghost" onClick={() => setOpen(false)}>취소</Button>
             </div>
           </div>

@@ -76,10 +76,10 @@ export function CopyQuestionButtons({ item, answer, grade, revealedBeforeAnswer,
   return (
     <div className="flex items-center gap-1" data-testid="copy-question">
       <Tooltip content="문제·보기·그래픽·정답·해설·출처·내 답안·회차별 메모 전체를 JSON으로 복사">
-        <Button size="sm" variant="ghost" onClick={() => void copy('json')} disabled={busy !== null} kbd={shortcuts ? 'C' : undefined} data-testid="copy-json-btn"><Braces className="h-4 w-4" /> JSON 복사</Button>
+        <Button size="sm" variant="ghost" loading={busy === 'json'} loadingLabel="문제 데이터 준비 중…" onClick={() => void copy('json')} disabled={busy !== null} kbd={shortcuts ? 'C' : undefined} data-testid="copy-json-btn"><Braces className="h-4 w-4" /> JSON 복사</Button>
       </Tooltip>
       <Tooltip content="같은 JSON에 ‘더 자세히 해설해 달라’는 프롬프트를 붙여 복사 — 다른 LLM에 그대로 붙여넣기. 답변 끝에 메모란에 붙여넣을 일반 텍스트 메모도 요청합니다">
-        <Button size="sm" variant="ghost" onClick={() => void copy('prompt')} disabled={busy !== null} kbd={shortcuts ? 'P' : undefined} data-testid="copy-prompt-btn"><Sparkles className="h-4 w-4" /> 해설 요청 프롬프트 복사</Button>
+        <Button size="sm" variant="ghost" loading={busy === 'prompt'} loadingLabel="프롬프트 준비 중…" onClick={() => void copy('prompt')} disabled={busy !== null} kbd={shortcuts ? 'P' : undefined} data-testid="copy-prompt-btn"><Sparkles className="h-4 w-4" /> 해설 요청 프롬프트 복사</Button>
       </Tooltip>
     </div>
   );

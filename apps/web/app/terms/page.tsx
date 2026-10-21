@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { ContactEmail, LegalDoc, OPERATOR, Section } from '@/components/legal/legal-doc';
 
 export const metadata: Metadata = { title: '이용약관', description: 'Recall Studio 이용 조건과 운영자·이용자의 권리와 책임을 정합니다.' };

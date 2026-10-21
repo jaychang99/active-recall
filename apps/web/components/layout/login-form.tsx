@@ -1,6 +1,6 @@
 'use client';
 import { signIn } from 'next-auth/react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
@@ -41,7 +41,7 @@ export function LoginForm({ google, dev, next, error }: { google: boolean; dev: 
         {message ? <p className="mt-3 rounded-md bg-bad-soft px-3 py-2 text-[13px] text-bad-ink" role="alert">{message}</p> : null}
         <div className="mt-5 space-y-3">
           {google ? (
-            <Button className="w-full" size="lg" disabled={busy !== null} data-testid="google-login" onClick={() => { setBusy('google'); void signIn('google', { redirectTo: next }); }}>
+            <Button className="w-full" size="lg" loading={busy === 'google'} disabled={busy !== null} data-testid="google-login" onClick={() => { setBusy('google'); void signIn('google', { redirectTo: next }); }}>
               <GoogleMark /> {busy === 'google' ? 'Google로 이동 중…' : 'Google로 계속하기'}
             </Button>
           ) : null}
@@ -52,7 +52,7 @@ export function LoginForm({ google, dev, next, error }: { google: boolean; dev: 
             >
               <Label htmlFor="dev-email">개발용 로그인 (로컬 전용)</Label>
               <Input id="dev-email" type="email" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} data-testid="dev-email" autoComplete="email" />
-              <Button type="submit" variant="soft" className="w-full" disabled={busy !== null} data-testid="dev-login">{busy === 'dev' ? '로그인 중…' : '이 이메일로 로그인'}</Button>
+              <Button type="submit" variant="soft" className="w-full" loading={busy === 'dev'} disabled={busy !== null} data-testid="dev-login">{busy === 'dev' ? '로그인 중…' : '이 이메일로 로그인'}</Button>
               <p className="text-[11px] text-ink-3">비밀번호 없이 아무 이메일로 들어갑니다. 프로덕션에서는 꺼져 있습니다.</p>
             </form>
           ) : null}

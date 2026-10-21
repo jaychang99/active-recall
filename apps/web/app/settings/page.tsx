@@ -7,14 +7,14 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { STUDY_SETTING_LIMITS } from '@recall/contracts';
 import { API_URL, api, type Deck, type EssayAnswerView, type Settings, type SubjectSummary } from '@/lib/api';
-import { downloadFromApi } from '@/lib/download';
+import { DownloadButton } from '@/components/ui/download-button';
 import { clearApiToken } from '@/lib/auth-token';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
-import { ErrorState, PageHeader, Panel, Skeleton } from '@/components/ui/misc';
+import { ErrorState, PageHeader, Panel, LoadingState } from '@/components/ui/misc';
 import { InstallAppButton, usePwa } from '@/components/layout/pwa';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { PromptOptionsForm } from '@/components/prompt/prompt-options-form';
 import { PROMPT_DEFAULTS, changedKeys, resolvePromptOptions, toSavedDefaults } from '@/lib/prompt-options';
 import { META_KEYS, META_LABEL, META_SETTING, allPatch } from '@/components/questions/meta-mask';
@@ -49,13 +49,13 @@ function DeleteAccountPanel() {
       <h2 className="text-[13px] font-semibold text-bad-ink">계정 삭제</h2>
       <p className="mt-1 text-[12px] text-ink-2">계정과 함께 덱·문항·복습 기록·메모·시험 기록·설정이 모두 즉시 영구 삭제되며 되돌릴 수 없습니다. 삭제 전에 위의 「전체 백업 (JSON)」을 받아 두면 나중에 다시 복원할 수 있습니다.</p>
       <div className="mt-3">
-        <Button size="sm" onClick={() => downloadFromApi('/exports/backup.json', 'recall-studio-backup.json').catch((e: Error) => toast.error('백업 실패', { description: e.message }))}><Download className="h-4 w-4" /> 먼저 전체 백업 받기</Button>
+        <DownloadButton size="sm" path={'/exports/backup.json'} filename={'recall-studio-backup.json'}><Download className="h-4 w-4" /> 먼저 전체 백업 받기</DownloadButton>
       </div>
       <div className="mt-4 grid gap-2">
         <Label htmlFor="delete-account-email">확인을 위해 내 계정 이메일 <span className="font-semibold text-ink">{email}</span>을 입력하세요.</Label>
         <div className="flex flex-wrap gap-2">
           <Input id="delete-account-email" className="min-w-0 flex-1 sm:max-w-80" type="email" autoComplete="off" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={email} data-testid="delete-account-email" />
-          <Button variant="danger" disabled={!matches || remove.isPending} onClick={() => remove.mutate()} data-testid="delete-account"><Trash2 className="h-4 w-4" /> {remove.isPending ? '삭제 중…' : '계정 영구 삭제'}</Button>
+          <Button loading={remove.isPending} variant="danger" disabled={!matches || remove.isPending} onClick={() => remove.mutate()} data-testid="delete-account"><Trash2 className="h-4 w-4" /> {remove.isPending ? '삭제 중…' : '계정 영구 삭제'}</Button>
         </div>
       </div>
     </Panel>
@@ -84,7 +84,7 @@ export default function SettingsPage() {
     onSuccess: () => { void qc.invalidateQueries(); toast.success('백업을 복원했습니다'); },
     onError: (e: Error) => toast.error('복원 실패', { description: e.message }),
   });
-  if (q.isLoading) return <Skeleton className="h-64" />;
+  if (q.isLoading) return <LoadingState label="설정을 불러오는 중…" className="min-h-64" />;
   if (q.isError) return <ErrorState message={(q.error as Error).message} onRetry={() => q.refetch()} />;
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setForm((f) => ({ ...f, [k]: v }));
   const promptOpts = resolvePromptOptions(form.promptDefaults);
@@ -101,7 +101,7 @@ export default function SettingsPage() {
   };
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="설정" description="내 계정의 학습 설정입니다. 아래 값은 저장 버튼을 눌러야 반영됩니다." actions={<Button variant="primary" onClick={submit} disabled={save.isPending} data-testid="save-settings">{save.isPending ? '저장 중…' : '저장'}</Button>} />
+      <PageHeader title="설정" description="내 계정의 학습 설정입니다. 아래 값은 저장 버튼을 눌러야 반영됩니다." actions={<Button loading={save.isPending} variant="primary" onClick={submit} disabled={save.isPending} data-testid="save-settings">{save.isPending ? '저장 중…' : '저장'}</Button>} />
       <Panel className="mb-6 px-5 py-2">
         <h2 className="pt-3 text-[13px] font-semibold text-ink-2">화면</h2>
         <Row label="테마" hint="바로 적용되고 이 브라우저에 저장됩니다 (저장 버튼과 무관)." id="theme">
@@ -165,9 +165,9 @@ export default function SettingsPage() {
       <Panel className="px-5 py-4">
         <h2 className="text-[13px] font-semibold text-ink-2">데이터</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button onClick={() => downloadFromApi('/exports/backup.json', 'recall-studio-backup.json').catch((e: Error) => toast.error('백업 실패', { description: e.message }))}><Download className="h-4 w-4" /> 전체 백업 (JSON)</Button>
-          <Button onClick={() => downloadFromApi('/exports/reviews.csv', 'reviews.csv').catch((e: Error) => toast.error('내보내기 실패', { description: e.message }))}><Download className="h-4 w-4" /> 복습 기록 CSV</Button>
-          <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" /> 백업 복원</Button>
+          <DownloadButton path={'/exports/backup.json'} filename={'recall-studio-backup.json'}><Download className="h-4 w-4" /> 전체 백업 (JSON)</DownloadButton>
+          <DownloadButton path={'/exports/reviews.csv'} filename={'reviews.csv'}><Download className="h-4 w-4" /> 복습 기록 CSV</DownloadButton>
+          <Button loading={restore.isPending} loadingLabel="백업 복원 중…" onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" /> 백업 복원</Button>
           <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f && confirm('백업을 복원하면 내 계정의 기존 데이터가 모두 백업 내용으로 교체됩니다. 계속할까요?')) restore.mutate(f); e.target.value = ''; }} />
           <a href={`${API_URL}/docs`} target="_blank" rel="noreferrer"><Button variant="ghost">API 문서 (Swagger)</Button></a>
         </div>

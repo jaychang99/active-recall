@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { Wordmark } from '@/components/layout/shell';
 import { cn } from '@/lib/utils';
 

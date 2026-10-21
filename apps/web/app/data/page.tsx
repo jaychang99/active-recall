@@ -1,9 +1,9 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
 import { Database } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { adminApi } from '@/lib/admin-api';
-import { ErrorState, PageHeader, Panel, Skeleton } from '@/components/ui/misc';
+import { ErrorState, PageHeader, Panel, LoadingState } from '@/components/ui/misc';
 
 export default function DataIndexPage() {
   const ents = useQuery({ queryKey: ['admin-entities'], queryFn: adminApi.entities });
@@ -11,7 +11,7 @@ export default function DataIndexPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader title="데이터" description="모든 엔티티를 표로 조회·필터·정렬·페이징하고, 단일/복수 선택으로 생성·수정·삭제(소프트)·복구·영구 삭제할 수 있습니다." />
-      {ents.isLoading ? <Skeleton className="h-40" /> : null}
+      {ents.isLoading ? <LoadingState label="데이터 목록을 불러오는 중…" className="min-h-40" /> : null}
       {ents.isError ? <ErrorState message={(ents.error as Error).message} onRetry={() => ents.refetch()} /> : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {ents.data?.map((e) => (

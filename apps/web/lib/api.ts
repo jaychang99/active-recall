@@ -1,5 +1,6 @@
 import type { AnswerPayload, GradeResult, PublicQuestion, ValidationIssue, QuestionType } from '@recall/contracts';
 import { clearApiToken, getApiToken, redirectToLogin } from './auth-token';
+import { withActivity } from './request-activity';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -16,6 +17,12 @@ export class ApiRequestError extends Error {
 
 /** Every API call carries the signed-in user's bearer token; a 401 refreshes the token once, then goes to /login. */
 export async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
+  // Passive inbox polling should not announce user-facing work every minute.
+  if (path === '/shares/received/count' && (!init?.method || init.method === 'GET')) return sendApi<T>(path, init);
+  return withActivity(!init?.method || init.method === 'GET' ? 'read' : 'write', () => sendApi<T>(path, init));
+}
+
+async function sendApi<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json', ...(init?.headers as Record<string, string>) };
   let body = init?.body;
   if (init?.json !== undefined) {

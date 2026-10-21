@@ -1,14 +1,14 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
 import { Play, Upload } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { api, type Deck, type SubjectSummary } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, Skeleton } from '@/components/ui/misc';
+import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, LoadingState } from '@/components/ui/misc';
 import { Tabs, tabPanelProps } from '@/components/ui/tabs';
 import { ArchiveButton } from '@/components/decks/archive-button';
 import { formatDateTime } from '@/lib/utils';
@@ -41,7 +41,7 @@ export default function DecksPage() {
         </div>
       </div>
       <div {...tabPanelProps('decks-archive', tab)}>
-        {decks.isLoading ? <Skeleton className="h-40" /> : null}
+        {decks.isLoading ? <LoadingState label="덱 목록을 불러오는 중…" className="min-h-40" /> : null}
         {decks.isError ? <ErrorState message={(decks.error as Error).message} onRetry={() => decks.refetch()} /> : null}
         {decks.isSuccess && list.length === 0 ? <EmptyState title={q || subject ? '조건에 맞는 덱이 없습니다' : archived ? '아카이브한 덱이 없습니다' : '덱이 없습니다'} body={archived ? '덱 카드의 아카이브 버튼으로 보관할 수 있습니다.' : '가져오기 화면에서 LLM이 생성한 JSON을 붙여넣으세요.'} action={!archived && !decks.data.length ? <Link href="/import"><Button variant="primary">가져오기</Button></Link> : undefined} /> : null}
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

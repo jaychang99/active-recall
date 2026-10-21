@@ -2,7 +2,7 @@
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Eye, EyeOff, Settings2 } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { api, type Settings } from '@/lib/api';

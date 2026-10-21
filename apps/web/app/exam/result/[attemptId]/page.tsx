@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { RotateCcw } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useRouter } from 'next/navigation';
 import { use, useState } from 'react';
 import { toast } from 'sonner';
@@ -9,7 +9,7 @@ import type { PublicQuestion } from '@recall/contracts';
 import { api, type Exam } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ErrorState, PageHeader, Panel, Skeleton, Stat } from '@/components/ui/misc';
+import { ErrorState, PageHeader, Panel, Stat, LoadingState } from '@/components/ui/misc';
 import { QuestionPrompt, QuestionRenderer } from '@/components/questions/question-renderer';
 import { ExplanationPanel, Verdict } from '@/components/study/explanation-panel';
 import { TYPE_LABEL, cn, pct } from '@/lib/utils';
@@ -24,7 +24,7 @@ export default function ExamResultPage({ params }: { params: Promise<{ attemptId
     onSuccess: (e) => router.push(`/exam/run/${e.id}`),
     onError: (e: Error) => toast.error(e.message),
   });
-  if (exam.isLoading) return <Skeleton className="h-64" />;
+  if (exam.isLoading) return <LoadingState label="시험 결과를 불러오는 중…" className="min-h-64" />;
   if (exam.isError) return <ErrorState message={(exam.error as Error).message} onRetry={() => exam.refetch()} />;
   const e = exam.data!;
   const s = e.score;
@@ -33,7 +33,7 @@ export default function ExamResultPage({ params }: { params: Promise<{ attemptId
   const wrongCount = e.questions.filter((q) => q.type !== 'essay' && q.response?.isCorrect !== true).length;
   return (
     <div className="mx-auto max-w-[900px]">
-      <PageHeader title={e.title} description={`${e.deck.title} · ${s.durationSec !== null ? `${Math.floor(s.durationSec / 60)}분 ${s.durationSec % 60}초` : ''}`} actions={<>{wrongCount ? <Button variant="primary" onClick={() => retry.mutate()}><RotateCcw className="h-4 w-4" /> 오답 {wrongCount}문항 재시험</Button> : null}<Link href={`/exam?deckId=${e.deck.id}`}><Button>새 시험</Button></Link></>} />
+      <PageHeader title={e.title} description={`${e.deck.title} · ${s.durationSec !== null ? `${Math.floor(s.durationSec / 60)}분 ${s.durationSec % 60}초` : ''}`} actions={<>{wrongCount ? <Button loading={retry.isPending} variant="primary" onClick={() => retry.mutate()}><RotateCcw className="h-4 w-4" /> 오답 {wrongCount}문항 재시험</Button> : null}<Link href={`/exam?deckId=${e.deck.id}`}><Button>새 시험</Button></Link></>} />
       <Panel className="mb-6 grid grid-cols-2 gap-6 p-5 sm:grid-cols-4" data-testid="exam-score">
         <Stat label="객관 정답률" value={pct(s.objectiveAccuracy)} hint={`${s.objectiveCorrect} / ${s.objectiveTotal} (서술형 제외)`} />
         <Stat label="서술형 자기평가" value={s.essayTotal ? `${s.essaySelfScore} / ${s.essayMaxScore}` : '—'} hint={`${s.essayTotal}문항 · 자동 채점 아님`} />

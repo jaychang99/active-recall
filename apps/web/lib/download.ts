@@ -1,8 +1,13 @@
 import { API_URL } from './api';
 import { getApiToken, redirectToLogin } from './auth-token';
+import { withActivity } from './request-activity';
 
 /** Authenticated download of an API resource (plain `<a href>` cannot carry the bearer token). */
 export async function downloadFromApi(path: string, filename: string): Promise<void> {
+  return withActivity('download', () => download(path, filename));
+}
+
+async function download(path: string, filename: string): Promise<void> {
   const token = await getApiToken();
   if (!token) {
     redirectToLogin();

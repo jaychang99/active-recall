@@ -190,7 +190,7 @@ export function ShareDialog({ target, name, count, size, variant, label = '공�
               <li>· 상대가 30일 안에 수락하면 상대 계정에 복사됩니다. 가입하지 않은 주소라면 가입한 뒤에 받습니다.</li>
             </ul>
             <div className="flex gap-2">
-              <Button type="submit" variant="primary" disabled={!canSend} data-testid="share-send"><Send className="h-4 w-4" /> {emails.length ? `${emails.length}명에게 보내기` : '보내기'}</Button>
+              <Button type="submit" variant="primary" loading={send.isPending} loadingLabel="공유 보내는 중…" disabled={!canSend} data-testid="share-send"><Send className="h-4 w-4" /> {emails.length ? `${emails.length}명에게 보내기` : '보내기'}</Button>
               <Button variant="ghost" onClick={() => setOpen(false)}>취소</Button>
             </div>
           </form>

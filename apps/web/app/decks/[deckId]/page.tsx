@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Eye, EyeOff, Flag, GraduationCap, MoreHorizontal, NotebookPen, PauseCircle, Play, PlayCircle, RotateCcw, Tags, Trash2 } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useState } from 'react';
 import { toast } from 'sonner';
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input, Select } from '@/components/ui/input';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/tooltip';
-import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, Skeleton } from '@/components/ui/misc';
+import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, Skeleton, LoadingState } from '@/components/ui/misc';
 import { Markdown } from '@/components/questions/markdown';
 import { NoteHistoryItem } from '@/components/study/notes-panel';
 import { DeckSubjectDialog } from '@/components/decks/deck-subject-dialog';
@@ -67,7 +67,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (deck.isLoading) return <div className="mx-auto max-w-6xl space-y-4"><Skeleton className="h-8 w-64" /><Skeleton className="h-24" /><Skeleton className="h-96" /></div>;
+  if (deck.isLoading) return <div className="mx-auto max-w-6xl space-y-4"><LoadingState label="덱 정보를 불러오는 중…" className="min-h-64" /></div>;
   if (deck.isError) return <ErrorState message={(deck.error as Error).message} onRetry={() => deck.refetch()} />;
   const d = deck.data!;
   const ids = [...selected];
@@ -127,17 +127,17 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
           {selected.size ? (
             <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-accent/40 bg-accent-soft/40 px-3 py-2 text-[13px]">
               <span className="font-medium">{selected.size}개 선택</span>
-              <Button size="sm" onClick={() => bulk.mutate({ ids, action: 'flag' })}><Flag className="h-3.5 w-3.5" /> 표시</Button>
-              <Button size="sm" onClick={() => bulk.mutate({ ids, action: 'unflag' })}>표시 해제</Button>
-              <Button size="sm" onClick={() => bulk.mutate({ ids, action: 'suspend' })}><PauseCircle className="h-3.5 w-3.5" /> 보류</Button>
-              <Button size="sm" onClick={() => bulk.mutate({ ids, action: 'resume' })}>보류 해제</Button>
-              <Button size="sm" onClick={() => { if (confirm('선택한 문항의 FSRS 스케줄을 초기화할까요? 기록은 유지됩니다.')) bulk.mutate({ ids, action: 'reset' }); }}><RotateCcw className="h-3.5 w-3.5" /> 스케줄 초기화</Button>
-              <Button size="sm" onClick={() => { const n = prompt('추가할 과목 이름'); if (n) assignSubject.mutate({ ids, name: n }); }}><Tags className="h-3.5 w-3.5" /> 과목 추가</Button>
+              <Button loading={bulk.isPending && bulk.variables?.action === 'flag'} size="sm" onClick={() => bulk.mutate({ ids, action: 'flag' })}><Flag className="h-3.5 w-3.5" /> 표시</Button>
+              <Button loading={bulk.isPending && bulk.variables?.action === 'unflag'} size="sm" onClick={() => bulk.mutate({ ids, action: 'unflag' })}>표시 해제</Button>
+              <Button loading={bulk.isPending && bulk.variables?.action === 'suspend'} size="sm" onClick={() => bulk.mutate({ ids, action: 'suspend' })}><PauseCircle className="h-3.5 w-3.5" /> 보류</Button>
+              <Button loading={bulk.isPending && bulk.variables?.action === 'resume'} size="sm" onClick={() => bulk.mutate({ ids, action: 'resume' })}>보류 해제</Button>
+              <Button loading={bulk.isPending && bulk.variables?.action === 'reset'} size="sm" onClick={() => { if (confirm('선택한 문항의 FSRS 스케줄을 초기화할까요? 기록은 유지됩니다.')) bulk.mutate({ ids, action: 'reset' }); }}><RotateCcw className="h-3.5 w-3.5" /> 스케줄 초기화</Button>
+              <Button loading={assignSubject.isPending} size="sm" onClick={() => { const n = prompt('추가할 과목 이름'); if (n) assignSubject.mutate({ ids, name: n }); }}><Tags className="h-3.5 w-3.5" /> 과목 추가</Button>
               <ShareDialog target={{ kind: 'questions', questionIds: ids }} name={d.title} count={ids.length} size="sm" label="공유" onSent={() => setSelected(new Set())} />
               <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>선택 해제</Button>
             </div>
           ) : null}
-          {questions.isLoading ? <Skeleton className="h-64" /> : null}
+          {questions.isLoading ? <LoadingState label="문항 목록을 불러오는 중…" className="min-h-64" /> : null}
           {questions.isError ? <ErrorState message={(questions.error as Error).message} onRetry={() => questions.refetch()} /> : null}
           {questions.data?.items.length === 0 ? <EmptyState title="조건에 맞는 문항이 없습니다" /> : null}
           {questions.data?.items.length ? (
@@ -185,7 +185,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
         </>
       ) : (
         <div className="space-y-2">
-          {notes.isLoading ? <Skeleton className="h-40" /> : null}
+          {notes.isLoading ? <LoadingState label="메모를 불러오는 중…" className="min-h-40" /> : null}
           {notes.data?.length === 0 ? <EmptyState title="아직 메모가 없습니다" body="학습 화면에서 M 키로 회차별 메모를 남길 수 있습니다." /> : null}
           {notes.data?.map((n) => (
             <Panel key={n.id} className="p-3">
@@ -261,12 +261,12 @@ function QuestionDrawer({ row, onClose, deckId, onChanged }: { row: QuestionRow 
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[12px] text-ink-3">과목</span>
               {row.subjects.map((s) => <Badge key={s.id} tone={s.source === 'deck' ? 'neutral' : 'info'}>{s.name}{s.source === 'manual' ? <button type="button" aria-label="제거" className="ml-1" onClick={() => subjects.mutate(manual.filter((n) => n !== s.name))}>×</button> : null}</Badge>)}
-              <Button size="sm" variant="ghost" onClick={() => { const n = prompt('추가할 과목 (쉼표로 여러 개)'); if (n) subjects.mutate([...manual, ...n.split(',').map((x) => x.trim()).filter(Boolean)]); }}><Tags className="h-3.5 w-3.5" /> 과목 추가</Button>
+              <Button loading={subjects.isPending} size="sm" variant="ghost" onClick={() => { const n = prompt('추가할 과목 (쉼표로 여러 개)'); if (n) subjects.mutate([...manual, ...n.split(',').map((x) => x.trim()).filter(Boolean)]); }}><Tags className="h-3.5 w-3.5" /> 과목 추가</Button>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => action.mutate(row.card?.flagged ? 'unflag' : 'flag')}><Flag className="h-3.5 w-3.5" /> {row.card?.flagged ? '표시 해제' : '표시'}</Button>
-              <Button size="sm" onClick={() => action.mutate(row.card?.suspended ? 'resume' : 'suspend')}><PauseCircle className="h-3.5 w-3.5" /> {row.card?.suspended ? '보류 해제' : '보류'}</Button>
-              <Button size="sm" onClick={() => { if (confirm('스케줄을 초기화할까요?')) action.mutate('reset'); }}><RotateCcw className="h-3.5 w-3.5" /> 스케줄 초기화</Button>
+              <Button loading={action.isPending && ['flag', 'unflag'].includes(action.variables ?? '')} disabled={action.isPending} size="sm" onClick={() => action.mutate(row.card?.flagged ? 'unflag' : 'flag')}><Flag className="h-3.5 w-3.5" /> {row.card?.flagged ? '표시 해제' : '표시'}</Button>
+              <Button loading={action.isPending && ['suspend', 'resume'].includes(action.variables ?? '')} disabled={action.isPending} size="sm" onClick={() => action.mutate(row.card?.suspended ? 'resume' : 'suspend')}><PauseCircle className="h-3.5 w-3.5" /> {row.card?.suspended ? '보류 해제' : '보류'}</Button>
+              <Button loading={action.isPending && action.variables === 'reset'} disabled={action.isPending} size="sm" onClick={() => { if (confirm('스케줄을 초기화할까요?')) action.mutate('reset'); }}><RotateCcw className="h-3.5 w-3.5" /> 스케줄 초기화</Button>
             </div>
             <section>
               <h4 className="mb-1 text-[12px] font-semibold text-ink-3">복습 기록 ({reviews.data?.filter((r) => !r.undone).length ?? 0}회)</h4>

@@ -29,5 +29,7 @@ Buttons (primary / secondary / ghost / soft / danger), inputs, badges, dialog (R
 ## Motion
 150–250ms state transitions only; `rs-pop` scale-in for dialogs/result; reduced-motion respected.
 
+Async feedback: requests and navigation share a non-blocking top progress bar and status after 300ms; waits over 6 seconds explain that the server is still responding. Passive inbox polling stays quiet. Pending action buttons immediately show a spinner, busy state and progress strip and prevent repeated clicks. Initial data loads use labelled loading panels; cached data stays visible during refresh. Unknown durations remain indeterminate; multi-file imports show actual completed/total files for each validation/save phase. Progress/spinner animations respect reduced motion, and status messages use polite announcements.
+
 ## Keyboard
 Documented in-app (`?`). Scope manager: global < page < study < modal (exclusive). Never fires inside inputs/textareas/contenteditable or during IME composition; Enter in textareas is a newline; ⌘/Ctrl+Enter submits.

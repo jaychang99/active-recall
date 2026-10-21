@@ -11,6 +11,7 @@ import { cn, formatDateTime } from '@/lib/utils';
 import { RATINGS } from './rating-bar';
 import { Markdown } from '@/components/questions/markdown';
 import { isComposing } from '@/lib/shortcuts/manager';
+import { Spinner } from '@/components/ui/loading';
 
 const AUTOSAVE_MS = 900;
 
@@ -109,7 +110,7 @@ export function NotesPanel({ questionId, round, hideRound, focusSignal, classNam
       <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-2.5 text-left">
         <NotebookPen className="h-4 w-4 text-ink-3" />
         <span className="text-[13px] font-semibold text-ink-2">{hideRound ? '메모 · 이번 회차' : `메모 · ${round}회차`}</span>
-        {dirty ? <Badge tone="warn">저장 대기</Badge> : save.isPending ? <Badge>저장 중…</Badge> : current ? <Badge tone="ok">저장됨</Badge> : null}
+        {save.isPending ? <Badge><Spinner className="h-3 w-3" />저장 중…</Badge> : dirty ? <Badge tone="warn">저장 대기</Badge> : current ? <Badge tone="ok">저장됨</Badge> : null}
         {history.length ? <span className="text-[12px] text-ink-3">{hideRound ? '이전 회차 메모 있음' : `이전 회차 메모 ${history.length}개`}</span> : null}
         <kbd className="kbd ml-auto" aria-hidden>M</kbd>
         {open ? <ChevronUp className="h-4 w-4 text-ink-3" /> : <ChevronDown className="h-4 w-4 text-ink-3" />}
@@ -144,7 +145,7 @@ export function NotesPanel({ questionId, round, hideRound, focusSignal, classNam
           />
           <div className="flex items-center justify-between">
             <p className="text-[12px] text-ink-3">회차마다 메모 하나가 저장되며, 평가 시 해당 복습 기록과 연결됩니다.</p>
-            <Button size="sm" variant="ghost" onClick={flush} disabled={!dirty || save.isPending}><Save className="h-3.5 w-3.5" /> 저장</Button>
+            <Button loading={save.isPending} size="sm" variant="ghost" onClick={flush} disabled={!dirty || save.isPending}><Save className="h-3.5 w-3.5" /> 저장</Button>
           </div>
           {history.length ? (
             <div>

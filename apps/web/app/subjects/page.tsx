@@ -1,14 +1,14 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Trash2 } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { api, type SubjectSummary } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, Skeleton } from '@/components/ui/misc';
+import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, LoadingState } from '@/components/ui/misc';
 import { ShareDialog } from '@/components/shares/share-dialog';
 import { ArchiveButton } from '@/components/decks/archive-button';
 import { Tabs, tabPanelProps } from '@/components/ui/tabs';
@@ -46,10 +46,10 @@ export default function SubjectsPage() {
       <p className="mb-4 text-[12px] text-ink-3">{archived ? '보관한 과목입니다. 아카이브를 해제하면 기본 목록과 전체 학습 대상에 다시 포함됩니다.' : '마지막으로 복습한 과목부터 표시합니다.'}</p>
       {!archived ? <form className="mb-6 flex max-w-md gap-2" onSubmit={(e) => { e.preventDefault(); if (name.trim()) create.mutate(name.trim()); }}>
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="새 과목 이름 (예: 운영체제, 중간고사 범위)" aria-label="새 과목 이름" />
-        <Button type="submit" variant="primary" disabled={!name.trim() || create.isPending}><Plus className="h-4 w-4" /> 추가</Button>
+        <Button loading={create.isPending} type="submit" variant="primary" disabled={!name.trim() || create.isPending}><Plus className="h-4 w-4" /> 추가</Button>
       </form> : null}
       <div {...tabPanelProps('subjects-archive', tab)}>
-      {subjects.isLoading ? <Skeleton className="h-40" /> : null}
+      {subjects.isLoading ? <LoadingState label="과목 목록을 불러오는 중…" className="min-h-40" /> : null}
       {subjects.isError ? <ErrorState message={(subjects.error as Error).message} onRetry={() => subjects.refetch()} /> : null}
       {subjects.isSuccess && subjects.data.length === 0 ? <EmptyState title={archived ? '아카이브한 과목이 없습니다' : '과목이 없습니다'} body={archived ? '과목 카드의 아카이브 버튼으로 보관할 수 있습니다.' : '덱을 가져오면 덱의 과목이 자동으로 생성됩니다.'} /> : null}
       <div className="grid gap-3 md:grid-cols-2">
@@ -57,7 +57,7 @@ export default function SubjectsPage() {
           <Panel key={s.id} className="relative p-4 transition-colors hover:border-line-strong" data-testid="subject-card" data-subject-id={s.id}>
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
-                <button type="button" aria-label="색상 변경" className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-sunken" onClick={() => update.mutate({ id: s.id, data: { color: COLORS[(COLORS.indexOf(s.color ?? '') + 1) % COLORS.length] } })}>
+                <button type="button" disabled={update.isPending} aria-busy={update.isPending && update.variables?.id === s.id || undefined} aria-label="색상 변경" className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-sunken" onClick={() => update.mutate({ id: s.id, data: { color: COLORS[(COLORS.indexOf(s.color ?? '') + 1) % COLORS.length] } })}>
                   <span className="h-4 w-4 rounded-full border border-line" style={{ background: s.color ?? 'var(--accent)' }} />
                 </button>
                 <input
@@ -70,7 +70,7 @@ export default function SubjectsPage() {
               </div>
               <div className="flex shrink-0 gap-1">
                 {!archived ? <ArchiveButton kind="subjects" id={s.id} name={s.name} archived={false} /> : null}
-                <Button variant="ghost" size="iconSm" className="relative z-10" aria-label="과목 삭제" onClick={() => { if (confirm(`"${s.name}" 과목을 삭제할까요? 문항은 삭제되지 않습니다.`)) remove.mutate(s.id); }}><Trash2 className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="iconSm" className="relative z-10" loading={remove.isPending && remove.variables === s.id} disabled={remove.isPending} aria-label="과목 삭제" onClick={() => { if (confirm(`"${s.name}" 과목을 삭제할까요? 문항은 삭제되지 않습니다.`)) remove.mutate(s.id); }}><Trash2 className="h-4 w-4" /></Button>
               </div>
             </div>
             <Link href={`/decks?subject=${encodeURIComponent(s.name)}`} aria-label={`${s.name} 덱 보기`} className="mt-1 block text-[12px] text-ink-3 after:absolute after:inset-0 after:rounded-lg">{s.questionCount}문항 · 덱 {s.deckIds.length}개 · due {s.progress.dueToday}</Link>

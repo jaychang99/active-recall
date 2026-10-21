@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { GraduationCap, Play } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -9,7 +9,7 @@ import { api, type Deck, type DeckDetail, type Exam, type ExamSummary } from '@/
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input, Label, Select } from '@/components/ui/input';
-import { EmptyState, ErrorState, PageHeader, Panel, Skeleton } from '@/components/ui/misc';
+import { EmptyState, ErrorState, PageHeader, Panel, LoadingState } from '@/components/ui/misc';
 import { TYPE_LABEL, formatDateTime, pct } from '@/lib/utils';
 
 export default function ExamSetupPage() {
@@ -37,7 +37,7 @@ export default function ExamSetupPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader title="시험" description="시험 모드는 FSRS 스케줄에 영향을 주지 않습니다. 제출 후 점수와 오답 분석을 보여주며, 서술형은 객관 점수 분모에서 제외됩니다." />
-      {decks.isLoading ? <Skeleton className="h-40" /> : null}
+      {decks.isLoading ? <LoadingState label="시험 정보를 불러오는 중…" className="min-h-40" /> : null}
       {decks.isError ? <ErrorState message={(decks.error as Error).message} onRetry={() => decks.refetch()} /> : null}
       {decks.isSuccess && decks.data.length === 0 ? <EmptyState title="시험을 볼 덱이 없습니다" action={<Link href="/import"><Button variant="primary">가져오기</Button></Link>} /> : null}
       {decks.data?.length ? (
@@ -61,7 +61,7 @@ export default function ExamSetupPage() {
                 <div className="mt-1 flex flex-wrap gap-1.5">{deck.data.questionTags.map((t) => <button key={t.tag} type="button" aria-pressed={tags.includes(t.tag)} onClick={() => setTags((x) => (x.includes(t.tag) ? x.filter((y) => y !== t.tag) : [...x, t.tag]))} className={`rounded-full border px-3 py-1 text-[13px] ${tags.includes(t.tag) ? 'border-accent bg-accent-soft text-accent-soft-ink' : 'border-line text-ink-2'}`}>{t.tag} <span className="text-ink-3">{t.count}</span></button>)}</div>
               </div>
             ) : null}
-            <Button variant="primary" size="lg" onClick={() => create.mutate()} disabled={!effectiveDeck || create.isPending} data-testid="start-exam"><Play className="h-4 w-4" /> 시험 시작</Button>
+            <Button loading={create.isPending} variant="primary" size="lg" onClick={() => create.mutate()} disabled={!effectiveDeck || create.isPending} data-testid="start-exam"><Play className="h-4 w-4" /> 시험 시작</Button>
           </Panel>
           <Panel className="p-5">
             <h2 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-ink-2"><GraduationCap className="h-4 w-4" /> 시험 기록</h2>

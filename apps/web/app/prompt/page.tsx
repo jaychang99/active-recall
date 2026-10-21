@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardCopy, FileText, RotateCcw, Save } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { api, type Deck, type Settings, type SubjectSummary } from '@/lib/api';
@@ -75,7 +75,7 @@ export default function PromptPage() {
             <h2 className="mb-2 text-[13px] font-semibold text-ink-2">기본값</h2>
             <p className="mb-3 text-[12px] text-ink-3">{loaded && settings.promptDefaults ? '저장된 기본값이 있습니다. 프롬프트 문서의 값과 다른 항목만 저장됩니다.' : '저장된 기본값이 없어 프롬프트 문서의 값을 씁니다.'}</p>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => saveDefaults.mutate()} disabled={saveDefaults.isPending || !changed.size} data-testid="prompt-save-defaults"><Save className="h-3.5 w-3.5" /> {saveDefaults.isPending ? '저장 중…' : '현재 값을 기본값으로 저장'}</Button>
+              <Button loading={saveDefaults.isPending} size="sm" onClick={() => saveDefaults.mutate()} disabled={saveDefaults.isPending || !changed.size} data-testid="prompt-save-defaults"><Save className="h-3.5 w-3.5" /> {saveDefaults.isPending ? '저장 중…' : '현재 값을 기본값으로 저장'}</Button>
               <Button size="sm" variant="ghost" onClick={() => { setValue(saved); setTouched(false); }} disabled={!changed.size}><RotateCcw className="h-3.5 w-3.5" /> 기본값으로 되돌리기</Button>
               <Button size="sm" variant="ghost" onClick={() => update(resolvePromptOptions(null, PROMPT_DEFAULTS))} disabled={!changedKeys(value, PROMPT_DEFAULTS).length}>문서 원본 값으로</Button>
             </div>

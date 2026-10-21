@@ -25,7 +25,7 @@ export function ArchiveButton({ kind, id, name, archived, showLabel = false }: {
   const Icon = archived ? ArchiveRestore : Archive;
   return (
     <Tooltip content={action}>
-      <Button variant="ghost" size={showLabel ? 'sm' : 'iconSm'} className="relative z-10 shrink-0" aria-label={`${name} ${action}`} disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+      <Button loading={mutation.isPending} variant="ghost" size={showLabel ? 'sm' : 'iconSm'} className="relative z-10 shrink-0" aria-label={`${name} ${action}`} disabled={mutation.isPending} onClick={() => mutation.mutate()}>
         <Icon className="h-4 w-4" />{showLabel ? action : null}
       </Button>
     </Tooltip>

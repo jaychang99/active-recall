@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, ClipboardPaste, FileUp, Play, XCircle, Zap } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { parseBatchJson, validateBatch, type ValidationIssue } from '@recall/contracts';
@@ -108,46 +108,48 @@ export function SingleImport() {
   const issues = clientIssues ?? plan?.issues ?? [];
   const byType = plan?.summary?.byType ?? null;
 
+  const busy = validate.isPending || commit.isPending || validateAndCommit.isPending;
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="min-w-0 space-y-3">
         <div
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
-          onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) void loadFile(f); }}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f && !busy) void loadFile(f); }}
           className={cn('rounded-lg border-2 border-dashed transition-colors focus-within:border-accent', drag ? 'border-accent bg-accent-soft/30' : 'border-line-strong')}
         >
           <textarea
             value={text}
             onChange={(e) => { setText(e.target.value); setPlan(null); setReport(null); setClientIssues(null); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && text.trim() && !report) { e.preventDefault(); validateAndCommit.mutate(); } }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && text.trim() && !report && !busy) { e.preventDefault(); validateAndCommit.mutate(); } }}
             spellCheck={false}
             aria-label="JSON 입력"
-            data-testid="import-textarea"
+            readOnly={busy} data-testid="import-textarea"
             placeholder={'{\n  "schemaVersion": "1.0.0",\n  "deck": { ... },\n  "questions": [ ... ]\n}\n\n여기에 붙여넣거나 .json 파일을 끌어다 놓으세요.'}
             className="h-[min(420px,45svh)] min-h-56 w-full resize-y rounded-lg bg-elevated p-3 sm:p-4 font-mono text-[13px] leading-relaxed outline-none"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => navigator.clipboard.readText().then((t) => { setText(t); setPlan(null); setReport(null); }).catch(() => toast.error('클립보드를 읽을 수 없습니다'))}><ClipboardPaste className="h-4 w-4" /> 클립보드에서 붙여넣기</Button>
-          <Button onClick={() => fileRef.current?.click()}><FileUp className="h-4 w-4" /> 파일 열기</Button>
-          <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void loadFile(f); e.target.value = ''; }} />
-          <Button variant="ghost" onClick={() => { setText(JSON.stringify(exampleBatch, null, 2)); setPlan(null); setReport(null); setClientIssues(null); }} data-testid="load-example">8종 예제 불러오기</Button>
+          <Button disabled={busy} onClick={() => navigator.clipboard.readText().then((t) => { setText(t); setPlan(null); setReport(null); }).catch(() => toast.error('클립보드를 읽을 수 없습니다'))}><ClipboardPaste className="h-4 w-4" /> 클립보드에서 붙여넣기</Button>
+          <Button disabled={busy} onClick={() => fileRef.current?.click()}><FileUp className="h-4 w-4" /> 파일 열기</Button>
+          <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f && !busy) void loadFile(f); e.target.value = ''; }} />
+          <Button disabled={busy} variant="ghost" onClick={() => { setText(JSON.stringify(exampleBatch, null, 2)); setPlan(null); setReport(null); setClientIssues(null); }} data-testid="load-example">8종 예제 불러오기</Button>
           <Button variant="ghost" onClick={() => void copyToClipboard(JSON.stringify(exampleBatch, null, 2)).then(() => toast.success('예제 JSON 복사됨'))}>예제 복사</Button>
           <Button variant="ghost" onClick={() => void copyToClipboard(schemaText()).then(() => toast.success('스키마 복사됨'))}>스키마 복사</Button>
         </div>
-        <ImportTargetPanel value={target} onChange={(next) => { setTarget(next); setPlan(null); setReport(null); }} json={jsonDeck} />
+        <ImportTargetPanel disabled={busy} value={target} onChange={(next) => { setTarget(next); setPlan(null); setReport(null); }} json={jsonDeck} />
         <div className="flex flex-wrap items-center gap-2">
           <span className="order-last ml-auto text-[12px] text-ink-3 tabular">{(new TextEncoder().encode(text).length / 1024).toFixed(1)} KB · 한도 5 MB / 1,000문항</span>
-          <Select value={strategy} onChange={(e) => { setStrategy(e.target.value as Strategy); setPlan(null); }} aria-label="덮어쓰기 전략">
+          <Select disabled={busy} value={strategy} onChange={(e) => { setStrategy(e.target.value as Strategy); setPlan(null); }} aria-label="덮어쓰기 전략">
             <option value="upsert">업서트 — 새 문항 추가, 변경된 문항 갱신 (기본)</option>
             <option value="add_only">추가만 — 기존 문항은 건드리지 않음</option>
             <option value="replace_deck">덱 교체 — JSON에 없는 기존 문항은 비활성화</option>
           </Select>
           {strategy === 'replace_deck' ? <p className="order-last basis-full text-[12px] text-warn-ink">덱 교체: JSON에 없는 기존 문항은 비활성화됩니다 (복습 기록은 보존).</p> : null}
-          <Button variant={plan?.ok ? 'secondary' : 'primary'} onClick={() => validate.mutate()} disabled={!text.trim() || validate.isPending || targetIssues.length > 0} data-testid="validate-btn"><CheckCircle2 className="h-4 w-4" /> {validate.isPending ? '검증 중…' : '검증'}</Button>
-          <Button variant="primary" onClick={() => commit.mutate()} disabled={!plan?.ok || commit.isPending || !!report} data-testid="commit-btn"><Play className="h-4 w-4" /> {commit.isPending ? '저장 중…' : '가져오기 확정'}</Button>
-          <Button variant="soft" onClick={() => validateAndCommit.mutate()} disabled={!text.trim() || validateAndCommit.isPending || !!report || targetIssues.length > 0} data-testid="validate-and-commit-btn" title="검증을 통과하면 바로 가져옵니다 (⌘/Ctrl+Enter)"><Zap className="h-4 w-4" /> {validateAndCommit.isPending ? '검증 + 저장 중…' : '검증 + 가져오기 (원클릭)'}</Button>
+          <Button loading={validate.isPending} variant={plan?.ok ? 'secondary' : 'primary'} onClick={() => validate.mutate()} disabled={!text.trim() || busy || targetIssues.length > 0} data-testid="validate-btn"><CheckCircle2 className="h-4 w-4" /> {validate.isPending ? '검증 중…' : '검증'}</Button>
+          <Button loading={commit.isPending} variant="primary" onClick={() => commit.mutate()} disabled={!plan?.ok || busy || !!report} data-testid="commit-btn"><Play className="h-4 w-4" /> {commit.isPending ? '저장 중…' : '가져오기 확정'}</Button>
+          <Button loading={validateAndCommit.isPending} variant="soft" onClick={() => validateAndCommit.mutate()} disabled={!text.trim() || busy || !!report || targetIssues.length > 0} data-testid="validate-and-commit-btn" title="검증을 통과하면 바로 가져옵니다 (⌘/Ctrl+Enter)"><Zap className="h-4 w-4" /> {validateAndCommit.isPending ? '검증 + 저장 중…' : '검증 + 가져오기 (원클릭)'}</Button>
         </div>
       </div>
 

@@ -1,11 +1,12 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, FolderTree, Layers } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { api, type Deck, type SubjectSummary } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { Spinner } from '@/components/ui/loading';
 
 export function CollectionMenu({ kind, onNavigate }: { kind: 'decks' | 'subjects'; onNavigate: () => void }) {
   const [open, setOpen] = useState(false);
@@ -46,7 +47,7 @@ export function CollectionMenu({ kind, onNavigate }: { kind: 'decks' | 'subjects
           전체 {label} 보기
         </Link>
         <p className="px-2 pt-2 pb-1 text-[11px] text-ink-3">최근 복습</p>
-        {query.isPending ? <p role="status" className="px-2 py-2 text-[12px] text-ink-3">불러오는 중…</p> : null}
+        {query.isPending ? <p role="status" className="flex items-center gap-1.5 px-2 py-2 text-[12px] text-ink-3"><Spinner className="h-3 w-3" />불러오는 중…</p> : null}
         {query.isError ? <div className="px-2 py-2 text-[12px] text-ink-3"><p>최근 항목을 불러오지 못했습니다.</p><button type="button" className="mt-1 text-accent hover:underline" onClick={() => void query.refetch()}>다시 시도</button></div> : null}
         {query.isSuccess && !recent.length ? <p className="px-2 py-2 text-[12px] text-ink-3">아직 복습한 {label}이 없습니다.</p> : null}
         <ul aria-label={`최근 복습한 ${label}`}>

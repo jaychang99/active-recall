@@ -1,12 +1,12 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { api, type Deck, type Overview, type SubjectSummary } from '@/lib/api';
 import { Select } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ErrorState, PageHeader, Panel, Skeleton, Stat } from '@/components/ui/misc';
+import { ErrorState, PageHeader, Panel, Stat, LoadingState } from '@/components/ui/misc';
 import { ActivityHeatmap } from '@/components/insights/heatmap';
 import { BarChart, HBar } from '@/components/insights/charts';
 import { TYPE_LABEL, pct } from '@/lib/utils';
@@ -34,7 +34,7 @@ export default function InsightsPage() {
           <Select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="기간"><option value={7}>7일</option><option value={30}>30일</option><option value={90}>90일</option><option value={365}>1년</option></Select>
         </>
       } />
-      {ov.isLoading ? <Skeleton className="h-64" /> : null}
+      {ov.isLoading ? <LoadingState label="학습 통계를 계산하는 중…" className="min-h-64" /> : null}
       {ov.isError ? <ErrorState message={(ov.error as Error).message} onRetry={() => ov.refetch()} /> : null}
       {o ? (
         <div className="space-y-6" data-testid="insights">

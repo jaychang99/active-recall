@@ -140,6 +140,14 @@ body {
 
 /* Keep intrinsic select/pre/table widths inside their grid or flex column. */
 main { min-width: 0; }
+.rs-progress-indeterminate { animation: rs-progress 1.4s ease-in-out infinite; }
+@keyframes rs-progress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(400%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rs-progress-indeterminate { animation: none; width: 100%; opacity: 0.6; }
+}
 input, textarea, select { scroll-margin-block: 5rem 10rem; }
 
 @media (max-width: 767px), (pointer: coarse) {

@@ -1,6 +1,7 @@
 'use client';
 import type { IntervalPreview } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { Spinner } from '@/components/ui/loading';
 
 export const RATINGS = [
   { value: 1, key: 'again', label: 'Again', ko: '다시', cls: 'border-again text-again', fill: 'bg-again' },
@@ -32,7 +33,7 @@ export function RatingBar({ preview, onRate, disabled, pending }: { preview: Int
             <kbd className="kbd" aria-hidden>{r.value}</kbd>
             {r.ko}
           </span>
-          <span className="text-[12px] tabular text-ink-3">{preview ? preview[r.key].interval : r.label}</span>
+          <span className="flex items-center gap-1 text-[12px] tabular text-ink-3">{pending === r.value ? <><Spinner className="h-3 w-3" /> 저장 중</> : preview ? preview[r.key].interval : r.label}</span>
         </button>
       ))}
     </div>

@@ -8,7 +8,7 @@ import type { AnswerPayload, PublicQuestion } from '@recall/contracts';
 import { api, type Exam } from '@/lib/api';
 import { useShortcuts } from '@/lib/shortcuts/provider';
 import { Button } from '@/components/ui/button';
-import { ErrorState, Skeleton } from '@/components/ui/misc';
+import { ErrorState, LoadingState } from '@/components/ui/misc';
 import { QuestionPrompt, QuestionRenderer } from '@/components/questions/question-renderer';
 import { cn, uid } from '@/lib/utils';
 import { useSettings } from '@/components/layout/settings-context';
@@ -65,7 +65,7 @@ export default function ExamRunPage({ params }: { params: Promise<{ attemptId: s
     { keys: 'Enter', mod: 'ctrlOrMeta', allowInEditable: true, description: '다음 문항 (입력창)', group: '시험', handler: () => go(index + 1) },
   ], settings.shortcutsEnabled && !!current);
 
-  if (exam.isLoading) return <div className="mx-auto max-w-[840px]"><Skeleton className="h-64" /></div>;
+  if (exam.isLoading) return <div className="mx-auto max-w-[840px]"><LoadingState label="시험 문항을 불러오는 중…" className="min-h-64" /></div>;
   if (exam.isError) return <ErrorState message={(exam.error as Error).message} onRetry={() => exam.refetch()} />;
   if (!current) return null;
 
@@ -88,7 +88,7 @@ export default function ExamRunPage({ params }: { params: Promise<{ attemptId: s
         <StudyActions><div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => go(index - 1)} disabled={index === 0} kbd="←"><ChevronLeft className="h-4 w-4" /> 이전</Button>
           <Button onClick={() => go(index + 1)} disabled={index === questions.length - 1} kbd="→">다음 <ChevronRight className="h-4 w-4" /></Button>
-          <Button variant="primary" className="ml-auto" onClick={() => { if (answered < questions.length && !confirm(`${questions.length - answered}문항이 미답입니다. 제출할까요?`)) return; submit.mutate(); }} disabled={submit.isPending} data-testid="submit-exam"><Send className="h-4 w-4" /> 제출 ({answered}/{questions.length})</Button>
+          <Button variant="primary" className="ml-auto" onClick={() => { if (answered < questions.length && !confirm(`${questions.length - answered}문항이 미답입니다. 제출할까요?`)) return; submit.mutate(); }} loading={submit.isPending} loadingLabel="시험 채점 중…" disabled={submit.isPending} data-testid="submit-exam"><Send className="h-4 w-4" /> 제출 ({answered}/{questions.length})</Button>
         </div></StudyActions>
       </article>
     </div>

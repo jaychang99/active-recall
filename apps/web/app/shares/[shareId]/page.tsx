@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Download } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useRouter } from 'next/navigation';
 import { use, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -9,7 +9,7 @@ import { api, type Deck, type ShareDetail, type ShareResultDeck } from '@/lib/ap
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input, Label, Select } from '@/components/ui/input';
-import { ErrorState, PageHeader, Panel, Skeleton } from '@/components/ui/misc';
+import { ErrorState, PageHeader, Panel, LoadingState } from '@/components/ui/misc';
 import { Markdown } from '@/components/questions/markdown';
 import { KIND_LABEL, SHARE_STATUS } from '@/components/shares/labels';
 import { TYPE_LABEL, cn, formatDate } from '@/lib/utils';
@@ -20,7 +20,7 @@ interface Target { mode: 'new' | 'existing'; title: string; deckId: string; stra
 export default function ShareAcceptPage({ params }: { params: Promise<{ shareId: string }> }) {
   const { shareId } = use(params);
   const share = useQuery({ queryKey: ['share', shareId], queryFn: () => api<ShareDetail>(`/shares/received/${shareId}`) });
-  if (share.isLoading) return <div className="mx-auto max-w-4xl space-y-4"><Skeleton className="h-8 w-64" /><Skeleton className="h-40" /><Skeleton className="h-64" /></div>;
+  if (share.isLoading) return <div className="mx-auto max-w-4xl space-y-4"><LoadingState label="공유 내용을 불러오는 중…" className="min-h-64" /></div>;
   if (share.isError) return <ErrorState message={(share.error as Error).message} onRetry={() => share.refetch()} />;
   return <AcceptForm s={share.data!} />;
 }
@@ -219,8 +219,8 @@ function AcceptForm({ s }: { s: ShareDetail }) {
           </Section>
 
           <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-2 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
-            <Button variant="primary" disabled={!chosen || incomplete || accept.isPending} onClick={() => accept.mutate()} data-testid="share-accept"><Download className="h-4 w-4" /> 문항 {chosen}개 가져오기</Button>
-            <Button variant="ghost" disabled={decline.isPending} onClick={() => { if (confirm('이 공유를 거절할까요?')) decline.mutate(); }}>거절</Button>
+            <Button loading={accept.isPending} variant="primary" disabled={!chosen || incomplete || accept.isPending} onClick={() => accept.mutate()} data-testid="share-accept"><Download className="h-4 w-4" /> 문항 {chosen}개 가져오기</Button>
+            <Button loading={decline.isPending} variant="ghost" disabled={decline.isPending} onClick={() => { if (confirm('이 공유를 거절할까요?')) decline.mutate(); }}>거절</Button>
             <span className="text-[12px] text-ink-3">{incomplete ? '합칠 덱을 고르세요.' : '학습 기록 없이 새 카드로 시작합니다.'}</span>
           </div>
         </div>

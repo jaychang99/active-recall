@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Filter, Plus, RotateCcw, Trash2, X } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { adminApi, type EntityMeta, type FieldMeta, type FilterValue, type Row } from '@/lib/admin-api';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input, Label, Select, Textarea } from '@/components/ui/input';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { EmptyState, ErrorState, PageHeader, Skeleton } from '@/components/ui/misc';
+import { EmptyState, ErrorState, PageHeader, LoadingState } from '@/components/ui/misc';
 import { Markdown } from '@/components/questions/markdown';
 import { cn, formatDateTime } from '@/lib/utils';
 
@@ -70,7 +70,7 @@ export function DataManager({ entity }: { entity: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (metas.isLoading) return <Skeleton className="h-64" />;
+  if (metas.isLoading) return <LoadingState label="데이터를 불러오는 중…" className="min-h-64" />;
   if (metas.isError) return <ErrorState message={(metas.error as Error).message} onRetry={() => metas.refetch()} />;
   if (!meta) return <ErrorState title="알 수 없는 엔티티" message={entity} />;
 
@@ -110,15 +110,15 @@ export function DataManager({ entity }: { entity: string }) {
       {selected.size ? (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-accent/40 bg-accent-soft/40 px-3 py-2 text-[13px]" data-testid="bulk-bar">
           <span className="font-medium">{selected.size}개 선택</span>
-          {meta.softDelete ? <Button size="sm" onClick={() => { if (confirm(`${selected.size}건을 삭제할까요? (복구 가능)`)) bulk.mutate({ action: 'delete' }); }} data-testid="bulk-delete"><Trash2 className="h-3.5 w-3.5" /> 삭제</Button> : null}
-          {meta.softDelete ? <Button size="sm" onClick={() => bulk.mutate({ action: 'restore' })}><RotateCcw className="h-3.5 w-3.5" /> 복구</Button> : null}
+          {meta.softDelete ? <Button size="sm" onClick={() => { if (confirm(`${selected.size}건을 삭제할까요? (복구 가능)`)) bulk.mutate({ action: 'delete' }); }} loading={bulk.isPending && bulk.variables?.action === 'delete'} data-testid="bulk-delete"><Trash2 className="h-3.5 w-3.5" /> 삭제</Button> : null}
+          {meta.softDelete ? <Button loading={bulk.isPending && bulk.variables?.action === 'restore'} size="sm" onClick={() => bulk.mutate({ action: 'restore' })}><RotateCcw className="h-3.5 w-3.5" /> 복구</Button> : null}
           {meta.fields.some((f) => f.editable) ? <Button size="sm" onClick={() => setBulkPatch(true)}>필드 일괄 변경</Button> : null}
-          <Button size="sm" variant="danger" onClick={() => { if (confirm(`${selected.size}건을 영구 삭제할까요? 되돌릴 수 없습니다.`)) bulk.mutate({ action: 'permanent' }); }}>영구 삭제</Button>
+          <Button loading={bulk.isPending && bulk.variables?.action === 'permanent'} size="sm" variant="danger" onClick={() => { if (confirm(`${selected.size}건을 영구 삭제할까요? 되돌릴 수 없습니다.`)) bulk.mutate({ action: 'permanent' }); }}>영구 삭제</Button>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>선택 해제</Button>
         </div>
       ) : null}
 
-      {list.isLoading ? <Skeleton className="h-64" /> : null}
+      {list.isLoading ? <LoadingState label="데이터를 불러오는 중…" className="min-h-64" /> : null}
       {list.isError ? <ErrorState message={(list.error as Error).message} onRetry={() => list.refetch()} /> : null}
       {list.data && items.length === 0 ? <EmptyState title="항목이 없습니다" body={activeFilterCount || debounced ? '필터나 검색어를 바꿔보세요.' : undefined} /> : null}
       {items.length ? (
@@ -153,7 +153,7 @@ export function DataManager({ entity }: { entity: string }) {
       </div>
 
       {editing ? <RecordDialog meta={meta} row={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onChanged={invalidate} /> : null}
-      {bulkPatch ? <BulkPatchDialog meta={meta} count={selected.size} onClose={() => setBulkPatch(false)} onApply={(data) => bulk.mutate({ action: 'patch', data })} /> : null}
+      {bulkPatch ? <BulkPatchDialog pending={bulk.isPending} meta={meta} count={selected.size} onClose={() => setBulkPatch(false)} onApply={(data) => bulk.mutate({ action: 'patch', data })} /> : null}
     </div>
   );
 }
@@ -232,11 +232,11 @@ function RecordDialog({ meta, row, onClose, onChanged }: { meta: EntityMeta; row
         <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); save.mutate(); }} data-testid="record-form">
           {fields.map((f) => <FieldEditor key={f.name} f={f} value={form[f.name] ?? ''} disabled={!isNew && !f.editable} onChange={(v) => setForm((x) => ({ ...x, [f.name]: v }))} />)}
           <div className="flex flex-wrap items-center gap-2 pt-2 sm:col-span-2">
-            <Button type="submit" variant="primary" disabled={save.isPending} data-testid="save-record">{isNew ? '생성' : '저장'}</Button>
+            <Button loading={save.isPending} type="submit" variant="primary" disabled={save.isPending} data-testid="save-record">{isNew ? '생성' : '저장'}</Button>
             {!isNew && meta.key !== 'settings' ? (
-              row!.deletedAt ? <Button type="button" onClick={() => restore.mutate()}><RotateCcw className="h-4 w-4" /> 복구</Button> : (meta.softDelete ? <Button type="button" onClick={() => { if (confirm('삭제할까요? (복구 가능)')) remove.mutate(false); }}><Trash2 className="h-4 w-4" /> 삭제</Button> : null)
+              row!.deletedAt ? <Button loading={restore.isPending} type="button" onClick={() => restore.mutate()}><RotateCcw className="h-4 w-4" /> 복구</Button> : (meta.softDelete ? <Button loading={remove.isPending} type="button" onClick={() => { if (confirm('삭제할까요? (복구 가능)')) remove.mutate(false); }}><Trash2 className="h-4 w-4" /> 삭제</Button> : null)
             ) : null}
-            {!isNew && meta.key !== 'settings' ? <Button type="button" variant="danger" onClick={() => { if (confirm('영구 삭제할까요? 되돌릴 수 없습니다.')) remove.mutate(true); }}>영구 삭제</Button> : null}
+            {!isNew && meta.key !== 'settings' ? <Button loading={remove.isPending} type="button" variant="danger" onClick={() => { if (confirm('영구 삭제할까요? 되돌릴 수 없습니다.')) remove.mutate(true); }}>영구 삭제</Button> : null}
             <Button type="button" variant="ghost" onClick={onClose} className="ml-auto">닫기</Button>
           </div>
         </form>
@@ -245,7 +245,7 @@ function RecordDialog({ meta, row, onClose, onChanged }: { meta: EntityMeta; row
   );
 }
 
-function BulkPatchDialog({ meta, count, onClose, onApply }: { meta: EntityMeta; count: number; onClose: () => void; onApply: (data: Record<string, unknown>) => void }) {
+function BulkPatchDialog({ meta, count, onClose, onApply, pending }: { pending: boolean; meta: EntityMeta; count: number; onClose: () => void; onApply: (data: Record<string, unknown>) => void }) {
   const editable = meta.fields.filter((f) => f.editable && f.type !== 'json');
   const [field, setField] = useState(editable[0]?.name ?? '');
   const [value, setValue] = useState<string | boolean>('');
@@ -256,7 +256,7 @@ function BulkPatchDialog({ meta, count, onClose, onApply }: { meta: EntityMeta; 
         <div className="space-y-3">
           <div><Label htmlFor="bulk-field">필드</Label><Select id="bulk-field" className="mt-1 w-full" value={field} onChange={(e) => { setField(e.target.value); setValue(''); }}>{editable.map((x) => <option key={x.name} value={x.name}>{x.label}</option>)}</Select></div>
           {f ? <FieldEditor f={f} value={value} onChange={setValue} /> : null}
-          <div className="flex gap-2"><Button variant="primary" disabled={!f} onClick={() => f && onApply({ [f.name]: fromInput(f, value) })}>적용</Button><Button variant="ghost" onClick={onClose}>취소</Button></div>
+          <div className="flex gap-2"><Button loading={pending} loadingLabel="변경 중…" variant="primary" disabled={!f} onClick={() => f && onApply({ [f.name]: fromInput(f, value) })}>적용</Button><Button variant="ghost" onClick={onClose}>취소</Button></div>
         </div>
       </DialogContent>
     </Dialog>

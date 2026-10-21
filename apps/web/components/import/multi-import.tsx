@@ -1,7 +1,7 @@
 'use client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, ClipboardPaste, FilePlus2, FileUp, Loader2, Play, Trash2, X, XCircle, Zap } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { validateBatch, type ValidationIssue } from '@recall/contracts';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input, Select } from '@/components/ui/input';
 import { Panel } from '@/components/ui/misc';
+import { ProgressBar, Spinner } from '@/components/ui/loading';
 import { cn } from '@/lib/utils';
 import { ImportTargetPanel, applyTarget, type ImportTarget } from './import-target';
 import { DEFAULT_BULK_TARGET, actionableRows, findConflicts, makeRow, resolveRows, totalCounts, type MultiRow, type ResolvedRow, type RowStatus, type RowTarget, type Strategy } from './multi-import-model';
@@ -38,6 +39,7 @@ export function MultiImport() {
   const [strategy, setStrategy] = useState<Strategy>('upsert');
   const [allOrNothing, setAllOrNothing] = useState(true);
   const [running, setRunning] = useState<'validate' | 'commit' | 'both' | null>(null);
+  const [work, setWork] = useState({ phase: '검증', completed: 0, total: 0 });
   const [drag, setDrag] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const decks = useQuery({ queryKey: ['decks'], queryFn: () => api<Deck[]>('/decks') });
@@ -77,6 +79,7 @@ export function MultiImport() {
 
   /** Validates the given rows one after another; returns the ids that passed. */
   const validateRows = async (targets: ResolvedRow[]) => {
+    setWork({ phase: '검증', completed: 0, total: targets.length });
     const passed: string[] = [];
     for (const r of targets) {
       patch(r.row.id, { status: 'validating', issues: [], plan: null, error: null, report: null });
@@ -89,12 +92,13 @@ export function MultiImport() {
         if (plan.ok) passed.push(r.row.id);
       } catch (e) {
         patch(r.row.id, { status: 'invalid', error: (e as Error).message, issues: ((e as { details?: { issues?: ValidationIssue[] } }).details?.issues) ?? [] });
-      }
+      } finally { setWork((current) => ({ ...current, completed: current.completed + 1 })); }
     }
     return passed;
   };
   /** Commits the given rows one after another (each file is its own transaction); returns how many succeeded. */
   const commitRows = async (targets: ResolvedRow[]) => {
+    setWork({ phase: '저장', completed: 0, total: targets.length });
     let ok = 0;
     for (const r of targets) {
       patch(r.row.id, { status: 'committing', error: null });
@@ -104,7 +108,7 @@ export function MultiImport() {
         ok += 1;
       } catch (e) {
         patch(r.row.id, { status: 'error', error: (e as Error).message, issues: ((e as { details?: { issues?: ValidationIssue[] } }).details?.issues) ?? [] });
-      }
+      } finally { setWork((current) => ({ ...current, completed: current.completed + 1 })); }
     }
     if (ok) { void qc.invalidateQueries({ queryKey: ['decks'] }); void qc.invalidateQueries({ queryKey: ['subjects'] }); }
     return ok;
@@ -140,6 +144,7 @@ export function MultiImport() {
 
   const totals = totalCounts(rows);
   const busy = !!running;
+  const percentage = work.total ? work.completed / work.total * 100 : 0;
 
   return (
     <div className="space-y-4">
@@ -216,11 +221,13 @@ export function MultiImport() {
         </label>
         <span className="ml-auto text-[12px] text-ink-3 tabular">{rows.length}개 파일 · {rows.reduce((n, r) => n + r.questionCount, 0)}문항{doneCount ? ` · 완료 ${doneCount}` : ''}</span>
         <div className="flex basis-full flex-wrap gap-2">
-          <Button onClick={() => void run('validate')} disabled={!canRun} data-testid="multi-validate-btn">{running === 'validate' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} 전체 검증</Button>
-          <Button variant="primary" onClick={() => void run('commit')} disabled={busy || validCount === 0 || rowProblems.length > 0} data-testid="multi-commit-btn">{running === 'commit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} 검증 통과한 {validCount}개 가져오기</Button>
-          <Button variant="soft" onClick={() => void run('both')} disabled={!canRun} data-testid="multi-validate-and-commit-btn" title="모든 파일을 검증한 뒤 바로 가져옵니다">{running === 'both' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />} 검증 + 가져오기 (원클릭)</Button>
+          <Button loading={running === 'validate'} progress={percentage} loadingLabel={`${work.phase} ${work.completed}/${work.total}개…`} onClick={() => void run('validate')} disabled={!canRun} data-testid="multi-validate-btn">{running === 'validate' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} 전체 검증</Button>
+          <Button loading={running === 'commit'} progress={percentage} loadingLabel={`${work.phase} ${work.completed}/${work.total}개…`} variant="primary" onClick={() => void run('commit')} disabled={busy || validCount === 0 || rowProblems.length > 0} data-testid="multi-commit-btn">{running === 'commit' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} 검증 통과한 {validCount}개 가져오기</Button>
+          <Button loading={running === 'both'} progress={percentage} loadingLabel={`${work.phase} ${work.completed}/${work.total}개…`} variant="soft" onClick={() => void run('both')} disabled={!canRun} data-testid="multi-validate-and-commit-btn" title="모든 파일을 검증한 뒤 바로 가져옵니다">{running === 'both' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />} 검증 + 가져오기 (원클릭)</Button>
         </div>
       </div>
+
+      {busy ? <Panel className="space-y-3 p-4" role="status" aria-live="polite" aria-busy="true" data-testid="multi-progress"><div className="flex items-center gap-2 text-sm"><Spinner className="text-accent" /><span>파일 {work.phase} 중… {work.completed} / {work.total}개 완료</span></div><ProgressBar value={percentage} label={`파일 ${work.phase} 진행률`} /><p className="text-[12px] text-ink-3">파일을 순서대로 처리하고 있습니다. 완료할 때까지 이 화면에서 기다려 주세요.</p></Panel> : null}
 
       {doneCount ? (
         <Panel className="border-ok/40 p-4 text-sm" data-testid="multi-report">

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { ContactEmail, DocTable, LegalDoc, OPERATOR, Section } from '@/components/legal/legal-doc';
 
 export const metadata: Metadata = { title: '개인정보처리방침', description: 'Recall Studio가 어떤 개인정보를 왜 수집하고 어떻게 보관·파기하는지 설명합니다.' };

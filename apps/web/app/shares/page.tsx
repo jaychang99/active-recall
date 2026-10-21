@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Inbox, Send } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api, type ReceivedShare, type SentShare, type ShareSummary } from '@/lib/api';
@@ -9,7 +9,7 @@ import { KIND_LABEL, SHARE_STATUS as STATUS } from '@/components/shares/labels';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, tabPanelProps } from '@/components/ui/tabs';
-import { EmptyState, ErrorState, PageHeader, Panel, Skeleton } from '@/components/ui/misc';
+import { EmptyState, ErrorState, PageHeader, Panel, LoadingState } from '@/components/ui/misc';
 import { formatDate } from '@/lib/utils';
 
 
@@ -68,7 +68,7 @@ function ReceivedList({ q }: { q: ReturnType<typeof useQuery<ReceivedShare[]>> }
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['shares'] }); toast.success('공유를 거절했습니다'); },
     onError: (e: Error) => toast.error(e.message),
   });
-  if (q.isLoading) return <Skeleton className="h-40" />;
+  if (q.isLoading) return <LoadingState label="공유 목록을 불러오는 중…" className="min-h-40" />;
   if (q.isError) return <ErrorState message={(q.error as Error).message} onRetry={() => q.refetch()} />;
   if (!q.data?.length) return <EmptyState icon={<Inbox className="h-5 w-5" />} title="받은 공유가 없습니다" body="누군가 내 이메일로 덱이나 과목을 공유하면 여기에 나타납니다." />;
   return (
@@ -90,7 +90,7 @@ function ReceivedList({ q }: { q: ReturnType<typeof useQuery<ReceivedShare[]>> }
               {s.status === 'pending' ? (
                 <div className="flex gap-2">
                   <Link href={`/shares/${s.id}`}><Button variant="primary" size="sm">살펴보고 수락</Button></Link>
-                  <Button size="sm" variant="ghost" disabled={decline.isPending} onClick={() => { if (confirm(`"${s.title}" 공유를 거절할까요?`)) decline.mutate(s.id); }}>거절</Button>
+                  <Button loading={decline.isPending} size="sm" variant="ghost" disabled={decline.isPending} onClick={() => { if (confirm(`"${s.title}" 공유를 거절할까요?`)) decline.mutate(s.id); }}>거절</Button>
                 </div>
               ) : null}
             </div>
@@ -108,7 +108,7 @@ function SentList({ q }: { q: ReturnType<typeof useQuery<SentShare[]>> }) {
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['shares', 'sent'] }); toast.success('공유를 취소했습니다'); },
     onError: (e: Error) => toast.error(e.message),
   });
-  if (q.isLoading) return <Skeleton className="h-40" />;
+  if (q.isLoading) return <LoadingState label="공유 목록을 불러오는 중…" className="min-h-40" />;
   if (q.isError) return <ErrorState message={(q.error as Error).message} onRetry={() => q.refetch()} />;
   if (!q.data?.length) return <EmptyState icon={<Send className="h-5 w-5" />} title="보낸 공유가 없습니다" body="덱 상세나 과목 화면의 공유 버튼으로 다른 사람에게 보낼 수 있습니다." />;
   return (
@@ -124,7 +124,7 @@ function SentList({ q }: { q: ReturnType<typeof useQuery<SentShare[]>> }) {
               <td className="px-3 py-2 text-ink-2">{s.recipientEmail}</td>
               <td className="px-3 py-2 whitespace-nowrap"><Badge tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Badge>{s.respondedAt && s.status !== 'pending' ? <div className="mt-0.5 text-[11px] text-ink-3">{formatDate(s.respondedAt)}</div> : null}</td>
               <td className="px-3 py-2 text-[13px] whitespace-nowrap text-ink-3">{formatDate(s.createdAt)}</td>
-              <td className="px-3 py-2 text-right">{s.status === 'pending' ? <Button size="sm" variant="ghost" disabled={cancel.isPending} onClick={() => { if (confirm(`${s.recipientEmail}에게 보낸 공유를 취소할까요?`)) cancel.mutate(s.id); }}>취소</Button> : null}</td>
+              <td className="px-3 py-2 text-right">{s.status === 'pending' ? <Button loading={cancel.isPending} size="sm" variant="ghost" disabled={cancel.isPending} onClick={() => { if (confirm(`${s.recipientEmail}에게 보낸 공유를 취소할까요?`)) cancel.mutate(s.id); }}>취소</Button> : null}</td>
             </tr>
           ))}
         </tbody>

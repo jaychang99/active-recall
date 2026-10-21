@@ -95,6 +95,130 @@ async function mockSidebarCollections(page: Page) {
 
 test.beforeEach(async ({ page }) => { await mockApp(page); });
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('slow loads and saves explain progress, recover from errors, and stop on completion', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.clock.install();
+  const initial = deferred();
+  const saving = deferred();
+  let fail = true;
+  await page.route('**/settings', async (route) => {
+    if (!['fetch', 'xhr'].includes(route.request().resourceType())) return route.fallback();
+    if (route.request().headers()['rsc'] === '1') return route.fallback();
+    if (route.request().method() === 'GET') await initial.promise;
+    if (route.request().method() === 'PATCH' && fail) {
+      await saving.promise;
+      fail = false;
+      return route.fulfill({ status: 500, json: { message: '테스트: 잠시 후 다시 시도하세요' } });
+    }
+    return route.fallback();
+  });
+  await page.goto('/settings');
+  await expect(page.getByText('설정을 불러오는 중…', { exact: true })).toBeVisible();
+  await page.clock.fastForward(6_100);
+  await expect(page.getByTestId('request-feedback')).toBeVisible();
+  await expect(page.getByTestId('request-feedback')).toContainText('서버 응답을 기다리고 있습니다');
+  await expect(page.getByTestId('request-feedback').getByRole('progressbar')).not.toHaveAttribute('aria-valuenow');
+  await expectNoOverflow(page);
+  initial.resolve();
+  const save = page.getByTestId('save-settings');
+  await expect(save).toBeEnabled();
+  await expect(page.getByTestId('request-feedback')).toBeHidden();
+  await save.click();
+  await expect(save).toHaveAttribute('aria-busy', 'true');
+  await expect(save).toBeDisabled();
+  await expect(save).toHaveText('저장 중…');
+  await page.clock.fastForward(400);
+  await expect(page.getByTestId('request-feedback')).toContainText('서버에서 처리 중');
+  await expectNoOverflow(page);
+  await page.screenshot({ path: `/tmp/recall-loading-save-${page.viewportSize()!.width}.png` });
+  saving.resolve();
+  await expect(page.getByText('저장 실패', { exact: true })).toBeVisible();
+  await expect(save).toBeEnabled();
+  await expect(save).not.toHaveAttribute('aria-busy');
+  await expect(page.getByTestId('request-feedback')).toBeHidden();
+  await save.click();
+  await expect(page.getByText('설정을 저장했습니다', { exact: true })).toBeVisible();
+  await expect(save).toBeEnabled();
+  expect(pageErrors).toEqual([]);
+});
+
+test('batch import shows measured per-file progress instead of a guessed percentage', async ({ page }) => {
+  const first = deferred();
+  const second = deferred();
+  let requests = 0;
+  await page.route('**/imports/validate', async (route) => {
+    const gate = requests++ === 0 ? first : second;
+    await gate.promise;
+    return route.fulfill({ json: { ok: true, issues: [], counts: { created: 8, updated: 0, unchanged: 0, resetSchedule: 0, deactivated: 0, skipped: 0 } } });
+  });
+  await page.goto('/import');
+  await page.getByTestId('tab-multi').click();
+  await page.getByTestId('multi-file-input').setInputFiles([1, 2].map((i) => ({ name: `batch-${i}.json`, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ ...batch, deck: { ...batch.deck, id: `loading_${i}` } })) })));
+  await page.getByTestId('multi-validate-btn').click();
+  const progress = page.getByTestId('multi-progress');
+  await expect(progress).toContainText('0 / 2개 완료');
+  await expect(progress.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+  first.resolve();
+  await expect(progress).toContainText('1 / 2개 완료');
+  await expect(progress.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+  await expect(page.getByTestId('multi-validate-btn')).toHaveAttribute('aria-busy', 'true');
+  await expectNoOverflow(page);
+  await page.screenshot({ path: `/tmp/recall-loading-import-${page.viewportSize()!.width}.png` });
+  second.resolve();
+  await expect(progress).toBeHidden();
+  await expect(page.getByTestId('multi-validate-btn')).not.toHaveAttribute('aria-busy');
+  await expect(page.getByText('검증 완료 — 2/2개 파일 통과', { exact: true })).toBeVisible();
+});
+
+test('slow page navigation gives feedback before the destination responds', async ({ page }) => {
+  await mockSidebarCollections(page);
+  const navigation = deferred();
+  await page.route('**/subjects?*', async (route) => {
+    if (route.request().headers()['rsc'] === '1') await navigation.promise;
+    return route.fallback();
+  });
+  await page.goto('/prompt');
+  if (page.viewportSize()!.width < 768) await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
+  const sidebar = page.getByTestId('sidebar');
+  await sidebar.getByRole('button', { name: '과목', exact: true }).click();
+  await sidebar.getByRole('link', { name: '전체 과목 보기', exact: true }).click();
+  await expect(page.getByText('페이지 여는 중…', { exact: true }).or(page.getByText('페이지를 준비하는 중…', { exact: true })).first()).toBeVisible();
+  navigation.resolve();
+  await expect(page).toHaveURL(/\/subjects$/);
+  await expect(page.getByRole('heading', { name: '과목', exact: true })).toBeVisible();
+  await expect(page.getByTestId('request-feedback')).toBeHidden();
+});
+
+test('delayed grading and rating show feedback on the active study control', async ({ page }) => {
+  const grading = deferred();
+  const rating = deferred();
+  await page.route('**/questions/*/grade', async (route) => { await grading.promise; return route.fallback(); });
+  await page.route('**/reviews', async (route) => { await rating.promise; return route.fallback(); });
+  await page.goto('/study/all?mode=cram');
+  await expect(page.getByTestId('study-screen')).toBeVisible();
+  await page.getByTestId('reveal-btn').click();
+  await expect(page.getByTestId('reveal-btn')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.getByTestId('submit-btn')).not.toHaveAttribute('aria-busy');
+  await expectNoOverflow(page);
+  await page.screenshot({ path: `/tmp/recall-loading-grade-${page.viewportSize()!.width}.png` });
+  grading.resolve();
+  await expect(page.getByTestId('result')).toBeVisible();
+  const good = page.getByTestId('rating-bar').locator('[data-rating="3"]');
+  await good.click();
+  await expect(good).toHaveAttribute('aria-busy', 'true');
+  await expect(good).toContainText('저장 중');
+  await expectNoOverflow(page);
+  rating.resolve();
+  await expect(page.getByTestId('next-btn')).toBeVisible();
+});
+
 test('sidebar stays fixed and scrolls independently while showing five recent collections', async ({ page }) => {
   await mockSidebarCollections(page);
   await page.goto('/prompt');

@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Eye, Flag, Info, Lightbulb, PauseCircle, SkipForward, Undo2 } from 'lucide-react';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { Markdown } from '@/components/questions/markdown';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Tooltip } from '@/components/ui/tooltip';
-import { ErrorState, Skeleton } from '@/components/ui/misc';
+import { ErrorState } from '@/components/ui/misc';
 import { QuestionPrompt, QuestionRenderer } from '@/components/questions/question-renderer';
 import type { Phase } from '@/components/questions/types';
 import { ExplanationPanel, Verdict } from './explanation-panel';
@@ -28,6 +28,7 @@ import { slotState, type MetaControl } from '@/components/questions/meta-mask';
 import { useSettings } from '@/components/layout/settings-context';
 import { dismissAnswerKeyboard } from '@/lib/answer-focus';
 import { StudyActions } from './study-actions';
+import { LoadingState } from '@/components/ui/loading';
 
 export interface StudyParams {
   scope: string; // deck id or 'all'
@@ -111,6 +112,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const [revealedBeforeAnswer, setRevealedBeforeAnswer] = useState(false);
   const [hintUsed, setHintUsed] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
+  const [hintPending, setHintPending] = useState(false);
   const [showExplanation, setShowExplanation] = useState(true);
   const [done, setDone] = useState<Done[]>([]);
   const [lastReview, setLastReview] = useState<{ reviewId: string; questionId: string; index: number; rating: 1 | 2 | 3 | 4; interval: string | null } | null>(null);
@@ -380,13 +382,17 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   });
 
   const showHint = useCallback(async () => {
-    if (!item?.hasHint || phase !== 'answering') return;
-    if (!hint) {
-      const r = await api<{ hint: string | null }>(`/study/hint/${item.questionId}`);
-      setHint(r.hint);
-    }
-    setHintUsed(true);
-  }, [item, hint, phase]);
+    if (!item?.hasHint || phase !== 'answering' || hintPending) return;
+    setHintPending(true);
+    try {
+      if (!hint) {
+        const r = await api<{ hint: string | null }>(`/study/hint/${item.questionId}`);
+        setHint(r.hint);
+      }
+      setHintUsed(true);
+    } catch (error) { toast.error('힌트를 불러오지 못했습니다', { description: (error as Error).message }); }
+    finally { setHintPending(false); }
+  }, [item, hint, phase, hintPending]);
 
   const cardKey = item ? `${item.questionId}:${item.reviewRound}` : null;
   const metaControl: MetaControl = { mask: meta.mask, revealed: meta.revealOnAnswer && phase !== 'answering' && cardKey !== null && metaRevealedFor === cardKey, onToggle: meta.toggle };
@@ -433,7 +439,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     shortcutsOn && !finished && !!item,
   );
 
-  if (!baseItems && !queue.isError) return <div className="mx-auto max-w-[840px] space-y-4"><Skeleton className="h-6 w-40" /><Skeleton className="h-40" /><Skeleton className="h-12" /></div>;
+  if (!baseItems && !queue.isError) return <LoadingState label="학습할 문항을 준비하는 중…" className="mx-auto min-h-64 max-w-[840px]" />;
   if (queue.isError) return <div className="mx-auto max-w-[840px]"><ErrorState message={(queue.error as Error).message} onRetry={() => queue.refetch()} /></div>;
   if (finished || !item) return <SessionSummary params={params} done={done} queue={queueMeta ?? queue.data!} onRestart={async () => { clearSnapshot(storageKey); setIndex(0); setDone([]); setExtraItems([]); setSkipped(new Set()); resetCard(); setBaseItems(null); setQueueMeta(null); const r = await queue.refetch(); if (r.data) { setBaseItems(r.data.items); setQueueMeta(r.data); } }} />;
 
@@ -469,7 +475,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
           <div className="flex shrink-0 items-center gap-1">
             <MetaMaskMenu mask={meta.mask} revealOnAnswer={meta.revealOnAnswer} onToggle={meta.toggle} onSetAll={meta.setAll} onSetRevealOnAnswer={meta.setRevealOnAnswer} shortcut={shortcutsOn ? 'V' : undefined} />
             <Tooltip content={<>{item.card.flagged ? '표시 해제' : '문제 표시'} <kbd className="kbd ml-1">F</kbd></>}>
-              <Button variant="ghost" size="iconSm" aria-label={item.card.flagged ? '표시 해제' : '문제 표시'} aria-pressed={item.card.flagged} onClick={() => cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' })} className={cn(item.card.flagged && 'text-warn')}>
+              <Button loading={cardMut.isPending} variant="ghost" size="iconSm" aria-label={item.card.flagged ? '표시 해제' : '문제 표시'} aria-pressed={item.card.flagged} onClick={() => cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' })} className={cn(item.card.flagged && 'text-warn')}>
                 <Flag className="h-4 w-4" fill={item.card.flagged ? 'currentColor' : 'none'} />
               </Button>
             </Tooltip>
@@ -496,10 +502,10 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
         {phase === 'answering' ? (
           <StudyActions><div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
-            <Button variant="primary" size="lg" onClick={submit} disabled={gradeMut.isPending} kbd={typing ? '⌘⏎' : '⏎'} data-testid="submit-btn">제출</Button>
-            <Button size="lg" onClick={reveal} disabled={gradeMut.isPending} kbd="Space" data-testid="reveal-btn"><Eye className="h-4 w-4" /> 정답 공개</Button>
-            {item.hasHint ? <Button variant="ghost" onClick={() => void showHint()} kbd="H" className="max-md:min-h-9 max-md:h-9"><Lightbulb className="h-4 w-4" /> 힌트</Button> : null}
-            {!unrated ? <Button variant="ghost" onClick={() => cardMut.mutate({ action: 'bury' })} kbd="S" className="max-md:min-h-9 max-md:h-9 sm:ml-auto"><SkipForward className="h-4 w-4" /> 내일로</Button> : null}
+            <Button loading={gradeMut.isPending && !revealedBeforeAnswer} loadingLabel="채점 중…" variant="primary" size="lg" onClick={submit} disabled={gradeMut.isPending} kbd={typing ? '⌘⏎' : '⏎'} data-testid="submit-btn">제출</Button>
+            <Button loading={gradeMut.isPending && revealedBeforeAnswer} loadingLabel="확인 중…" size="lg" onClick={reveal} disabled={gradeMut.isPending} kbd="Space" data-testid="reveal-btn"><Eye className="h-4 w-4" /> 정답 공개</Button>
+            {item.hasHint ? <Button loading={hintPending} loadingLabel="힌트 확인…" disabled={gradeMut.isPending} variant="ghost" onClick={() => void showHint()} kbd="H" className="max-md:min-h-9 max-md:h-9"><Lightbulb className="h-4 w-4" /> 힌트</Button> : null}
+            {!unrated ? <Button loading={cardMut.isPending && cardMut.variables?.action === 'bury'} variant="ghost" onClick={() => cardMut.mutate({ action: 'bury' })} kbd="S" className="max-md:min-h-9 max-md:h-9 sm:ml-auto"><SkipForward className="h-4 w-4" /> 내일로</Button> : null}
           </div></StudyActions>
         ) : null}
 
@@ -529,7 +535,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             {phase === 'rated' ? (
               <StudyActions><div className="flex flex-wrap items-center gap-2">
                 <Button variant="primary" size="lg" onClick={next} kbd="N" data-testid="next-btn">다음 문제 <ArrowRight className="h-4 w-4" /></Button>
-                <Button variant="ghost" onClick={undo} kbd="U"><Undo2 className="h-4 w-4" /> 평가 되돌리기</Button>
+                <Button loading={undoMut.isPending} loadingLabel="평가 복구 중…" variant="ghost" onClick={undo} kbd="U"><Undo2 className="h-4 w-4" /> 평가 되돌리기</Button>
               </div></StudyActions>
             ) : null}
           </div>

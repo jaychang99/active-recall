@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import Link from '@/components/ui/navigation-link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart3, Database, FolderTree, GraduationCap, Home, Inbox, Keyboard, Layers, Menu, Search, Settings, Share2, Sparkles, Upload } from 'lucide-react';
