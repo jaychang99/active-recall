@@ -26,8 +26,9 @@ describe('prompt options', () => {
     expect(out).toMatch(/^AUDIENCE_LEVEL: 학부 2학년\s+#/m);
     expect(out).toMatch(/^DECK_ID: auto\s+#/m); // empty deck id falls back to auto
     expect(applyPromptOptions(generatorPrompt, PROMPT_DEFAULTS)).toMatch(/^MAIN_TOPIC: -\s+#/m);
-    // topics are per copy, never saved as defaults
-    expect(toSavedDefaults({ ...PROMPT_DEFAULTS, mainTopic: 'x', subtopics: ['y'] })).toBeNull();
+    // topics and audience are saveable defaults like every other field
+    expect(toSavedDefaults({ ...PROMPT_DEFAULTS, mainTopic: 'x', subtopics: ['y'], audienceLevel: 'z', deckTitle: 'T' })).toEqual({ mainTopic: 'x', subtopics: ['y'], audienceLevel: 'z', deckTitle: 'T' });
+    expect(resolvePromptOptions(toSavedDefaults({ ...PROMPT_DEFAULTS, mainTopic: 'x', subtopics: ['y'] }))).toMatchObject({ mainTopic: 'x', subtopics: ['y'] });
     expect(resolvePromptOptions({ subtopics: ['a', 3, ' b '] }).subtopics).toEqual(['a', 'b']);
   });
 

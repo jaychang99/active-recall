@@ -46,9 +46,6 @@ const UNSET = '-';
 const fromUnset = (v: string | undefined) => (!v || v === UNSET ? '' : v);
 const toUnset = (v: string) => (v.trim() ? v.trim() : UNSET);
 
-/** Per-copy fields: never written into saved defaults. */
-export const ONE_OFF_KEYS: readonly (keyof PromptOptions)[] = ['mainTopic', 'subtopics', 'audienceLevel'];
-
 export function parseSubtopics(raw: string): string[] {
   return raw.split(/[;\n]/).map((s) => s.trim()).filter(Boolean);
 }
@@ -211,10 +208,10 @@ export function changedKeys(a: PromptOptions, b: PromptOptions): (keyof PromptOp
   return (Object.keys(KEYS) as (keyof PromptOptions)[]).filter((k) => configValue(k, a) !== configValue(k, b));
 }
 
-/** Only the fields that differ from the prompt document are saved, so the document stays the default for everything else. */
+/** Only the fields that differ from the prompt document are saved (every field can be a default), so the document stays the default for everything else. */
 export function toSavedDefaults(o: PromptOptions): Partial<PromptOptions> | null {
   const diff: Partial<PromptOptions> = {};
-  for (const k of changedKeys(o, PROMPT_DEFAULTS)) { if (!ONE_OFF_KEYS.includes(k)) (diff as Record<string, unknown>)[k] = o[k]; }
+  for (const k of changedKeys(o, PROMPT_DEFAULTS)) (diff as Record<string, unknown>)[k] = o[k];
   return Object.keys(diff).length ? diff : null;
 }
 

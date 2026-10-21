@@ -5,7 +5,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { API_URL, api, type Settings } from '@/lib/api';
+import { API_URL, api, type Deck, type Settings, type SubjectSummary } from '@/lib/api';
 import { downloadFromApi } from '@/lib/download';
 import { clearApiToken } from '@/lib/auth-token';
 import { Button } from '@/components/ui/button';
@@ -64,6 +64,8 @@ function DeleteAccountPanel() {
 export default function SettingsPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['settings'], queryFn: () => api<Settings>('/settings') });
+  const decks = useQuery({ queryKey: ['decks'], queryFn: () => api<Deck[]>('/decks') });
+  const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => api<SubjectSummary[]>('/subjects') });
   const [form, setForm] = useState<Partial<Settings>>({});
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -149,7 +151,7 @@ export default function SettingsPage() {
           <Link href="/prompt" className="text-[13px] text-accent underline-offset-4 hover:underline">일회성으로 조정해 복사 →</Link>
         </div>
         <p className="mb-1 text-[12px] text-ink-3">상단 「LLM 프롬프트」 버튼으로 복사할 때 쓰이는 CONFIG 값입니다. 프롬프트 문서의 값과 다른 항목만 저장되며, 저장 버튼으로 반영됩니다.</p>
-        <PromptOptionsForm value={promptOpts} onChange={(next) => set('promptDefaults', toSavedDefaults(next))} base={PROMPT_DEFAULTS} hideDeck />
+        <PromptOptionsForm value={promptOpts} onChange={(next) => set('promptDefaults', toSavedDefaults(next))} base={PROMPT_DEFAULTS} decks={decks.data} subjects={subjects.data} />
         {promptChanged.size ? <div className="py-3"><Button size="sm" variant="ghost" onClick={() => set('promptDefaults', null)}>문서 원본 값으로 되돌리기</Button></div> : null}
       </Panel>
       <Panel className="px-5 py-4">

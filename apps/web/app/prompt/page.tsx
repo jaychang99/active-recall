@@ -55,7 +55,7 @@ export default function PromptPage() {
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)] lg:items-start">
         <Panel className="px-5 py-2">
-          <PromptOptionsForm value={value} onChange={update} base={saved} decks={decks.data} subjects={subjects.data} oneOff />
+          <PromptOptionsForm value={value} onChange={update} base={saved} decks={decks.data} subjects={subjects.data} />
         </Panel>
 
         <div className="space-y-4 lg:sticky lg:top-20">
