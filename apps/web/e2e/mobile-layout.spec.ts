@@ -336,6 +336,7 @@ for (const kind of ['decks', 'subjects'] as const) {
 
 test('integer study settings allow 100,000 and block saving values beyond the hard limit', async ({ page }) => {
   await page.goto('/settings');
+  await expect(page.getByRole('switch', { name: '확장 18종 허용', exact: true })).toBeVisible();
   const fields = ['newCardsPerDay', 'reviewsPerDay', 'dailyReviewGoal', 'leechThreshold', 'maximumInterval'];
   await expect(page.locator('#newCardsPerDay')).toHaveValue('20');
   for (const field of fields) {
@@ -396,6 +397,10 @@ test('browser and PWA colors follow the app theme across OS preferences, navigat
 
 test('prompt auto count, saved defaults, source switching, custom fields and long choices fit', async ({ page }) => {
   await page.goto('/prompt');
+  const extended = page.getByRole('switch', { name: '확장 18종 허용', exact: true });
+  await expect(extended).toBeChecked();
+  await extended.click();
+  await expect(page.getByTestId('prompt-config-preview')).toContainText('ALLOW_EXTENDED_TYPES: false');
   const count = page.getByRole('spinbutton', { name: '문항 수', exact: true });
   await expect(count).toHaveAttribute('max', '10000');
   await count.fill('10000');
@@ -408,6 +413,9 @@ test('prompt auto count, saved defaults, source switching, custom fields and lon
   await expect(page.getByText('프롬프트 기본값을 저장했습니다', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByTestId('prompt-count-mode')).toHaveValue('auto');
+  await expect(extended).not.toBeChecked();
+  await extended.click();
+  await expect(page.getByTestId('prompt-config-preview')).toContainText('ALLOW_EXTENDED_TYPES: true');
   await page.getByTestId('prompt-deck-select').selectOption('__custom');
   await page.getByTestId('prompt-deck-custom').fill('mobile_deck');
   await page.getByTestId('prompt-subject-select').selectOption('__custom');

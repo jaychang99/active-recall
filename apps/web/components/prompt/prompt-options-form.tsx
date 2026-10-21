@@ -1,12 +1,16 @@
 'use client';
 import { RotateCcw } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
+import { CORE_QUESTION_TYPES, EXTENDED_QUESTION_TYPES, EXTENDED2_QUESTION_TYPES } from '@recall/contracts';
 import type { Deck, SubjectSummary } from '@/lib/api';
 import { Input, Label, Select, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { CORE_TYPES, COVERAGES, EXPLANATION_DEPTHS, LANGUAGE_PRESETS, LIMITS, MATH_NOTATIONS, PROMPT_DEFAULTS, SOURCE_LOCATORS, SOURCE_MODES, TYPE_LABEL_KO, changedKeys, parseSubtopics, rebalancePercentages, sumDifficulty, sumTypeTarget, type PromptOptions } from '@/lib/prompt-options';
-import { cn } from '@/lib/utils';
+import { cn, TYPE_LABEL } from '@/lib/utils';
+
+const EXTENDED_TYPE_COUNT = EXTENDED_QUESTION_TYPES.length + EXTENDED2_QUESTION_TYPES.length;
+const EXTENDED_TYPE_HINT = `기본 ${CORE_QUESTION_TYPES.length}종에 확장 ${EXTENDED_TYPE_COUNT}종(1차 ${EXTENDED_QUESTION_TYPES.length}종 + 2차 ${EXTENDED2_QUESTION_TYPES.length}종)을 추가로 허용합니다. 추가 ${EXTENDED2_QUESTION_TYPES.length}종: ${EXTENDED2_QUESTION_TYPES.map((type) => TYPE_LABEL[type]).join('·')}. 내용에 맞는 유형만 사용하며, 끄면 기본 ${CORE_QUESTION_TYPES.length}종만 출제합니다.`;
 
 const SOURCE_MODE_KO: Record<(typeof SOURCE_MODES)[number], string> = { provided_materials: '제공된 자료 모드', general_knowledge: '일반 지식 모드' };
 const SOURCE_MODE_HINT: Record<(typeof SOURCE_MODES)[number], string> = { provided_materials: '복사한 프롬프트와 함께 PDF·교안·본문을 첨부하면 그 자료만으로 출제합니다.', general_knowledge: '자료 없이 아래 대주제·소주제에 대한 일반 지식으로 출제합니다.' };
@@ -243,7 +247,7 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
         <Row label="핵심 8종 모두 포함" hint="문항이 8개 이상이면 각 유형을 최소 1개씩 만듭니다. 자연스럽게 맞는 내용이 없는 유형은 뺍니다." {...row('requireAllEightTypes')} htmlFor={id('all8')}>
           <Switch id={id('all8')} checked={o.requireAllEightTypes} onCheckedChange={(v) => set('requireAllEightTypes', v)} />
         </Row>
-        <Row label="확장 8종 허용" hint="숫자형·빈칸 선택·진술 판단·분류·답+근거·회상 카드·단계별·구간 선택. 내용에 맞을 때만 쓰입니다." {...row('allowExtendedTypes')} htmlFor={id('ext')}>
+        <Row label={`확장 ${EXTENDED_TYPE_COUNT}종 허용`} hint={EXTENDED_TYPE_HINT} {...row('allowExtendedTypes')} htmlFor={id('ext')}>
           <Switch id={id('ext')} checked={o.allowExtendedTypes} onCheckedChange={(v) => set('allowExtendedTypes', v)} />
         </Row>
       </section>

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import generatorPrompt from '@/lib/generated/question-generator-prompt';
+import { EXTENDED_QUESTION_TYPES, EXTENDED2_QUESTION_TYPES, QUESTION_TYPES } from '@recall/contracts';
 import { PROMPT_DEFAULTS, applyPromptOptions, changedKeys, readConfigValues, rebalancePercentages, renderConfigBlock, resolvePromptOptions, sumDifficulty, sumTypeTarget, toSavedDefaults } from './prompt-options';
-import { buildPromptBundle } from './prompt-bundle';
+import { buildPromptBundle, promptText } from './prompt-bundle';
 
 describe('prompt options', () => {
   it('parses the CONFIG block of the shipped prompt', () => {
@@ -16,6 +17,22 @@ describe('prompt options', () => {
     expect(PROMPT_DEFAULTS.deckId).toBe('auto');
     expect(PROMPT_DEFAULTS.mainTopic).toBe('');
     expect(PROMPT_DEFAULTS.subtopics).toEqual([]);
+  });
+
+  it('documents every supported type and preserves the extended-type flag through saved and copied options', () => {
+    const rules = generatorPrompt.slice(generatorPrompt.indexOf('## TYPE-SPECIFIC RULES'), generatorPrompt.indexOf('## ADVERSARIAL SELF-REVIEW'));
+    const documented = Array.from(rules.matchAll(/^- `([a-z_]+)`:/gm), (match) => match[1]);
+    expect(documented.sort()).toEqual([...QUESTION_TYPES].sort());
+    expect([...EXTENDED_QUESTION_TYPES, ...EXTENDED2_QUESTION_TYPES]).toHaveLength(18);
+    for (const sourceMode of ['provided_materials', 'general_knowledge'] as const) {
+      for (const allowExtendedTypes of [true, false]) {
+        const options = { ...PROMPT_DEFAULTS, sourceMode, allowExtendedTypes };
+        const saved = resolvePromptOptions(toSavedDefaults(options));
+        expect(saved.allowExtendedTypes).toBe(allowExtendedTypes);
+        expect(readConfigValues(promptText(saved)).ALLOW_EXTENDED_TYPES).toBe(String(allowExtendedTypes));
+        expect(readConfigValues(buildPromptBundle(saved)).ALLOW_EXTENDED_TYPES).toBe(String(allowExtendedTypes));
+      }
+    }
   });
 
   it('writes topics for general-knowledge mode and dashes when unset', () => {
