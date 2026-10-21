@@ -20,6 +20,7 @@ One family: **Pretendard Variable** (self-hosted via npm, Korean + Latin), syste
 ## Layout
 - Shell: 240px sidebar (hidden in Study/Exam focus mode), 56px top bar with global actions (Copy LLM prompt, shortcuts, theme).
 - Study: single column, max 840px, progress strip on top, prompt → answer area → verdict → explanation → rating bar → notes.
+- Mobile (<768px): study and exam actions stay at the visible viewport's bottom, with safe-area padding and space reserved below the content. Keyboard resize/scroll events reposition the bar; touch devices open answer keyboards only on deliberate focus. Form controls use at least 16px text to prevent focus zoom. Multi-import rows become stacked file cards, and wide question tables scroll within their own container.
 - Breakpoints checked: 1440 / 1280 / 768 / 390.
 
 ## Components

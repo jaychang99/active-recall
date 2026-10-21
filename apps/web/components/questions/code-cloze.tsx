@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { splitCloze, type PublicQuestion } from '@recall/contracts';
@@ -15,7 +16,7 @@ export function CodeCloze({ question, value, onChange, onSubmit, phase, grade, a
   const revealed = phase !== 'answering';
   const root = useRef<HTMLDivElement>(null);
   const inputsInOrder = () => Array.from(root.current?.querySelectorAll<HTMLInputElement>('input[data-blank-id]') ?? []);
-  useEffect(() => { if (!revealed && !readOnly) inputsInOrder()[0]?.focus(); }, [revealed, readOnly, question.id]);
+  useEffect(() => { if (!revealed && !readOnly) focusAnswerInput(inputsInOrder()[0]); }, [revealed, readOnly, question.id]);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const key = new Map((((answerKey?.blanks as { id: string; acceptedAnswers: string[] }[] | undefined) ?? []).map((b) => [b.id, b.acceptedAnswers])));
   const ids = question.blanks.map((b) => b.id);

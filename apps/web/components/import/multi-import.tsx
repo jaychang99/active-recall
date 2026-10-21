@@ -174,12 +174,12 @@ export function MultiImport() {
         testId="multi-target"
       />
 
-      <Panel className="overflow-hidden" data-testid="multi-rows">
+      <Panel className="min-w-0 overflow-x-auto" data-testid="multi-rows" role="region" aria-label="파일별 가져오기 설정" tabIndex={0}>
         {rows.length === 0 ? (
           <div className="flex items-center gap-2 px-4 py-8 text-sm text-ink-3"><FilePlus2 className="h-4 w-4" /> 아직 파일이 없습니다. 위에서 파일을 추가하면 파일마다 덱·과목을 조정할 수 있습니다.</div>
         ) : (
-          <table className="w-full text-[13px]">
-            <thead className="bg-muted/60 text-left text-[12px] text-ink-3">
+          <table className="block w-full text-[13px] md:table md:min-w-[760px]">
+            <thead className="hidden bg-muted/60 text-left text-[12px] text-ink-3 md:table-header-group">
               <tr>
                 <th className="px-3 py-2 font-medium">파일</th>
                 <th className="px-3 py-2 font-medium">덱</th>
@@ -188,7 +188,7 @@ export function MultiImport() {
                 <th className="w-9 px-1 py-2" />
               </tr>
             </thead>
-            <tbody>
+            <tbody className="block md:table-row-group">
               {resolved.map((r) => (
                 <RowView key={r.row.id} r={r} decks={deckList} subjects={subjects.data ?? []} disabled={busy || r.row.status === 'done'} onTarget={(t) => { patch(r.row.id, { target: t, status: r.row.status === 'done' || r.row.status === 'parse_error' ? r.row.status : 'idle', issues: [], plan: null, error: null }); }} onRemove={() => setRows((rs) => rs.filter((x) => x.id !== r.row.id))} />
               ))}
@@ -243,24 +243,25 @@ function RowView({ r, decks, subjects, disabled, onTarget, onRemove }: { r: Reso
   const showIssues = row.issues.length > 0;
   return (
     <>
-      <tr className="border-t border-line align-top" data-testid="multi-row">
-        <td className="px-3 py-2">
+      <tr className="relative block border-t border-line align-top first:border-t-0 md:table-row md:first:border-t" data-testid="multi-row">
+        <td className="block px-3 py-2 max-md:pr-14 md:table-cell">
           <div className="font-medium text-ink break-all">{row.name}</div>
           <div className="mt-0.5 text-[12px] text-ink-3 tabular">{kb} KB{row.value !== null ? ` · ${row.questionCount}문항` : ''}</div>
           {row.json ? <div className="mt-0.5 text-[12px] text-ink-3">JSON: <span className="font-mono text-ink-2">{row.json.id || 'ID 없음'}</span> · {row.json.subject || '과목 없음'}</div> : null}
           {row.parseError ? <div className="mt-0.5 text-[12px] text-bad-ink">{row.parseError}</div> : null}
         </td>
-        <td className="px-3 py-2">
+        <td className="block px-3 py-2 md:table-cell">
+          <span className="mb-1 block text-[12px] font-medium text-ink-3 md:hidden">덱</span>
           {row.value !== null ? (
             <div className="space-y-1.5">
-              <Select className="w-full max-w-[260px]" value={t.deck} onChange={(e) => set('deck', e.target.value)} disabled={disabled} aria-label={`${row.name} 덱`} data-testid="multi-row-deck">
+              <Select className="w-full md:max-w-[260px]" value={t.deck} onChange={(e) => set('deck', e.target.value)} disabled={disabled} aria-label={`${row.name} 덱`} data-testid="multi-row-deck">
                 <option value="inherit">일괄 설정 따름 → {inheritDeck}</option>
                 <option value="json">JSON의 덱: {row.json?.title || '(제목 없음)'} ({row.json?.id || 'ID 없음'})</option>
                 {decks.length ? <optgroup label="기존 덱에 추가">{decks.map((d) => <option key={d.id} value={d.slug}>{d.title} ({d.slug})</option>)}</optgroup> : null}
                 <option value="new">새 덱 만들기…</option>
               </Select>
               {t.deck === 'new' ? (
-                <div className="grid max-w-[260px] gap-1">
+                <div className="grid gap-1 md:max-w-[260px]">
                   <Input aria-label={`${row.name} 새 덱 ID`} placeholder="새 덱 ID" value={t.newDeckId} onChange={(e) => set('newDeckId', e.target.value)} className="h-8 font-mono text-[12px]" spellCheck={false} disabled={disabled} />
                   <Input aria-label={`${row.name} 새 덱 제목`} placeholder={row.json?.title ? `제목 (비우면 "${row.json.title}")` : '덱 제목'} value={t.newDeckTitle} onChange={(e) => set('newDeckTitle', e.target.value)} className="h-8 text-[12px]" disabled={disabled} />
                 </div>
@@ -269,21 +270,22 @@ function RowView({ r, decks, subjects, disabled, onTarget, onRemove }: { r: Reso
             </div>
           ) : <span className="text-ink-3">—</span>}
         </td>
-        <td className="px-3 py-2">
+        <td className="block px-3 py-2 md:table-cell">
+          <span className="mb-1 block text-[12px] font-medium text-ink-3 md:hidden">과목</span>
           {row.value !== null ? (
             <div className="space-y-1.5">
-              <Select className="w-full max-w-[220px]" value={t.subject} onChange={(e) => set('subject', e.target.value)} disabled={disabled} aria-label={`${row.name} 과목`} data-testid="multi-row-subject">
+              <Select className="w-full md:max-w-[220px]" value={t.subject} onChange={(e) => set('subject', e.target.value)} disabled={disabled} aria-label={`${row.name} 과목`} data-testid="multi-row-subject">
                 <option value="inherit">일괄 설정 따름 → {inheritSubject}</option>
                 <option value="json">JSON의 과목: {row.json?.subject || '(없음)'}</option>
                 {subjects.length ? <optgroup label="기존 과목">{subjects.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}</optgroup> : null}
                 <option value="new">새 과목 만들기…</option>
               </Select>
-              {t.subject === 'new' ? <Input aria-label={`${row.name} 새 과목 이름`} placeholder="새 과목 이름" value={t.newSubject} onChange={(e) => set('newSubject', e.target.value)} className="h-8 max-w-[220px] text-[12px]" disabled={disabled} /> : null}
+              {t.subject === 'new' ? <Input aria-label={`${row.name} 새 과목 이름`} placeholder="새 과목 이름" value={t.newSubject} onChange={(e) => set('newSubject', e.target.value)} className="h-8 text-[12px] md:max-w-[220px]" disabled={disabled} /> : null}
               {resolved ? <div className="text-[11px] text-ink-3">→ {resolved.subject || '—'}</div> : null}
             </div>
           ) : <span className="text-ink-3">—</span>}
         </td>
-        <td className="px-3 py-2">
+        <td className="block px-3 py-2 md:table-cell">
           <div className="flex flex-wrap items-center gap-1.5"><Badge tone={st.tone}>{st.label}</Badge>{row.plan?.ok && row.status === 'valid' ? <span className="text-[12px] text-ink-2 tabular">{fmtCounts(row.plan.counts)}</span> : null}</div>
           {row.report ? (
             <div className="mt-1 text-[12px] text-ink-2">
@@ -306,7 +308,7 @@ function RowView({ r, decks, subjects, disabled, onTarget, onRemove }: { r: Reso
             </details>
           ) : null}
         </td>
-        <td className="px-1 py-2"><Button variant="ghost" size="iconSm" aria-label={`${row.name} 제거`} onClick={onRemove} disabled={disabled && row.status !== 'done'}><X className="h-4 w-4" /></Button></td>
+        <td className="absolute top-1 right-1 px-1 py-2 md:static md:table-cell"><Button variant="ghost" size="iconSm" aria-label={`${row.name} 제거`} onClick={onRemove} disabled={disabled && row.status !== 'done'}><X className="h-4 w-4" /></Button></td>
       </tr>
     </>
   );

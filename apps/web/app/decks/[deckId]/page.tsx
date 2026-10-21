@@ -18,6 +18,7 @@ import { Markdown } from '@/components/questions/markdown';
 import { NoteHistoryItem } from '@/components/study/notes-panel';
 import { DeckSubjectDialog } from '@/components/decks/deck-subject-dialog';
 import { ShareDialog } from '@/components/shares/share-dialog';
+import { ArchiveButton } from '@/components/decks/archive-button';
 import { STATUS_LABEL, TYPE_LABEL, cn, formatDate, relativeDue } from '@/lib/utils';
 
 const TYPES = Object.keys(TYPE_LABEL);
@@ -86,6 +87,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
             <Link href={`/exam?deckId=${d.id}`}><Button><GraduationCap className="h-4 w-4" /> 시험</Button></Link>
             <DeckSubjectDialog deckId={d.id} currentSubject={d.subject} questionCount={d.progress.total} onChanged={invalidate} />
             <ShareDialog target={{ kind: 'deck', deckId: d.id }} name={d.title} count={d.progress.total} />
+            <ArchiveButton kind="decks" id={d.id} name={d.title} archived={!!d.archivedAt} showLabel />
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="덱 더 보기"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent>
@@ -97,6 +99,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
           </>
         }
       />
+      {d.archivedAt ? <Panel className="mb-4 flex flex-wrap items-center justify-between gap-2 border-warn/40 p-3 text-sm"><span>아카이브한 덱 · 기본 전체 학습에서 제외됩니다.</span><Link href="/decks?tab=archived" className="text-accent hover:underline">아카이브 목록</Link></Panel> : null}
       <Panel className="mb-6 grid gap-4 p-4 md:grid-cols-[1fr_auto]">
         <ProgressStrip p={d.progress} />
         <div className="flex flex-wrap gap-1.5 text-[12px]">

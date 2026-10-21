@@ -120,10 +120,13 @@
 }
 
 html {
+  /* Safari also samples the page background for toolbar/overscroll tinting. */
+  background-color: var(--bg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-feature-settings: 'tnum' 1, 'calt' 1;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -133,6 +136,36 @@ body {
   /* Korean: never break inside a word; long Latin tokens still wrap. */
   word-break: keep-all;
   overflow-wrap: break-word;
+}
+
+/* Keep intrinsic select/pre/table widths inside their grid or flex column. */
+main { min-width: 0; }
+input, textarea, select { scroll-margin-block: 5rem 10rem; }
+
+@media (max-width: 767px), (pointer: coarse) {
+  /* iOS focuses controls below 16px by zooming the page. Prevent that jump at its source. */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']), textarea, select {
+    font-size: 16px;
+  }
+  input:not([type='checkbox']):not([type='radio']):not([type='range']), select { min-height: 44px; }
+  button, a, [role='button'] { touch-action: manipulation; }
+}
+@media (max-width: 767px) {
+  [data-study-root] { padding-bottom: calc(var(--study-actions-height, 160px) + 1rem); }
+  .study-actions {
+    position: fixed;
+    z-index: 20;
+    inset-inline: 0;
+    bottom: var(--keyboard-inset, 0px);
+    margin-block: 0;
+    border-top: 1px solid var(--line);
+    background: var(--bg-elevated);
+    padding: 0.75rem max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+    box-shadow: 0 -4px 20px rgb(0 0 0 / 0.06);
+  }
+  .study-actions[data-keyboard='true'] { padding-bottom: 0.5rem; }
+  button kbd.kbd { display: none; }
+  .study-actions p, .study-actions span.text-ink-3 { font-size: 11px; }
 }
 
 ::selection {

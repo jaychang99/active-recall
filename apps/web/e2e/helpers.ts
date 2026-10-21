@@ -10,7 +10,7 @@ export function exampleBatch() {
 
 /** Hard-delete the user's deck with this slug (if any) so the next import starts from round 1. */
 export async function deleteDeckBySlug(api: APIRequestContext, slug: string) {
-  const decks = (await (await api.get(`${API}/decks?includeDeleted=true`)).json()) as { id: string; slug: string }[];
+  const decks = (await (await api.get(`${API}/decks?includeDeleted=true&includeArchived=true`)).json()) as { id: string; slug: string }[];
   for (const d of decks.filter((x) => x.slug === slug)) await api.delete(`${API}/decks/${d.id}?permanent=true`);
 }
 

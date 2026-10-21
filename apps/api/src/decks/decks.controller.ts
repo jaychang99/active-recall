@@ -13,6 +13,8 @@ const bool = ({ value }: { value: unknown }) => value === 'true' || value === tr
 class ListDecksQuery {
   @IsOptional() @IsString() subject?: string;
   @IsOptional() @Transform(bool) @IsBoolean() includeDeleted?: boolean;
+  @IsOptional() @IsIn(['true', 'false']) archived?: string;
+  @IsOptional() @IsIn(['true', 'false']) includeArchived?: string;
 }
 class ListQuestionsQuery {
   @IsOptional() @IsInt() @Min(1) page: number = 1;
@@ -48,7 +50,7 @@ export class DecksController {
   ) {}
 
   @Get() list(@CurrentUser() user: AuthUser, @Query() q: ListDecksQuery) {
-    return this.decks.list(user.id, { subject: q.subject, includeDeleted: q.includeDeleted });
+    return this.decks.list(user.id, { subject: q.subject, includeDeleted: q.includeDeleted, archived: q.archived === 'true', includeArchived: q.includeArchived === 'true' });
   }
 
   @Get('by-subject') bySubject(@CurrentUser() user: AuthUser) {
@@ -98,5 +100,13 @@ export class DecksController {
 
   @Post(':id/restore') restore(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.decks.restore(user.id, id);
+  }
+
+  @Post(':id/archive') archive(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.decks.setArchived(user.id, id, true);
+  }
+
+  @Post(':id/unarchive') unarchive(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.decks.setArchived(user.id, id, false);
   }
 }

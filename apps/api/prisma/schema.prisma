@@ -121,6 +121,7 @@ model Deck {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
+  archivedAt  DateTime?
 
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions    Question[]
@@ -130,6 +131,7 @@ model Deck {
   @@unique([userId, slug])
   @@index([userId, subject])
   @@index([userId, originId])
+  @@index([userId, archivedAt])
   @@index([deletedAt])
 }
 
@@ -176,11 +178,13 @@ model Subject {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
+  archivedAt  DateTime?
 
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions QuestionSubject[]
 
   @@unique([userId, name])
+  @@index([userId, archivedAt])
   @@index([deletedAt])
 }
 

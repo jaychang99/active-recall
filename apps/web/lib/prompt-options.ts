@@ -21,7 +21,7 @@ export interface PromptOptions {
   deckTitle: string;
   subject: string;
   outputLanguage: string;
-  numberOfQuestions: number;
+  numberOfQuestions: number | 'auto';
   sourceMode: (typeof SOURCE_MODES)[number];
   /** general_knowledge mode only: what to generate from. Empty strings / empty list print as '-' in CONFIG. */
   mainTopic: string;
@@ -39,7 +39,7 @@ export interface PromptOptions {
   includeSourceLocators: (typeof SOURCE_LOCATORS)[number];
 }
 
-export const LIMITS = { numberOfQuestions: { min: 1, max: 200 }, mcqChoiceCount: { min: 2, max: 8 } } as const;
+export const LIMITS = { numberOfQuestions: { min: 1, max: 10_000 }, mcqChoiceCount: { min: 2, max: 8 } } as const;
 
 /** `-` in the CONFIG block means "not set". */
 const UNSET = '-';
@@ -112,7 +112,7 @@ function parseOptions(values: Record<string, string>): PromptOptions {
     deckTitle: values.DECK_TITLE ?? '',
     subject: values.SUBJECT ?? '',
     outputLanguage: values.OUTPUT_LANGUAGE || 'auto',
-    numberOfQuestions: clampInt(values.NUMBER_OF_QUESTIONS, LIMITS.numberOfQuestions.min, LIMITS.numberOfQuestions.max, 24),
+    numberOfQuestions: values.NUMBER_OF_QUESTIONS === 'auto' && values.SOURCE_MODE !== 'general_knowledge' ? 'auto' : clampInt(values.NUMBER_OF_QUESTIONS, LIMITS.numberOfQuestions.min, LIMITS.numberOfQuestions.max, 24),
     sourceMode: oneOf(SOURCE_MODES, values.SOURCE_MODE, 'provided_materials'),
     mainTopic: fromUnset(values.MAIN_TOPIC),
     subtopics: parseSubtopics(fromUnset(values.SUBTOPICS)),
@@ -142,13 +142,15 @@ export function resolvePromptOptions(saved: unknown, base: PromptOptions = PROMP
   const pct = (v: unknown, fb: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(100, Math.max(0, Math.round(v))) : fb);
   const d = (s.difficulty ?? {}) as Partial<PromptOptions['difficulty']>;
   const t = (s.typeTarget ?? {}) as Partial<Record<CoreType, number>>;
+  const sourceMode = oneOf(SOURCE_MODES, str(s.sourceMode, ''), base.sourceMode);
+  const count = s.numberOfQuestions ?? base.numberOfQuestions;
   return {
     deckId: str(s.deckId, base.deckId),
     deckTitle: str(s.deckTitle, base.deckTitle),
     subject: str(s.subject, base.subject),
     outputLanguage: str(s.outputLanguage, base.outputLanguage) || 'auto',
-    numberOfQuestions: clampInt(s.numberOfQuestions, LIMITS.numberOfQuestions.min, LIMITS.numberOfQuestions.max, base.numberOfQuestions),
-    sourceMode: oneOf(SOURCE_MODES, str(s.sourceMode, ''), base.sourceMode),
+    numberOfQuestions: count === 'auto' && sourceMode === 'provided_materials' ? 'auto' : clampInt(count, LIMITS.numberOfQuestions.min, LIMITS.numberOfQuestions.max, typeof base.numberOfQuestions === 'number' ? base.numberOfQuestions : 24),
+    sourceMode,
     mainTopic: str(s.mainTopic, base.mainTopic),
     subtopics: Array.isArray(s.subtopics) ? (s.subtopics as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter(Boolean) : [...base.subtopics],
     audienceLevel: str(s.audienceLevel, base.audienceLevel),
@@ -171,7 +173,8 @@ export function configValue(key: keyof PromptOptions, o: PromptOptions): string 
     case 'difficulty': return `easy=${o.difficulty.easy}%, medium=${o.difficulty.medium}%, hard=${o.difficulty.hard}%`;
     case 'typeTarget': return CORE_TYPES.map((t) => `${t}=${o.typeTarget[t]}%`).join(', ');
     case 'requireAllEightTypes': case 'allowExtendedTypes': case 'allowOutOfScopeInformation': return String(o[key]);
-    case 'numberOfQuestions': case 'mcqChoiceCount': return String(o[key]);
+    case 'numberOfQuestions': return o.numberOfQuestions === 'auto' ? (o.sourceMode === 'general_knowledge' ? '24' : 'auto') : String(clampInt(o.numberOfQuestions, LIMITS.numberOfQuestions.min, LIMITS.numberOfQuestions.max, 24));
+    case 'mcqChoiceCount': return String(o[key]);
     case 'subtopics': return o.subtopics.length ? o.subtopics.join('; ') : UNSET;
     case 'mainTopic': case 'audienceLevel': return toUnset(o[key]);
     case 'deckId': case 'deckTitle': case 'subject': return o[key].trim() || 'auto';

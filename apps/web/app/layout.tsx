@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from '@/components/layout/providers';
 import { Shell } from '@/components/layout/shell';
+import { THEME_COLORS } from '@/lib/theme-colors';
 
 export const metadata: Metadata = {
   title: { default: 'Recall Studio', template: '%s · Recall Studio' },
@@ -15,7 +16,8 @@ export const metadata: Metadata = {
 // Local-first app: every page reads live API data / search params, so nothing is statically prerendered.
 export const dynamic = 'force-dynamic';
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: [{ media: '(prefers-color-scheme: light)', color: '#f7f8f7' }, { media: '(prefers-color-scheme: dark)', color: '#121716' }] };
+// SSR matches the app's default (light); BrowserTheme updates this to the saved/selected theme.
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', interactiveWidget: 'resizes-content', themeColor: THEME_COLORS.light, colorScheme: 'light' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

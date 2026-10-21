@@ -1,7 +1,7 @@
 import { api } from '@/lib/api';
 
 export type FieldType = 'string' | 'text' | 'number' | 'boolean' | 'datetime' | 'json' | 'enum';
-export interface FieldMeta { name: string; label: string; type: FieldType; editable?: boolean; required?: boolean; filterable?: boolean; searchable?: boolean; sortable?: boolean; enumValues?: string[]; ref?: string; wide?: boolean }
+export interface FieldMeta { name: string; label: string; type: FieldType; editable?: boolean; required?: boolean; filterable?: boolean; searchable?: boolean; sortable?: boolean; enumValues?: string[]; min?: number; max?: number; integer?: boolean; ref?: string; wide?: boolean }
 export interface EntityMeta { key: string; model: string; label: string; pk: string; softDelete: boolean; creatable: boolean; defaultSort: { field: string; dir: 'asc' | 'desc' }; fields: FieldMeta[] }
 export type Row = Record<string, unknown> & { _id: string; _label: string };
 export interface ListResult { entity: string; page: number; pageSize: number; total: number; sort: string; dir: 'asc' | 'desc'; items: Row[] }

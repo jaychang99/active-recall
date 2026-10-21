@@ -26,6 +26,8 @@ import { useEssayAnswerView } from '@/components/questions/essay-answer-view';
 import { MetaChip } from '@/components/questions/masked-chip';
 import { slotState, type MetaControl } from '@/components/questions/meta-mask';
 import { useSettings } from '@/components/layout/settings-context';
+import { dismissAnswerKeyboard } from '@/lib/answer-focus';
+import { StudyActions } from './study-actions';
 
 export interface StudyParams {
   scope: string; // deck id or 'all'
@@ -139,6 +141,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const startedAt = useRef<number>(0);
   const digitHandler = useRef<((n: number) => void) | null>(null);
   const submitLock = useRef(false);
+  const studyRoot = useRef<HTMLDivElement>(null);
   const [shuffleSeed] = useState(() => uid());
 
   // Patch one card's state in the frozen queue (base + re-queued copies). The react-query cache is not the
@@ -266,12 +269,14 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     if (phase !== 'answering' || submitLock.current || !item) return;
     if (!hasAnswer(answer)) { toast('답안을 입력한 뒤 제출하세요', { description: 'Space 키로 답을 바로 공개할 수도 있습니다.' }); return; }
     submitLock.current = true;
+    dismissAnswerKeyboard();
     gradeMut.mutate(answer);
   }, [phase, item, answer, gradeMut]);
 
   const reveal = useCallback(() => {
     if (phase !== 'answering' || submitLock.current || !item) return;
     submitLock.current = true;
+    dismissAnswerKeyboard();
     setRevealedBeforeAnswer(true);
     gradeMut.mutate(hasAnswer(answer) ? answer : null);
   }, [phase, item, answer, gradeMut]);
@@ -304,6 +309,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       setLastReview({ reviewId: res.review.id, questionId: item.questionId, index, rating, interval: item.preview ? item.preview[(['again', 'hard', 'good', 'easy'] as const)[rating - 1]!].interval : null });
       setPhase('rated');
       void qc.invalidateQueries({ queryKey: ['notes', item.questionId] });
+      for (const key of ['decks', 'subjects', 'deck', 'overview']) void qc.invalidateQueries({ queryKey: [key] });
       // Again/Hard on a learning step re-queues the card at the end of this session so it is seen again today.
       if (rating === 1 && (res.card.status === 'LEARNING' || res.card.status === 'RELEARNING') && !isPractice) {
         setExtraItems((x) => [...x, { ...item, card: { ...item.card, version: res.card.version, status: res.card.status }, reviewRound: res.reviewRound + 1, preview: null }]);
@@ -344,6 +350,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       void stateJson;
       patchCard(lastReview.questionId, card);
       void qc.invalidateQueries({ queryKey: ['notes', lastReview.questionId] });
+      for (const key of ['decks', 'subjects', 'deck', 'overview']) void qc.invalidateQueries({ queryKey: [key] });
       setLastReview(null);
       toast.success('마지막 평가를 되돌렸습니다', { description: 'FSRS 상태와 복습 기록이 이전 스냅샷으로 복구되었습니다.' });
     },
@@ -385,6 +392,9 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const metaControl: MetaControl = { mask: meta.mask, revealed: meta.revealOnAnswer && phase !== 'answering' && cardKey !== null && metaRevealedFor === cardKey, onToggle: meta.toggle };
   const roundHidden = slotState(metaControl, 'round') === 'masked';
   const phaseForRenderer: Phase = phase === 'answering' ? 'answering' : revealedBeforeAnswer ? 'revealed' : 'submitted';
+  useEffect(() => {
+    if (cardKey && window.matchMedia('(max-width: 767px)').matches) studyRoot.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }, [cardKey]);
   const shortcutsOn = settings.shortcutsEnabled;
   const typing = item?.type === 'essay' || item?.type === 'short_answer' || item?.type === 'cloze' || item?.type === 'numeric' || item?.type === 'stepwise' || item?.type === 'recall_card';
 
@@ -431,7 +441,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const total = items.length;
 
   return (
-    <div className="mx-auto w-full max-w-[840px]" data-testid="study-screen" data-phase={phase} data-type={item.type} data-round={item.reviewRound} data-question-id={item.questionId}>
+    <div ref={studyRoot} className="mx-auto w-full max-w-[840px] scroll-mt-16" data-study-root data-testid="study-screen" data-phase={phase} data-type={item.type} data-round={item.reviewRound} data-question-id={item.questionId}>
       {/* progress strip */}
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-3">
         {queueMeta?.deck || params.subject ? <MetaChip k="subject" label={queueMeta?.deck ? '덱' : '과목'} control={metaControl} testId="meta-subject" className="font-medium text-ink"><span>{queueMeta?.deck?.title ?? `과목: ${params.subject}`}</span></MetaChip> : <span className="font-medium text-ink" data-testid="meta-subject">모든 덱</span>}
@@ -444,7 +454,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-sunken" aria-hidden><div className="h-full bg-accent transition-[width] duration-200" style={{ width: `${(progress / Math.max(1, total)) * 100}%` }} /></div>
 
       <article className="space-y-5" key={`${item.questionId}:${item.reviewRound}`}>
-        <header className="flex items-start justify-between gap-3">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <QuestionPrompt
             question={item.question}
             meta={metaControl}
@@ -485,12 +495,12 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         />
 
         {phase === 'answering' ? (
-          <div className="flex flex-wrap items-center gap-2">
+          <StudyActions><div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
             <Button variant="primary" size="lg" onClick={submit} disabled={gradeMut.isPending} kbd={typing ? '⌘⏎' : '⏎'} data-testid="submit-btn">제출</Button>
             <Button size="lg" onClick={reveal} disabled={gradeMut.isPending} kbd="Space" data-testid="reveal-btn"><Eye className="h-4 w-4" /> 정답 공개</Button>
-            {item.hasHint ? <Button variant="ghost" onClick={() => void showHint()} kbd="H"><Lightbulb className="h-4 w-4" /> 힌트</Button> : null}
-            {!unrated ? <Button variant="ghost" onClick={() => cardMut.mutate({ action: 'bury' })} kbd="S" className="ml-auto"><SkipForward className="h-4 w-4" /> 내일로</Button> : null}
-          </div>
+            {item.hasHint ? <Button variant="ghost" onClick={() => void showHint()} kbd="H" className="max-md:min-h-9 max-md:h-9"><Lightbulb className="h-4 w-4" /> 힌트</Button> : null}
+            {!unrated ? <Button variant="ghost" onClick={() => cardMut.mutate({ action: 'bury' })} kbd="S" className="max-md:min-h-9 max-md:h-9 sm:ml-auto"><SkipForward className="h-4 w-4" /> 내일로</Button> : null}
+          </div></StudyActions>
         ) : null}
 
         {phase !== 'answering' && grade ? (
@@ -504,8 +514,8 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             </div>
             <ExplanationPanel explanation={grade.explanation} source={item.question.source} meta={metaControl} open={showExplanation} />
             {phase === 'submitted' ? (
-              unrated ? (
-                <div className="flex items-center gap-2">
+              <StudyActions>{unrated ? (
+                <div className="flex flex-wrap items-center gap-2">
                   <Button variant="primary" size="lg" onClick={advanceUnrated} kbd="N" data-testid="next-btn">다음 <ArrowRight className="h-4 w-4" /></Button>
                   <span className="text-[12px] text-ink-3">{isBrowse ? '구경 모드: 학습 기록과 FSRS 스케줄에 남지 않습니다.' : '연습 모드: FSRS 스케줄은 바뀌지 않습니다.'}</span>
                 </div>
@@ -514,13 +524,13 @@ export function StudyScreen({ params }: { params: StudyParams }) {
                   <p className="text-[13px] text-ink-2">얼마나 잘 떠올렸나요? 정오답과 무관하게 <strong>회상 난이도</strong>로 평가하세요.</p>
                   <RatingBar preview={item.preview} onRate={rate} disabled={reviewMut.isPending} pending={pendingRating} />
                 </div>
-              )
+              )}</StudyActions>
             ) : null}
             {phase === 'rated' ? (
-              <div className="flex flex-wrap items-center gap-2">
+              <StudyActions><div className="flex flex-wrap items-center gap-2">
                 <Button variant="primary" size="lg" onClick={next} kbd="N" data-testid="next-btn">다음 문제 <ArrowRight className="h-4 w-4" /></Button>
                 <Button variant="ghost" onClick={undo} kbd="U"><Undo2 className="h-4 w-4" /> 평가 되돌리기</Button>
-              </div>
+              </div></StudyActions>
             ) : null}
           </div>
         ) : null}

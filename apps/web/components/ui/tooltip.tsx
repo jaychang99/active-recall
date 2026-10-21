@@ -23,7 +23,7 @@ export const DropdownMenuTrigger = DropdownPrimitive.Trigger;
 export function DropdownMenuContent({ className, ...props }: DropdownPrimitive.DropdownMenuContentProps) {
   return (
     <DropdownPrimitive.Portal>
-      <DropdownPrimitive.Content sideOffset={6} align="end" className={cn('z-50 min-w-[200px] rounded-md border border-line bg-elevated p-1 shadow-card rs-pop', className)} {...props} />
+      <DropdownPrimitive.Content sideOffset={6} align="end" className={cn('z-50 min-w-[200px] max-w-[calc(100vw-1rem)] rounded-md border border-line bg-elevated p-1 shadow-card rs-pop', className)} {...props} />
     </DropdownPrimitive.Portal>
   );
 }

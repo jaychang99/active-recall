@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
@@ -14,7 +15,7 @@ export function ShortAnswer({ value, onChange, onSubmit, phase, grade, answerKey
   const revealed = phase !== 'answering';
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (!revealed && !readOnly) ref.current?.focus();
+    if (!revealed && !readOnly) focusAnswerInput(ref.current);
   }, [revealed, readOnly]);
   const accepted = ((answerKey?.answer as { acceptedAnswers?: string[] } | undefined)?.acceptedAnswers ?? []) as string[];
   const correct = grade?.isCorrect ?? null;

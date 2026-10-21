@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import generatorPrompt from '@/lib/generated/question-generator-prompt';
 import { PROMPT_DEFAULTS, applyPromptOptions, changedKeys, readConfigValues, rebalancePercentages, renderConfigBlock, resolvePromptOptions, sumDifficulty, sumTypeTarget, toSavedDefaults } from './prompt-options';
+import { buildPromptBundle } from './prompt-bundle';
 
 describe('prompt options', () => {
   it('parses the CONFIG block of the shipped prompt', () => {
@@ -46,8 +47,8 @@ describe('prompt options', () => {
   });
 
   it('overlays saved partial defaults and ignores invalid values', () => {
-    const r = resolvePromptOptions({ numberOfQuestions: 999, sourceMode: 'nope', mcqChoiceCount: 4, difficulty: { easy: 30 }, requireAllEightTypes: 'yes' });
-    expect(r.numberOfQuestions).toBe(200); // clamped to the limit
+    const r = resolvePromptOptions({ numberOfQuestions: 10_001, sourceMode: 'nope', mcqChoiceCount: 4, difficulty: { easy: 30 }, requireAllEightTypes: 'yes' });
+    expect(r.numberOfQuestions).toBe(10_000); // clamped to the limit
     expect(r.sourceMode).toBe(PROMPT_DEFAULTS.sourceMode);
     expect(r.mcqChoiceCount).toBe(4);
     expect(r.difficulty).toEqual({ easy: 30, medium: 50, hard: 25 });
@@ -60,6 +61,36 @@ describe('prompt options', () => {
     const o = { ...PROMPT_DEFAULTS, numberOfQuestions: 30 };
     expect(toSavedDefaults(o)).toEqual({ numberOfQuestions: 30 });
     expect(changedKeys(o, PROMPT_DEFAULTS)).toEqual(['numberOfQuestions']);
+  });
+
+  it('preserves 10,000 through defaults and copying, and caps larger counts', () => {
+    for (const sourceMode of ['provided_materials', 'general_knowledge'] as const) {
+      const o = { ...PROMPT_DEFAULTS, sourceMode, numberOfQuestions: 10_000 };
+      expect(resolvePromptOptions(toSavedDefaults(o))).toEqual(o);
+      expect(readConfigValues(buildPromptBundle(o)).NUMBER_OF_QUESTIONS).toBe('10000');
+      expect(resolvePromptOptions({ ...o, numberOfQuestions: 10_001 }).numberOfQuestions).toBe(10_000);
+      expect(readConfigValues(buildPromptBundle({ ...o, numberOfQuestions: 10_001 })).NUMBER_OF_QUESTIONS).toBe('10000');
+    }
+    expect(buildPromptBundle()).toContain('최대 10,000문항');
+    expect(buildPromptBundle()).toContain('1,000 + 1,000 + 500문항');
+  });
+
+  it('round-trips full-coverage mode through saved defaults and the copied bundle', () => {
+    const o = { ...PROMPT_DEFAULTS, numberOfQuestions: 'auto' as const };
+    expect(toSavedDefaults(o)).toEqual({ numberOfQuestions: 'auto' });
+    expect(resolvePromptOptions(toSavedDefaults(o))).toEqual(o);
+    expect(readConfigValues(buildPromptBundle(o)).NUMBER_OF_QUESTIONS).toBe('auto');
+    expect(buildPromptBundle(o)).toContain('체크리스트의 **모든 항목');
+    expect(buildPromptBundle(o)).toContain('최대 1,000문항');
+    expect(renderConfigBlock(o)).toContain('NUMBER_OF_QUESTIONS: auto');
+  });
+
+  it('limits automatic count to provided materials, including invalid saved combinations', () => {
+    expect(resolvePromptOptions({ sourceMode: 'general_knowledge', numberOfQuestions: 'auto' }).numberOfQuestions).toBe(24);
+    const base = { ...PROMPT_DEFAULTS, numberOfQuestions: 'auto' as const };
+    expect(resolvePromptOptions({ numberOfQuestions: 'invalid' }, base).numberOfQuestions).toBe(24);
+    expect(resolvePromptOptions({ sourceMode: 'general_knowledge' }, base).numberOfQuestions).toBe(24);
+    expect(readConfigValues(buildPromptBundle({ ...base, sourceMode: 'general_knowledge' })).NUMBER_OF_QUESTIONS).toBe('24');
   });
 });
 

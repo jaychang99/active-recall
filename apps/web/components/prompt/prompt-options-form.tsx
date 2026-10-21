@@ -19,7 +19,7 @@ const LANG_KO: Record<(typeof LANGUAGE_PRESETS)[number], string> = { auto: '자�
 /** One field row: label (+ hint) on the left, control on the right. When the value differs from the base, a per-field reset button appears beside the label. */
 function Row({ label, hint, changed, onReset, htmlFor, children }: { label: string; hint?: string; changed?: boolean; onReset?: () => void; htmlFor?: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-2 border-b border-line py-3 last:border-0 sm:grid-cols-[minmax(0,1fr)_minmax(14rem,18rem)] sm:items-center">
+    <div className="grid gap-2 border-b border-line py-3 last:border-0 xl:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] xl:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <Label htmlFor={htmlFor}>{label}</Label>
@@ -80,11 +80,20 @@ export interface PromptOptionsFormProps {
 export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, decks, subjects }: PromptOptionsFormProps) {
   const uid = useId();
   const id = (k: string) => `${uid}-${k}`;
+  const [fixedCount, setFixedCount] = useState(typeof o.numberOfQuestions === 'number' ? o.numberOfQuestions : 24);
   const set = <K extends keyof PromptOptions>(k: K, v: PromptOptions[K]) => onChange({ ...o, [k]: v });
   const changed = useMemo(() => new Set(changedKeys(o, base)), [o, base]);
   const isChanged = (k: keyof PromptOptions) => changed.has(k);
   /** Props shared by every Row: the changed mark and the reset to the base value for that one key. */
-  const row = (k: keyof PromptOptions) => ({ changed: isChanged(k), onReset: () => { const v = base[k]; onChange({ ...o, [k]: typeof v === 'object' && v !== null ? { ...(v as object) } : v }); if (k === 'outputLanguage') setCustomLang(!(LANGUAGE_PRESETS as readonly string[]).includes(base.outputLanguage)); if (k === 'deckId') setCustomDeck(false); if (k === 'subject') setCustomSubject(false); } });
+  const row = (k: keyof PromptOptions) => ({ changed: isChanged(k), onReset: () => {
+    const v = base[k];
+    const next = { ...o, [k]: Array.isArray(v) ? [...v] : typeof v === 'object' && v !== null ? { ...v } : v };
+    if (next.sourceMode === 'general_knowledge' && next.numberOfQuestions === 'auto') next.numberOfQuestions = fixedCount;
+    onChange(next);
+    if (k === 'outputLanguage') setCustomLang(!(LANGUAGE_PRESETS as readonly string[]).includes(base.outputLanguage));
+    if (k === 'deckId') setCustomDeck(false);
+    if (k === 'subject') setCustomSubject(false);
+  } });
   const [customLang, setCustomLang] = useState(() => !(LANGUAGE_PRESETS as readonly string[]).includes(o.outputLanguage));
   // Deck ID / subject dropdowns: "auto", an existing item, or "직접 입력…" (a text input). The custom flag only remembers that the user
   // asked to type; a value that is neither auto nor an existing item is shown as custom regardless.
@@ -109,7 +118,7 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
         <Row label="자료" hint={SOURCE_MODE_HINT[o.sourceMode]} {...row('sourceMode')}>
           <div role="radiogroup" aria-label="출제 모드" className="grid grid-cols-2 gap-1 rounded-md border border-line bg-sunken p-1" data-testid="prompt-source-mode">
             {SOURCE_MODES.map((m) => (
-              <button key={m} type="button" role="radio" aria-checked={o.sourceMode === m} data-mode={m} onClick={() => set('sourceMode', m)} className={cn('h-8 rounded px-2 text-[13px] font-medium transition-colors', o.sourceMode === m ? 'bg-elevated text-ink shadow-[inset_0_0_0_1px_var(--line)]' : 'text-ink-2 hover:text-ink')}>
+              <button key={m} type="button" role="radio" aria-checked={o.sourceMode === m} data-mode={m} onClick={() => onChange({ ...o, sourceMode: m, numberOfQuestions: m === 'general_knowledge' && o.numberOfQuestions === 'auto' ? fixedCount : o.numberOfQuestions })} className={cn('min-h-9 rounded px-2 py-1 text-[13px] font-medium transition-colors', o.sourceMode === m ? 'bg-elevated text-ink shadow-[inset_0_0_0_1px_var(--line)]' : 'text-ink-2 hover:text-ink')}>
                 {SOURCE_MODE_KO[m]}
               </button>
             ))}
@@ -133,7 +142,7 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
       <section>
         <h3 className="mb-1 text-[13px] font-semibold text-ink-2">덱</h3>
         <Row label="덱 ID" hint="auto = LLM이 자료/주제에서 영문 ID를 새로 만듭니다 (새 덱). 기존 덱을 고르면 그 덱에 추가·갱신되고 제목·과목도 채워집니다." {...row('deckId')} htmlFor={id('deckId')}>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Select id={id('deckId')} className="min-w-0 flex-1" value={deckMode} data-testid="prompt-deck-select" onChange={(e) => {
               const v = e.target.value;
               if (v === '__custom') { setCustomDeck(true); if (isAuto(o.deckId)) set('deckId', ''); return; }
@@ -146,12 +155,12 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
               {decks?.length ? <optgroup label="기존 덱에 추가">{decks.map((d) => <option key={d.id} value={d.slug}>{d.title} ({d.slug}) · {d.subject}</option>)}</optgroup> : null}
               <option value="__custom">직접 입력…</option>
             </Select>
-            {deckMode === '__custom' ? <Input aria-label="덱 ID 직접 입력" value={isAuto(o.deckId) && customDeck ? '' : o.deckId} onChange={(e) => set('deckId', e.target.value)} placeholder="예: os_midterm_02" className="w-40 shrink-0 font-mono text-[13px]" spellCheck={false} data-testid="prompt-deck-custom" /> : null}
+            {deckMode === '__custom' ? <Input aria-label="덱 ID 직접 입력" value={isAuto(o.deckId) && customDeck ? '' : o.deckId} onChange={(e) => set('deckId', e.target.value)} placeholder="예: os_midterm_02" className="w-full sm:w-40 sm:shrink-0 font-mono text-[13px]" spellCheck={false} data-testid="prompt-deck-custom" /> : null}
           </div>
         </Row>
         <Row label="덱 제목" hint="auto = LLM이 정합니다." {...row('deckTitle')} htmlFor={id('deckTitle')}><Input id={id('deckTitle')} value={o.deckTitle} onChange={(e) => set('deckTitle', e.target.value)} placeholder="auto" /></Row>
         <Row label="과목" hint="auto = LLM이 정합니다. 가져올 때 덱 과목으로 부여되며, 가져오기 화면에서 바꿀 수 있습니다." {...row('subject')} htmlFor={id('subject')}>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Select id={id('subject')} className="min-w-0 flex-1" value={subjectMode} data-testid="prompt-subject-select" onChange={(e) => {
               const v = e.target.value;
               if (v === '__custom') { setCustomSubject(true); if (isAuto(o.subject)) set('subject', ''); return; }
@@ -162,29 +171,35 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
               {subjects?.length ? <optgroup label="기존 과목">{subjects.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}</optgroup> : null}
               <option value="__custom">직접 입력…</option>
             </Select>
-            {subjectMode === '__custom' ? <Input aria-label="과목 직접 입력" value={isAuto(o.subject) && customSubject ? '' : o.subject} onChange={(e) => set('subject', e.target.value)} placeholder="예: 운영체제" className="w-40 shrink-0" data-testid="prompt-subject-custom" /> : null}
+            {subjectMode === '__custom' ? <Input aria-label="과목 직접 입력" value={isAuto(o.subject) && customSubject ? '' : o.subject} onChange={(e) => set('subject', e.target.value)} placeholder="예: 운영체제" className="w-full sm:w-40 sm:shrink-0" data-testid="prompt-subject-custom" /> : null}
           </div>
         </Row>
       </section>
 
       <section>
         <h3 className="mb-1 text-[13px] font-semibold text-ink-2">출력</h3>
-        <Row label="문항 수" hint={`${LIMITS.numberOfQuestions.min}–${LIMITS.numberOfQuestions.max}. 한 번에 1,000문항까지 가져올 수 있습니다.`} {...row('numberOfQuestions')} htmlFor={id('n')}>
-          <NumberRange id={id('n')} value={o.numberOfQuestions} min={LIMITS.numberOfQuestions.min} max={LIMITS.numberOfQuestions.max} unit="문항" onChange={(v) => set('numberOfQuestions', v)} />
+        <Row label="문항 수" hint={`직접 지정: ${LIMITS.numberOfQuestions.min}–${LIMITS.numberOfQuestions.max.toLocaleString('ko-KR')}문항. 파일당 1,000문항씩 나누어 생성·가져오기 합니다.`} {...row('numberOfQuestions')} htmlFor={id(o.numberOfQuestions === 'auto' ? 'count-mode' : 'n')}>
+          <div className="space-y-2">
+            {!general ? <Select id={id('count-mode')} aria-label="문항 수 설정" className="w-full" value={o.numberOfQuestions === 'auto' ? 'auto' : 'fixed'} onChange={(e) => { if (e.target.value === 'auto') { if (typeof o.numberOfQuestions === 'number') setFixedCount(o.numberOfQuestions); set('numberOfQuestions', 'auto'); } else set('numberOfQuestions', fixedCount); }} data-testid="prompt-count-mode">
+              <option value="fixed">직접 지정</option>
+              <option value="auto">필요한 만큼 (자료 전체 커버)</option>
+            </Select> : null}
+            {o.numberOfQuestions === 'auto' ? <p className="text-[12px] text-ink-3" data-testid="prompt-count-auto-hint">최대 10,000문항 안에서 자료의 모든 학습 내용을 다루도록 AI가 문항 수를 정합니다. 중복은 줄이고 세부 개념·표·예시·예외까지 점검합니다. 상한을 넘는 자료는 범위를 나누어 추가로 생성하세요.</p> : <NumberRange id={id('n')} value={o.numberOfQuestions} min={LIMITS.numberOfQuestions.min} max={LIMITS.numberOfQuestions.max} unit="문항" onChange={(v) => { setFixedCount(v); set('numberOfQuestions', v); }} />}
+          </div>
         </Row>
         <Row label="출력 언어" hint="자동이면 첨부 자료의 주 언어를 따릅니다. BCP-47 코드를 직접 입력할 수도 있습니다." {...row('outputLanguage')} htmlFor={id('lang')}>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Select id={id('lang')} className="min-w-0 flex-1" value={customLang ? '__custom' : o.outputLanguage} onChange={(e) => { if (e.target.value === '__custom') { setCustomLang(true); } else { setCustomLang(false); set('outputLanguage', e.target.value); } }}>
               {LANGUAGE_PRESETS.map((l) => <option key={l} value={l}>{LANG_KO[l]}</option>)}
               <option value="__custom">직접 입력…</option>
             </Select>
-            {customLang ? <Input aria-label="언어 코드" value={o.outputLanguage} onChange={(e) => set('outputLanguage', e.target.value.trim() || 'auto')} placeholder="de, fr, es…" className="w-24 shrink-0 font-mono text-[13px]" /> : null}
+            {customLang ? <Input aria-label="언어 코드" value={o.outputLanguage} onChange={(e) => set('outputLanguage', e.target.value.trim() || 'auto')} placeholder="de, fr, es…" className="w-full sm:w-24 sm:shrink-0 font-mono text-[13px]" /> : null}
           </div>
         </Row>
         <Row label="객관식 선지 수" {...row('mcqChoiceCount')} htmlFor={id('mcq')}>
           <NumberRange id={id('mcq')} value={o.mcqChoiceCount} min={LIMITS.mcqChoiceCount.min} max={LIMITS.mcqChoiceCount.max} unit="개" onChange={(v) => set('mcqChoiceCount', v)} />
         </Row>
-        <Row label="해설 깊이" hint="상세 = 핵심 용어 정의, 단계적 정답 근거, 정답이 속한 분류의 다른 항목 전부, 모든 선지별 해설, 흔한 오개념까지 담은 미니 강의. 보통 = 근거와 핵심 정의, 선지별 1~2문장. 간략 = 정답 근거 1~2문장." {...row('explanationDepth')} htmlFor={id('depth')}>
+        <Row label="해설 깊이" hint="모든 설정에서 약어의 정식 전체 명칭과 뜻·역할을 풀어 쓰고, 처음 배우는 사람도 이해할 수 있도록 개념·풀이 근거·오답 이유를 자세히 설명합니다. 간략 = 해당 문제에 집중. 보통 = 선지별 해설·풀이 단계·오개념 정리. 상세 = 형제 개념 전체 비교와 연결 설명까지 담은 미니 강의." {...row('explanationDepth')} htmlFor={id('depth')}>
           <Select id={id('depth')} className="w-full" value={o.explanationDepth} onChange={(e) => set('explanationDepth', e.target.value as PromptOptions['explanationDepth'])}>{EXPLANATION_DEPTHS.map((d) => <option key={d} value={d}>{DEPTH_KO[d]}</option>)}</Select>
         </Row>
         <Row label="수식 표기" {...row('mathNotation')} htmlFor={id('math')}>
@@ -241,7 +256,7 @@ export function PromptOptionsWarnings({ value: o, className }: { value: PromptOp
   const items: string[] = [];
   if (sumDifficulty(o) !== 100) items.push(`난이도 분포 합계가 ${sumDifficulty(o)}%입니다.`);
   if (sumTypeTarget(o) !== 100) items.push(`유형별 비율 합계가 ${sumTypeTarget(o)}%입니다.`);
-  if (o.requireAllEightTypes && o.numberOfQuestions < CORE_TYPES.length) items.push(`문항 수가 ${o.numberOfQuestions}개라 8종을 모두 넣을 수 없습니다 (8개 미만이면 이 조건은 무시됩니다).`);
+  if (o.requireAllEightTypes && typeof o.numberOfQuestions === 'number' && o.numberOfQuestions < CORE_TYPES.length) items.push(`문항 수가 ${o.numberOfQuestions}개라 8종을 모두 넣을 수 없습니다 (8개 미만이면 이 조건은 무시됩니다).`);
   if (o.deckId.trim() && o.deckId.trim() !== 'auto' && !/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(o.deckId.trim())) items.push('덱 ID는 영문·숫자로 시작하고 영문·숫자·밑줄·하이픈만 쓸 수 있습니다 (또는 auto).');
   if (o.sourceMode === 'general_knowledge' && !o.mainTopic.trim()) items.push('일반 지식 모드: 대주제를 입력하세요.');
   if (!items.length) return null;

@@ -12,6 +12,8 @@ import { ErrorState, Skeleton } from '@/components/ui/misc';
 import { QuestionPrompt, QuestionRenderer } from '@/components/questions/question-renderer';
 import { cn, uid } from '@/lib/utils';
 import { useSettings } from '@/components/layout/settings-context';
+import { StudyActions } from '@/components/study/study-actions';
+import { dismissAnswerKeyboard } from '@/lib/answer-focus';
 
 export default function ExamRunPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = use(params);
@@ -51,7 +53,7 @@ export default function ExamRunPage({ params }: { params: Promise<{ attemptId: s
   const questions = exam.data?.questions ?? [];
   const current = questions[index];
   const answered = questions.filter((q) => answers[q.questionId]).length;
-  const go = useCallback((i: number) => setIndex(Math.max(0, Math.min(questions.length - 1, i))), [questions.length]);
+  const go = useCallback((i: number) => { dismissAnswerKeyboard(); setIndex(Math.max(0, Math.min(questions.length - 1, i))); }, [questions.length]);
   const registerDigitHandler = useCallback((fn: ((n: number) => void) | null) => { digit.current = fn; }, []);
   const typing = current?.type === 'essay' || current?.type === 'short_answer' || current?.type === 'cloze' || current?.type === 'numeric' || current?.type === 'stepwise' || current?.type === 'recall_card';
 
@@ -68,7 +70,7 @@ export default function ExamRunPage({ params }: { params: Promise<{ attemptId: s
   if (!current) return null;
 
   return (
-    <div className="mx-auto w-full max-w-[840px]" data-testid="exam-run">
+    <div className="mx-auto w-full max-w-[840px]" data-study-root data-testid="exam-run">
       <div className="mb-4 flex flex-wrap items-center gap-3 text-[13px] text-ink-3">
         <span className="font-medium text-ink">{exam.data!.title}</span>
         <span className="tabular">{index + 1} / {questions.length}</span>
@@ -83,11 +85,11 @@ export default function ExamRunPage({ params }: { params: Promise<{ attemptId: s
       <article key={current.questionId} className="space-y-5">
         <QuestionPrompt question={current.question as PublicQuestion} />
         <QuestionRenderer question={current.question as PublicQuestion} value={answers[current.questionId] ?? null} onChange={(v) => setAnswers((a) => ({ ...a, [current.questionId]: v }))} onSubmit={() => go(index + 1)} phase="answering" grade={null} answerKey={null} shuffleSeed={settings.shuffleChoices ? seed : null} showKeyHints={settings.shortcutsEnabled} registerDigitHandler={registerDigitHandler} />
-        <div className="flex flex-wrap items-center gap-2">
+        <StudyActions><div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => go(index - 1)} disabled={index === 0} kbd="←"><ChevronLeft className="h-4 w-4" /> 이전</Button>
           <Button onClick={() => go(index + 1)} disabled={index === questions.length - 1} kbd="→">다음 <ChevronRight className="h-4 w-4" /></Button>
           <Button variant="primary" className="ml-auto" onClick={() => { if (answered < questions.length && !confirm(`${questions.length - answered}문항이 미답입니다. 제출할까요?`)) return; submit.mutate(); }} disabled={submit.isPending} data-testid="submit-exam"><Send className="h-4 w-4" /> 제출 ({answered}/{questions.length})</Button>
-        </div>
+        </div></StudyActions>
       </article>
     </div>
   );

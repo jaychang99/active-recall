@@ -1,3 +1,5 @@
+import { STUDY_SETTING_LIMITS } from '@recall/contracts';
+
 /**
  * Metadata that drives the generic data manager (API + web). One entry per entity.
  * `fields` are what the UI may show/filter/edit; Prisma delegates are looked up by `model`.
@@ -19,6 +21,9 @@ export interface FieldMeta {
   searchable?: boolean;
   sortable?: boolean;
   enumValues?: string[];
+  min?: number;
+  max?: number;
+  integer?: boolean;
   /** relation hint for the UI (links to another entity) */
   ref?: string;
   /** hidden in the table but visible in the detail form */
@@ -55,6 +60,7 @@ export const ENTITIES: EntityMeta[] = [
       { name: 'id', label: 'ID', type: 'string', filterable: true, sortable: true },
       { name: 'slug', label: '슬러그 (배치 deck.id)', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
       { name: 'title', label: '제목', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
+      { name: 'archivedAt', label: '아카이브', type: 'datetime', filterable: true, sortable: true },
       { name: 'subject', label: '과목', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
       { name: 'language', label: '언어', type: 'string', editable: true, required: true, filterable: true, sortable: true },
       { name: 'description', label: '설명', type: 'text', editable: true, searchable: true, wide: true },
@@ -136,6 +142,7 @@ export const ENTITIES: EntityMeta[] = [
     fields: [
       { name: 'id', label: 'ID', type: 'string', sortable: true },
       { name: 'name', label: '이름', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
+      { name: 'archivedAt', label: '아카이브', type: 'datetime', filterable: true, sortable: true },
       { name: 'color', label: '색', type: 'string', editable: true },
       { name: 'description', label: '설명', type: 'text', editable: true, searchable: true, wide: true },
       ...stamps,
@@ -210,9 +217,9 @@ export const ENTITIES: EntityMeta[] = [
     key: 'settings', model: 'appSettings', label: '앱 설정', pk: 'id', softDelete: false, creatable: false, defaultSort: { field: 'id', dir: 'asc' },
     fields: [
       { name: 'id', label: 'ID', type: 'string' },
-      { name: 'newCardsPerDay', label: '하루 새 카드', type: 'number', editable: true },
-      { name: 'reviewsPerDay', label: '하루 복습', type: 'number', editable: true },
-      { name: 'dailyReviewGoal', label: '하루 목표', type: 'number', editable: true },
+      { name: 'newCardsPerDay', label: '하루 새 카드', type: 'number', editable: true, integer: true, ...STUDY_SETTING_LIMITS.newCardsPerDay },
+      { name: 'reviewsPerDay', label: '하루 복습', type: 'number', editable: true, integer: true, ...STUDY_SETTING_LIMITS.reviewsPerDay },
+      { name: 'dailyReviewGoal', label: '하루 목표', type: 'number', editable: true, integer: true, ...STUDY_SETTING_LIMITS.dailyReviewGoal },
       { name: 'timezone', label: '시간대', type: 'string', editable: true },
       { name: 'shortcutsEnabled', label: '단축키', type: 'boolean', editable: true },
       { name: 'showIntervalPreview', label: '간격 미리보기', type: 'boolean', editable: true },
@@ -227,9 +234,9 @@ export const ENTITIES: EntityMeta[] = [
       { name: 'essayAnswerView', label: '서술형 모범답안 보기', type: 'enum', enumValues: ['plain', 'scored'], editable: true },
       { name: 'newCardOrder', label: '새 카드 순서', type: 'enum', enumValues: ['deck', 'random'], editable: true },
       { name: 'requestRetention', label: '목표 기억률', type: 'number', editable: true },
-      { name: 'maximumInterval', label: '최대 간격', type: 'number', editable: true },
+      { name: 'maximumInterval', label: '최대 간격', type: 'number', editable: true, integer: true, ...STUDY_SETTING_LIMITS.maximumInterval },
       { name: 'enableFuzz', label: '퍼지', type: 'boolean', editable: true },
-      { name: 'leechThreshold', label: '리치 기준', type: 'number', editable: true },
+      { name: 'leechThreshold', label: '리치 기준', type: 'number', editable: true, integer: true, ...STUDY_SETTING_LIMITS.leechThreshold },
       { name: 'createdAt', label: '생성', type: 'datetime' },
       { name: 'updatedAt', label: '수정', type: 'datetime' },
     ],

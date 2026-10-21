@@ -85,6 +85,9 @@ export class AdminService {
       case 'number': {
         const n = Number(v);
         if (Number.isNaN(n)) throw ApiError.badRequest(`${f.name} must be a number`);
+        if (f.integer && !Number.isInteger(n)) throw ApiError.badRequest(`${f.name} must be an integer`);
+        if (f.min !== undefined && n < f.min) throw ApiError.badRequest(`${f.name} must be at least ${f.min}`);
+        if (f.max !== undefined && n > f.max) throw ApiError.badRequest(`${f.name} must not exceed ${f.max}`);
         return n;
       }
       case 'boolean':

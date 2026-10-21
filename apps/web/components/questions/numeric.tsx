@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
@@ -12,7 +13,7 @@ export function Numeric({ question, value, onChange, onSubmit, phase, grade, ans
   const v = value?.type === 'numeric' ? value.value : null;
   const revealed = phase !== 'answering';
   const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (!revealed && !readOnly) ref.current?.focus(); }, [revealed, readOnly]);
+  useEffect(() => { if (!revealed && !readOnly) focusAnswerInput(ref.current); }, [revealed, readOnly]);
   const key = answerKey?.answer as { value?: number; tolerance?: number; relativeTolerance?: number; unit?: string } | undefined;
   const correct = grade?.isCorrect ?? null;
   return (

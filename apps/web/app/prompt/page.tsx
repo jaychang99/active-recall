@@ -54,11 +54,11 @@ export default function PromptPage() {
         actions={<Link href="/settings#prompt-defaults" className="text-sm text-accent underline-offset-4 hover:underline">기본값은 설정에서</Link>}
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)] lg:items-start">
-        <Panel className="px-5 py-2">
+        <Panel className="min-w-0 px-3 py-2 sm:px-5">
           <PromptOptionsForm value={value} onChange={update} base={saved} decks={decks.data} subjects={subjects.data} />
         </Panel>
 
-        <div className="space-y-4 lg:sticky lg:top-20">
+        <div className="min-w-0 space-y-4 lg:sticky lg:top-20">
           <Panel className="p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-[13px] font-semibold text-ink-2">복사될 CONFIG</h2>

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { THEME_COLORS } from '@/lib/theme-colors';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -11,8 +12,8 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     display_override: ['window-controls-overlay', 'standalone'],
     orientation: 'any',
-    background_color: '#f7f8f7',
-    theme_color: '#0f766e',
+    background_color: THEME_COLORS.light,
+    theme_color: THEME_COLORS.light,
     lang: 'ko',
     categories: ['education', 'productivity'],
     icons: [

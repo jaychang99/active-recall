@@ -29,9 +29,10 @@ function urlTransform(url: string): string {
  *  control returned by `cloze.render(id)`; placeholders inside ```mermaid / ```svg fences become ①②③ labels with the
  *  controls listed under the drawing. See cloze-blanks.ts. */
 export function Markdown({ children, className, inline, cloze }: { children: string; className?: string; inline?: boolean; cloze?: ClozeRenderConfig }) {
+  const Wrapper = inline ? 'span' : 'div';
   return (
     <ClozeContext.Provider value={cloze ?? null}>
-      <div className={cn(inline ? 'prose-q inline [&>p]:inline' : 'prose-q', className)}>
+      <Wrapper className={cn('prose-q', inline && 'inline', className)}>
         <ReactMarkdown
           // singleTilde: false → only ~~text~~ is strikethrough; a lone "~" (범위 표기 1~5, 오늘~내일) stays literal.
           remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkMath]}
@@ -43,11 +44,11 @@ export function Markdown({ children, className, inline, cloze }: { children: str
             [rehypeHighlight, { detect: false, ignoreMissing: true, plainText: ['mermaid', 'svg', 'text', 'txt'] }],
           ]}
           urlTransform={urlTransform}
-          components={components}
+          components={inline ? inlineComponents : components}
         >
           {children}
         </ReactMarkdown>
-      </div>
+      </Wrapper>
     </ClozeContext.Provider>
   );
 }
@@ -55,6 +56,7 @@ export function Markdown({ children, className, inline, cloze }: { children: str
 // Component overrides are module-level (stable identity) so React keeps DOM nodes — and focus inside cloze inputs —
 // across re-renders of the surrounding question.
 const components: Components = {
+  table: ({ children }) => <div className="max-w-full overflow-x-auto"><table>{children}</table></div>,
   pre: Pre,
   span: Span,
   // eslint-disable-next-line @next/next/no-img-element -- arbitrary external/data URLs from question content cannot go through next/image
@@ -65,6 +67,9 @@ const components: Components = {
     </a>
   ),
 };
+
+// Inline snippets (including revealed cloze answers) live inside paragraphs and labels.
+const inlineComponents: Components = { ...components, p: ({ children }) => <span>{children}</span> };
 
 /** ```mermaid / ```svg fences become diagrams; everything else is a copyable code block. */
 function Pre({ children }: ComponentProps<'pre'>) {

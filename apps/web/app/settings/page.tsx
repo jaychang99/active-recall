@@ -5,6 +5,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { STUDY_SETTING_LIMITS } from '@recall/contracts';
 import { API_URL, api, type Deck, type EssayAnswerView, type Settings, type SubjectSummary } from '@/lib/api';
 import { downloadFromApi } from '@/lib/download';
 import { clearApiToken } from '@/lib/auth-token';
@@ -90,6 +91,10 @@ export default function SettingsPage() {
   const promptChanged = new Set(changedKeys(promptOpts, PROMPT_DEFAULTS));
   const num = (k: keyof Settings) => (e: React.ChangeEvent<HTMLInputElement>) => set(k, Number(e.target.value) as never);
   const submit = () => {
+    for (const key of Object.keys(STUDY_SETTING_LIMITS)) {
+      const input = document.getElementById(key);
+      if (input instanceof HTMLInputElement && !input.reportValidity()) return;
+    }
     const patch = { ...form } as Partial<Settings>;
     delete patch.updatedAt;
     save.mutate(patch);
@@ -130,17 +135,17 @@ export default function SettingsPage() {
       </Panel>
       <Panel className="mb-6 px-5 py-2">
         <h2 className="pt-3 text-[13px] font-semibold text-ink-2">학습량</h2>
-        <Row label="하루 새 카드 상한" id="newCardsPerDay"><Input id="newCardsPerDay" type="number" min={0} max={1000} value={form.newCardsPerDay ?? 20} onChange={num('newCardsPerDay')} /></Row>
-        <Row label="하루 복습 상한" id="reviewsPerDay"><Input id="reviewsPerDay" type="number" min={0} max={5000} value={form.reviewsPerDay ?? 200} onChange={num('reviewsPerDay')} /></Row>
-        <Row label="하루 복습 목표" hint="대시보드 진행도에 표시됩니다." id="dailyReviewGoal"><Input id="dailyReviewGoal" type="number" min={0} value={form.dailyReviewGoal ?? 50} onChange={num('dailyReviewGoal')} /></Row>
+        <Row label="하루 새 카드 상한" hint="최대 100,000개." id="newCardsPerDay"><Input id="newCardsPerDay" type="number" {...STUDY_SETTING_LIMITS.newCardsPerDay} value={form.newCardsPerDay ?? 20} onChange={num('newCardsPerDay')} /></Row>
+        <Row label="하루 복습 상한" hint="최대 100,000개." id="reviewsPerDay"><Input id="reviewsPerDay" type="number" {...STUDY_SETTING_LIMITS.reviewsPerDay} value={form.reviewsPerDay ?? 200} onChange={num('reviewsPerDay')} /></Row>
+        <Row label="하루 복습 목표" hint="대시보드 진행도에 표시됩니다. 최대 100,000개." id="dailyReviewGoal"><Input id="dailyReviewGoal" type="number" {...STUDY_SETTING_LIMITS.dailyReviewGoal} value={form.dailyReviewGoal ?? 50} onChange={num('dailyReviewGoal')} /></Row>
         <Row label="새 카드 순서" id="newCardOrder"><Select id="newCardOrder" className="w-full" value={form.newCardOrder ?? 'deck'} onChange={(e) => set('newCardOrder', e.target.value)}><option value="deck">덱 순서</option><option value="random">무작위</option></Select></Row>
-        <Row label="리치(leech) 기준 실패 횟수" id="leechThreshold"><Input id="leechThreshold" type="number" min={1} value={form.leechThreshold ?? 8} onChange={num('leechThreshold')} /></Row>
+        <Row label="리치(leech) 기준 실패 횟수" id="leechThreshold"><Input id="leechThreshold" type="number" {...STUDY_SETTING_LIMITS.leechThreshold} value={form.leechThreshold ?? 8} onChange={num('leechThreshold')} /></Row>
         <Row label="시간대" hint="하루 경계(새 카드 상한, 통계)에 사용됩니다. IANA 이름." id="timezone"><Input id="timezone" value={form.timezone ?? ''} onChange={(e) => set('timezone', e.target.value)} placeholder="Asia/Seoul" /></Row>
       </Panel>
       <Panel className="mb-6 px-5 py-2">
         <h2 className="pt-3 text-[13px] font-semibold text-ink-2">FSRS 스케줄러 (ts-fsrs)</h2>
         <Row label="목표 기억률 (request retention)" hint="0.70–0.98. 높을수록 복습이 잦아집니다." id="requestRetention"><Input id="requestRetention" type="number" step={0.01} min={0.7} max={0.98} value={form.requestRetention ?? 0.9} onChange={num('requestRetention')} /></Row>
-        <Row label="최대 간격 (일)" id="maximumInterval"><Input id="maximumInterval" type="number" min={1} max={36500} value={form.maximumInterval ?? 36500} onChange={num('maximumInterval')} /></Row>
+        <Row label="최대 간격 (일)" id="maximumInterval"><Input id="maximumInterval" type="number" {...STUDY_SETTING_LIMITS.maximumInterval} value={form.maximumInterval ?? 36500} onChange={num('maximumInterval')} /></Row>
         <Row label="간격 퍼지(fuzz)" hint="같은 날 몰리지 않도록 간격을 약간 흔듭니다." id="enableFuzz"><Switch id="enableFuzz" checked={form.enableFuzz ?? false} onCheckedChange={(v) => set('enableFuzz', v)} /></Row>
       </Panel>
       <Panel className="mb-6 px-5 py-4">

@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, Lock, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
@@ -16,7 +17,7 @@ export function Stepwise({ question, value, onChange, onSubmit, phase, grade, an
   const revealed = phase !== 'answering';
   const [unlocked, setUnlocked] = useState(1);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
-  useEffect(() => { if (!revealed && !readOnly) inputs.current[0]?.focus(); }, [revealed, readOnly, question.id]);
+  useEffect(() => { if (!revealed && !readOnly) focusAnswerInput(inputs.current[0]); }, [revealed, readOnly, question.id]);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const key = new Map((((answerKey?.steps as { id: string; acceptedAnswers: string[]; explanation?: string }[] | undefined) ?? []).map((s) => [s.id, s])));
   const visible = revealed ? question.steps.length : unlocked;

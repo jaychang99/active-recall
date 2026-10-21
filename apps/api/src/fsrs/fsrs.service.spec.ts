@@ -47,4 +47,16 @@ describe('FsrsService', () => {
     expect(formatInterval(a, new Date(a.getTime() + 4 * 86_400_000))).toBe('4d');
     expect(formatInterval(a, new Date(a.getTime() + 400 * 86_400_000))).toBe('1.1y');
   });
+
+  it('supports a configured maximum interval of 100,000 days', () => {
+    const now = new Date('2026-10-21T03:00:00Z');
+    const highLimit = { ...params, maximumInterval: 100_000 };
+    const scheduler = svc.scheduler(highLimit);
+    expect(scheduler.parameters.maximum_interval).toBe(100_000);
+    const card = { ...svc.emptyCard(now), state: State.Review, stability: 100_000, difficulty: 5, reps: 10, last_review: now };
+    const result = svc.next(highLimit, card, now, Rating.Easy);
+    expect(result.card.scheduled_days).toBeGreaterThan(0);
+    expect(result.card.scheduled_days).toBeLessThanOrEqual(100_000);
+    expect(Number.isFinite(result.card.due.getTime())).toBe(true);
+  });
 });

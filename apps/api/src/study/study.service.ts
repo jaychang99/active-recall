@@ -7,6 +7,7 @@ import { SettingsService } from '../settings/settings.service';
 import { FsrsService, deserializeCard, type SerializedCard } from '../fsrs/fsrs.service';
 import { endOfDayInTz, startOfDayInTz } from '../common/time';
 import { CardStatus, Prisma, SessionMode, type QuestionType } from '../generated/prisma/client';
+import { activeCollectionQuestions } from '../common/collections';
 
 export type StudyMode = 'scheduled' | 'cram' | 'mistakes' | 'flagged' | 'practice' | 'browse';
 /** Modes that open a StudySession (browse is read-only and never records anything). */
@@ -54,7 +55,7 @@ export class StudyService {
 
   private deckWhere(userId: string, opts: QueueOptions): Prisma.QuestionWhereInput {
     const subject: Prisma.QuestionWhereInput = opts.subject ? { subjects: { some: { deletedAt: null, subject: { name: opts.subject, deletedAt: null } } } } : {};
-    if (opts.scope === 'all') return { userId, deletedAt: null, deck: { deletedAt: null }, ...subject };
+    if (opts.scope === 'all') return { userId, deletedAt: null, ...(opts.subject ? { deck: { deletedAt: null } } : activeCollectionQuestions()), ...subject };
     return { userId, deletedAt: null, deckId: opts.scope, deck: { deletedAt: null }, ...subject };
   }
 

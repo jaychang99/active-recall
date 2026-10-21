@@ -8,3 +8,4 @@ export * from './json';
 export * from './validate';
 export * from './regex';
 export * from './geometry';
+export * from './settings';

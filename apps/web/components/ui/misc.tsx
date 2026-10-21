@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
 export function Panel({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('rounded-lg border border-line bg-elevated', className)} {...props} />;
+  return <div className={cn('min-w-0 rounded-lg border border-line bg-elevated', className)} {...props} />;
 }
 
 export function PageHeader({ title, description, actions, className }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode; className?: string }) {

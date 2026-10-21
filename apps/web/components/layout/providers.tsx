@@ -8,6 +8,7 @@ import { ShortcutProvider } from '@/lib/shortcuts/provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SettingsProvider } from '@/components/layout/settings-context';
 import { PwaProvider } from '@/components/layout/pwa';
+import { BrowserTheme } from '@/components/layout/browser-theme';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 5_000, refetchOnWindowFocus: false } } }));
@@ -15,6 +16,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SessionProvider refetchOnWindowFocus={false}>
       <QueryClientProvider client={client}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <BrowserTheme />
           <SettingsProvider>
             <PwaProvider>
               <ShortcutGate>

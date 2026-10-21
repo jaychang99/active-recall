@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
@@ -20,7 +21,7 @@ export function ClozeBank({ question, value, onChange, onSubmit, phase, grade, a
   const ids = useMemo(() => question.blanks.map((b) => b.id), [question.blanks]);
   const root = useRef<HTMLDivElement>(null);
   const selectsInOrder = () => Array.from(root.current?.querySelectorAll<HTMLSelectElement>('select[data-blank-id]') ?? []);
-  useEffect(() => { if (!revealed && !readOnly) selectsInOrder()[0]?.focus(); }, [revealed, readOnly, question.id]);
+  useEffect(() => { if (!revealed && !readOnly) focusAnswerInput(selectsInOrder()[0]); }, [revealed, readOnly, question.id]);
   const text = (itemId: string | null | undefined) => question.bank.find((b) => b.id === itemId)?.text ?? '';
   const usedBy = (itemId: string) => Object.entries(chosen).find(([, v]) => v === itemId)?.[0];
 

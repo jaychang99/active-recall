@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
@@ -16,7 +17,7 @@ export function NumericGrid({ question, value, onChange, onSubmit, phase, grade,
   const revealed = phase !== 'answering';
   const root = useRef<HTMLDivElement>(null);
   const inputsInOrder = () => Array.from(root.current?.querySelectorAll<HTMLInputElement>('input[data-cell-id]') ?? []);
-  useEffect(() => { if (!revealed && !readOnly) inputsInOrder()[0]?.focus(); }, [revealed, readOnly, question.id]);
+  useEffect(() => { if (!revealed && !readOnly) focusAnswerInput(inputsInOrder()[0]); }, [revealed, readOnly, question.id]);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const key = new Map((((answerKey?.cells as { id: string; value: number; tolerance?: number; relativeTolerance?: number }[] | undefined) ?? []).map((c) => [c.id, c])));
   const cellAt = (r: string, c: string) => question.cells.find((x) => x.rowId === r && x.columnId === c);

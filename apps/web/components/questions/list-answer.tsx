@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
@@ -16,7 +17,7 @@ export function ListAnswer({ question, value, onChange, onSubmit, phase, grade, 
   const entries = value?.type === 'list_answer' ? value.entries : [];
   const revealed = phase !== 'answering';
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
-  useEffect(() => { if (!revealed && !readOnly) inputs.current[0]?.focus(); }, [revealed, readOnly, question.id]);
+  useEffect(() => { if (!revealed && !readOnly) focusAnswerInput(inputs.current[0]); }, [revealed, readOnly, question.id]);
   const parts = grade?.detail.parts ?? [];
   const items = ((answerKey?.answer as { items?: { id: string; acceptedAnswers: string[] }[] } | undefined)?.items ?? []) as { id: string; acceptedAnswers: string[] }[];
   const matchedIds = new Set(parts.filter((p) => p.correct).map((p) => p.expected as string));

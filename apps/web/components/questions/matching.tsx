@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
@@ -19,7 +20,7 @@ export function Matching({ question, value, onChange, onSubmit, phase, grade, an
   const rightText = (id: string | null | undefined) => question.right.find((r) => r.id === id)?.text ?? '';
   const selects = useRef<(HTMLSelectElement | null)[]>([]);
   useEffect(() => {
-    if (!revealed && !readOnly) selects.current[0]?.focus();
+    if (!revealed && !readOnly) focusAnswerInput(selects.current[0]);
   }, [revealed, readOnly, question.id]);
   useEffect(() => {
     registerDigitHandler?.((n) => selects.current[n - 1]?.focus());

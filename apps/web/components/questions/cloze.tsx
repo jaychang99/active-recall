@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
@@ -19,7 +20,7 @@ export function Cloze({ question, value, onChange, onSubmit, phase, grade, answe
   const root = useRef<HTMLDivElement>(null);
   const inputsInOrder = () => Array.from(root.current?.querySelectorAll<HTMLInputElement>('input[data-blank-id]') ?? []);
   useEffect(() => {
-    if (!revealed && !readOnly) inputsInOrder()[0]?.focus();
+    if (!revealed && !readOnly) focusAnswerInput(inputsInOrder()[0]);
   }, [revealed, readOnly, question.id]);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const key = new Map((((answerKey?.blanks as { id: string; acceptedAnswers: string[] }[] | undefined) ?? []).map((b) => [b.id, b.acceptedAnswers])));
@@ -31,7 +32,7 @@ export function Cloze({ question, value, onChange, onSubmit, phase, grade, answe
       const p = parts.get(id);
       const width = Math.max(6, (blanks[id]?.length ?? 0) + 2, ...(key.get(id)?.map((a) => a.length + 2) ?? []));
       return (
-        <span className="mx-0.5 inline-flex items-center align-baseline">
+        <span className="mx-0.5 inline-flex max-w-full items-center align-baseline">
           <input
             value={blanks[id] ?? ''}
             disabled={revealed || readOnly}
@@ -39,7 +40,7 @@ export function Cloze({ question, value, onChange, onSubmit, phase, grade, answe
             data-blank-id={id}
             autoComplete="off"
             style={{ width: `${width}ch` }}
-            className={cn('h-8 rounded-md border bg-elevated px-2 text-center text-[1rem] outline-none focus-visible:border-accent', revealed ? (p?.correct ? 'border-ok bg-ok-soft text-ok-ink' : 'border-bad bg-bad-soft text-bad-ink') : 'border-line-strong')}
+            className={cn('h-8 min-w-0 max-w-full rounded-md border bg-elevated px-2 text-center text-[1rem] outline-none focus-visible:border-accent', revealed ? (p?.correct ? 'border-ok bg-ok-soft text-ok-ink' : 'border-bad bg-bad-soft text-bad-ink') : 'border-line-strong')}
             onChange={(e) => onChange({ type: 'cloze', blanks: { ...blanks, [id]: e.target.value } })}
             onKeyDown={(e) => {
               if (isComposing(e.nativeEvent)) return;

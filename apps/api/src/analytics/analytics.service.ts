@@ -5,6 +5,7 @@ import { SettingsService } from '../settings/settings.service';
 import { FsrsService, deserializeCard, type SerializedCard } from '../fsrs/fsrs.service';
 import { addDays, dayKey, dayKeyOffset, endOfDayInTz, startOfDayInTz } from '../common/time';
 import { CardStatus, Prisma } from '../generated/prisma/client';
+import { activeCollectionQuestions } from '../common/collections';
 
 export interface OverviewFilter {
   deckId?: string;
@@ -42,7 +43,7 @@ export class AnalyticsService {
     const scope = this.scope(userId, f);
 
     const [questions, logs, allLogsForStreak, practices, exams] = await Promise.all([
-      this.prisma.question.findMany({ where: scope, select: { id: true, deckId: true, type: true, payloadJson: true, card: true, deck: { select: { id: true, title: true, subject: true } } } }),
+      this.prisma.question.findMany({ where: { ...scope, ...(!f.deckId && !f.subject ? activeCollectionQuestions() : {}) }, select: { id: true, deckId: true, type: true, payloadJson: true, card: true, deck: { select: { id: true, title: true, subject: true } } } }),
       this.prisma.reviewLog.findMany({
         where: { userId, undone: false, deletedAt: null, reviewedAt: { gte: since }, question: scope },
         select: { questionId: true, rating: true, reviewedAt: true, isCorrect: true, elapsedMs: true, previousStatus: true, revealedBeforeAnswer: true, hintUsed: true, question: { select: { type: true } } },

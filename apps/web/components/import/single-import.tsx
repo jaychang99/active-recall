@@ -109,8 +109,8 @@ export function SingleImport() {
   const byType = plan?.summary?.byType ?? null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
-      <div className="space-y-3">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="min-w-0 space-y-3">
         <div
           onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
           onDragLeave={() => setDrag(false)}
@@ -125,7 +125,7 @@ export function SingleImport() {
             aria-label="JSON 입력"
             data-testid="import-textarea"
             placeholder={'{\n  "schemaVersion": "1.0.0",\n  "deck": { ... },\n  "questions": [ ... ]\n}\n\n여기에 붙여넣거나 .json 파일을 끌어다 놓으세요.'}
-            className="h-[420px] w-full resize-y rounded-lg bg-elevated p-4 font-mono text-[13px] leading-relaxed outline-none"
+            className="h-[min(420px,45svh)] min-h-56 w-full resize-y rounded-lg bg-elevated p-3 sm:p-4 font-mono text-[13px] leading-relaxed outline-none"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -151,7 +151,7 @@ export function SingleImport() {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         {parseError ? <Panel className="border-bad/40 p-4 text-sm"><div className="flex items-center gap-2 font-medium text-bad-ink"><XCircle className="h-4 w-4" /> JSON 파싱 오류</div><p className="mt-1 text-ink-2">{parseError}</p></Panel> : null}
         {issues.length ? (
           <Panel className="border-bad/40 p-4" data-testid="issues">

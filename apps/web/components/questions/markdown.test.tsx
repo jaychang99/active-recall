@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { Markdown } from './markdown';
 
 describe('Markdown renderer', () => {
+  it('keeps inline answers valid inside a paragraph without nested block elements', () => {
+    const { container } = render(<p>정답: <Markdown inline>{'**연결** 지향 $x^2$'}</Markdown></p>);
+    expect(container.querySelectorAll('p')).toHaveLength(1);
+    expect(container.querySelector('p div')).toBeNull();
+    expect(container.querySelector('strong')?.textContent).toBe('연결');
+    expect(container.querySelector('.katex')).not.toBeNull();
+  });
   it('does not turn a single ~ into strikethrough', () => {
     const { container } = render(<Markdown>{'1~5번 문항과 오늘~내일 사이, 그리고 a ~ b ~ c'}</Markdown>);
     expect(container.querySelector('del')).toBeNull();

@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, Minus, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { compileSafeRegex, testRegexExamples, type PublicQuestion } from '@recall/contracts';
@@ -15,7 +16,7 @@ export function RegexAnswer({ question, value, onChange, onSubmit, phase, grade,
   const pattern = value?.type === 'regex_answer' ? value.pattern : '';
   const revealed = phase !== 'answering';
   const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (!revealed && !readOnly) ref.current?.focus(); }, [revealed, readOnly, question.id]);
+  useEffect(() => { if (!revealed && !readOnly) focusAnswerInput(ref.current); }, [revealed, readOnly, question.id]);
   const { shouldMatch, shouldNotMatch, flags = '', fullMatch = false } = question.answer;
   const live = compileSafeRegex(pattern, flags, fullMatch);
   const results = pattern ? testRegexExamples(live, shouldMatch, shouldNotMatch) : [];

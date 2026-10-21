@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { useEffect, useRef } from 'react';
 import type { EssayQuestion, PublicQuestion } from '@recall/contracts';
 import { Textarea } from '@/components/ui/input';
@@ -15,7 +16,7 @@ export function Essay({ question, value, onChange, onSubmit, phase, answerKey, r
   const revealed = phase !== 'answering';
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    if (!revealed && !readOnly) ref.current?.focus();
+    if (!revealed && !readOnly) focusAnswerInput(ref.current);
   }, [revealed, readOnly]);
   const key = answerKey?.answer as Partial<EssayQuestion['answer']> | undefined;
   const rubric = key?.rubric ?? [];

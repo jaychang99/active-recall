@@ -57,9 +57,9 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
 // ---- Shared API types (mirrors the NestJS responses) ----
 export type CardStatus = 'NEW' | 'LEARNING' | 'REVIEW' | 'RELEARNING';
 export interface Progress { total: number; suspended: number; flagged: number; new: number; learning: number; review: number; relearning: number; dueToday: number }
-export interface Deck { id: string; slug: string; title: string; description: string | null; subject: string; language: string; tags: string[]; createdAt: string; updatedAt: string; deletedAt: string | null; progress: Progress }
+export interface Deck { id: string; slug: string; title: string; description: string | null; subject: string; language: string; tags: string[]; createdAt: string; updatedAt: string; deletedAt: string | null; archivedAt: string | null; lastReviewedAt: string | null; progress: Progress }
 export interface DeckDetail extends Deck { noteCount: number; lastReviewedAt: string | null; questionTags: { tag: string; count: number }[] }
-export interface SubjectSummary { id: string; name: string; color: string | null; description: string | null; questionCount: number; deckIds: string[]; progress: Progress; createdAt: string; updatedAt: string }
+export interface SubjectSummary { id: string; name: string; color: string | null; description: string | null; questionCount: number; deckIds: string[]; progress: Progress; createdAt: string; updatedAt: string; archivedAt: string | null; lastReviewedAt: string | null }
 export interface CardInfo { status: CardStatus; dueAt: string; version: number; reps: number; lapses: number; stability: number; difficulty: number; flagged: boolean; suspended: boolean; lastReviewAt: string | null; retrievability: number | null }
 export interface IntervalPreview { again: { due: string; interval: string }; hard: { due: string; interval: string }; good: { due: string; interval: string }; easy: { due: string; interval: string } }
 export interface QueueItem { questionId: string; externalId: string; deck: { id: string; title: string; subject: string }; type: QuestionType; question: PublicQuestion; hasHint: boolean; card: CardInfo; reviewRound: number; noteCount: number; preview: IntervalPreview | null }

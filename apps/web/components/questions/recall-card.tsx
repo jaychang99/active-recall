@@ -1,4 +1,5 @@
 'use client';
+import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
@@ -15,7 +16,7 @@ export function RecallCard({ question, value, onChange, onSubmit, phase, grade, 
   const selfCorrect = value?.type === 'recall_card' ? value.selfCorrect : undefined;
   const revealed = phase !== 'answering';
   const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { if (!revealed && !readOnly) ref.current?.focus(); }, [revealed, readOnly]);
+  useEffect(() => { if (!revealed && !readOnly) focusAnswerInput(ref.current); }, [revealed, readOnly]);
   const back = (answerKey as { back?: string } | undefined)?.back ?? '';
   const auto = question.hasAcceptedAnswers;
   const accepted = ((answerKey?.answer as { acceptedAnswers?: string[] } | undefined)?.acceptedAnswers ?? []) as string[];

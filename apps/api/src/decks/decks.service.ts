@@ -6,6 +6,7 @@ import { SettingsService } from '../settings/settings.service';
 import { endOfDayInTz } from '../common/time';
 import { CardStatus, Prisma, type QuestionType } from '../generated/prisma/client';
 import { SubjectsService } from '../subjects/subjects.service';
+import { archiveFilter, latestReviewsByQuestion, recentReviewsFirst, type CollectionListOptions } from '../common/collections';
 
 export interface DeckProgress {
   total: number;
@@ -30,15 +31,21 @@ export class DecksService {
     private readonly subjectsService: SubjectsService,
   ) {}
 
-  async progressByDeck(userId: string, deckIds?: string[]): Promise<Map<string, DeckProgress>> {
+  private async summariesByDeck(userId: string, deckIds: string[]) {
     const settings = await this.settings.get(userId);
     const now = new Date();
     const dayEnd = endOfDayInTz(now, settings.timezone);
-    const where: Prisma.QuestionWhereInput = { userId, deletedAt: null, deck: { deletedAt: null }, ...(deckIds ? { deckId: { in: deckIds } } : {}) };
-    const rows = await this.prisma.question.findMany({ where, select: { deckId: true, card: { select: { status: true, dueAt: true, suspended: true, flagged: true, lapses: true } } } });
-    const map = new Map<string, DeckProgress>();
+    const where: Prisma.QuestionWhereInput = { userId, deletedAt: null, deck: { deletedAt: null }, deckId: { in: deckIds } };
+    const [rows, reviews] = await Promise.all([
+      this.prisma.question.findMany({ where, select: { id: true, deckId: true, card: { select: { status: true, dueAt: true, suspended: true, flagged: true } } } }),
+      latestReviewsByQuestion(userId, this.prisma, where),
+    ]);
+    const map = new Map<string, { progress: DeckProgress; lastReviewedAt: Date | null }>();
     for (const r of rows) {
-      const p = map.get(r.deckId) ?? emptyProgress();
+      const summary = map.get(r.deckId) ?? { progress: emptyProgress(), lastReviewedAt: null };
+      const p = summary.progress;
+      const lastReview = reviews.get(r.id);
+      if (lastReview && (!summary.lastReviewedAt || lastReview > summary.lastReviewedAt)) summary.lastReviewedAt = lastReview;
       p.total++;
       if (r.card?.suspended) p.suspended++;
       if (r.card?.flagged) p.flagged++;
@@ -48,18 +55,18 @@ export class DecksService {
       else if (status === CardStatus.REVIEW) p.review++;
       else p.relearning++;
       if (status !== CardStatus.NEW && r.card && !r.card.suspended && r.card.dueAt <= dayEnd) p.dueToday++;
-      map.set(r.deckId, p);
+      map.set(r.deckId, summary);
     }
     return map;
   }
 
-  async list(userId: string, opts: { subject?: string; includeDeleted?: boolean } = {}) {
+  async list(userId: string, opts: CollectionListOptions & { subject?: string; includeDeleted?: boolean } = {}) {
     const decks = await this.prisma.deck.findMany({
-      where: { userId, ...(opts.includeDeleted ? {} : { deletedAt: null }), ...(opts.subject ? { subject: opts.subject } : {}) },
-      orderBy: [{ subject: 'asc' }, { updatedAt: 'desc' }],
+      where: { userId, ...(opts.includeDeleted ? {} : { deletedAt: null }), ...archiveFilter(opts), ...(opts.subject ? { subject: opts.subject } : {}) },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
     });
-    const progress = await this.progressByDeck(userId);
-    return decks.map((d) => ({ ...d, tags: d.tagsJson as string[], progress: progress.get(d.id) ?? emptyProgress() }));
+    const summaries = await this.summariesByDeck(userId, decks.map((d) => d.id));
+    return recentReviewsFirst(decks.map((d) => ({ ...d, tags: d.tagsJson as string[], progress: summaries.get(d.id)?.progress ?? emptyProgress(), lastReviewedAt: summaries.get(d.id)?.lastReviewedAt ?? null })));
   }
 
   /** Decks grouped by their primary (deck-level) subject. Question-level subjects live in SubjectsService. */
@@ -73,7 +80,8 @@ export class DecksService {
       s.decks.push(d);
       bySubject.set(d.subject, s);
     }
-    return [...bySubject.values()].sort((a, b) => a.subject.localeCompare(b.subject));
+    // The first deck encountered is the subject's most recently reviewed deck.
+    return [...bySubject.values()];
   }
 
   async update(userId: string, id: string, data: { title?: string; description?: string | null; subject?: string; language?: string; tags?: string[] }) {
@@ -104,13 +112,18 @@ export class DecksService {
     return { restored: id };
   }
 
+  async setArchived(userId: string, id: string, archived: boolean) {
+    const deck = await this.prisma.deck.findFirst({ where: { id, userId, deletedAt: null }, select: { id: true, archivedAt: true } });
+    if (!deck) throw ApiError.notFound('Deck', id);
+    return this.prisma.deck.update({ where: { id, userId }, data: { archivedAt: archived ? (deck.archivedAt ?? new Date()) : null } });
+  }
+
   async get(userId: string, id: string) {
     const deck = await this.prisma.deck.findFirst({ where: { id, userId, deletedAt: null } });
     if (!deck) throw ApiError.notFound('Deck', id);
-    const progress = (await this.progressByDeck(userId, [id])).get(id) ?? emptyProgress();
-    const [notes, lastReview, tagRows] = await Promise.all([
+    const summary = (await this.summariesByDeck(userId, [id])).get(id);
+    const [notes, tagRows] = await Promise.all([
       this.prisma.questionNote.count({ where: { userId, question: { deckId: id } } }),
-      this.prisma.reviewLog.findFirst({ where: { userId, undone: false, question: { deckId: id } }, orderBy: { reviewedAt: 'desc' }, select: { reviewedAt: true } }),
       this.prisma.question.findMany({ where: { userId, deckId: id, deletedAt: null }, select: { payloadJson: true } }),
     ]);
     const tagCounts = new Map<string, number>();
@@ -118,9 +131,9 @@ export class DecksService {
     return {
       ...deck,
       tags: deck.tagsJson as string[],
-      progress,
+      progress: summary?.progress ?? emptyProgress(),
       noteCount: notes,
-      lastReviewedAt: lastReview?.reviewedAt ?? null,
+      lastReviewedAt: summary?.lastReviewedAt ?? null,
       questionTags: [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).map(([tag, count]) => ({ tag, count })),
     };
   }
