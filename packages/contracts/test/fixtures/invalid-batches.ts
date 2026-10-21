@@ -24,4 +24,9 @@ export const invalidFixtures: { name: string; mutate: (b: QuestionBatch) => unkn
   { name: 'ordering not permutation', mutate: (b) => { const q = b.questions[6]; if (q?.type === 'ordering') q.answer.orderedIds = ['syn', 'synack', 'nope']; return b; }, expect: 'permutation' },
   { name: 'matching not bijection', mutate: (b) => { const q = b.questions[7]; if (q?.type === 'matching') q.answer.pairs = [{ leftId: 'dns', rightId: 'name' }, { leftId: 'dhcp', rightId: 'name' }, { leftId: 'arp', rightId: 'mapping' }]; return b; }, expect: 'paired more than once' },
   { name: 'rubric total mismatch', mutate: (b) => { const q = b.questions[4]; if (q?.type === 'essay') q.answer.maxScore = 11; return b; }, expect: 'must equal answer.maxScore' },
+  { name: 'essay segment points without rubricIndex', mutate: (b) => { const q = b.questions[4]; if (q?.type === 'essay') delete q.answer.modelAnswerSegments![0]!.rubricIndex; return b; }, expect: 'points and rubricIndex must be given together' },
+  { name: 'essay segment rubricIndex out of range', mutate: (b) => { const q = b.questions[4]; if (q?.type === 'essay') q.answer.modelAnswerSegments![0]!.rubricIndex = 5; return b; }, expect: 'out of range' },
+  { name: 'essay segment points exceed criterion', mutate: (b) => { const q = b.questions[4]; if (q?.type === 'essay') q.answer.modelAnswerSegments![0]!.points = 3; return b; }, expect: 'exceed its maxPoints' },
+  { name: 'essay segments with no scored segment', mutate: (b) => { const q = b.questions[4]; if (q?.type === 'essay') q.answer.modelAnswerSegments = [{ text: 'x' }]; return b; }, expect: 'at least one scored segment' },
+  { name: 'essay segment unknown property', mutate: (b) => { const q = b.questions[4]; if (q?.type === 'essay') (q.answer.modelAnswerSegments![0] as unknown as Record<string, unknown>).score = 1; return b; }, expect: 'score' },
 ];

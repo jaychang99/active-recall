@@ -18,6 +18,7 @@ Monorepo (pnpm workspaces): `apps/web` (Next.js 16 App Router, React 19, Tailwin
 - Every entity has `createdAt/updatedAt/deletedAt`; delete = set `deletedAt` (soft). Queries filter `deletedAt: null`.
 - Subjects are tag-like (`Subject` ⟷ `QuestionSubject`); the deck subject is auto-assigned on import (`source = "deck"`).
 - Notes are one per `(questionId, reviewRound)`; round = effective (non-undone) reviews + 1.
+- Essay `answer.modelAnswerSegments` is optional and display-only (the 문장별 배점 view, `Settings.essayAnswerView`): it is excluded from `answerSignature`, so adding it on re-import never resets a schedule; essays without it fall back to the plain model answer.
 - Sharing (`apps/api/src/shares`, web `/shares`): a `Share` row belongs to the sender (`userId`); the recipient reaches it by `recipientEmail` (lower-cased), the only non-`userId` scope the tenant guard accepts, and only for `Share`. Content is frozen in `snapshotJson` at send time; accepting copies it into the recipient's account with fresh NEW cards (never CardState/ReviewLog/notes/flags). `Deck/Question.originId` holds the root id; merging into an existing deck matches by `originId ?? id`, never by `externalId`. Expiry (30 days) is computed, not stored.
 - Keyboard shortcuts go through `apps/web/lib/shortcuts` (single listener, scopes, IME/editable guards). Don't add ad-hoc `keydown` listeners.
 - Design tokens: `apps/web/app/globals.css`; see `DESIGN.md` and `PRODUCT.md`.

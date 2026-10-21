@@ -5,7 +5,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { API_URL, api, type Deck, type Settings, type SubjectSummary } from '@/lib/api';
+import { API_URL, api, type Deck, type EssayAnswerView, type Settings, type SubjectSummary } from '@/lib/api';
 import { downloadFromApi } from '@/lib/download';
 import { clearApiToken } from '@/lib/auth-token';
 import { Button } from '@/components/ui/button';
@@ -106,6 +106,9 @@ export default function SettingsPage() {
         <Row label="평가 버튼에 다음 간격 표시" hint="Anki처럼 Again/Hard/Good/Easy 아래 예상 간격을 보여줍니다." id="showIntervalPreview"><Switch id="showIntervalPreview" checked={form.showIntervalPreview ?? true} onCheckedChange={(v) => set('showIntervalPreview', v)} /></Row>
         <Row label="평가 후 자동으로 다음 문제" hint="끄면 평가 후 N 키나 버튼으로 넘어갑니다." id="autoAdvanceAfterRating"><Switch id="autoAdvanceAfterRating" checked={form.autoAdvanceAfterRating ?? true} onCheckedChange={(v) => set('autoAdvanceAfterRating', v)} /></Row>
         <Row label="보기 순서 섞기" hint="선택지 ID는 바뀌지 않습니다." id="shuffleChoices"><Switch id="shuffleChoices" checked={form.shuffleChoices ?? true} onCheckedChange={(v) => set('shuffleChoices', v)} /></Row>
+        <Row label="서술형 모범답안 보기" hint="문장별 배점 = 모범답안을 따라 읽으며 문장마다 몇 점인지 표시합니다 (배점 데이터가 있는 문항만, 없으면 기본 보기). 학습 중에도 모범답안 위 전환 버튼이나 B 키로 바꿀 수 있습니다." id="essayAnswerView">
+          <Select id="essayAnswerView" className="w-full" value={form.essayAnswerView ?? 'plain'} onChange={(e) => set('essayAnswerView', e.target.value as EssayAnswerView)} data-testid="settings-essay-view"><option value="plain">기본 (모범답안 전문)</option><option value="scored">문장별 배점</option></Select>
+        </Row>
       </Panel>
       <Panel id="study-meta-mask" className="mb-6 scroll-mt-20 px-5 py-2">
         <div className="flex flex-wrap items-center justify-between gap-2 pt-3">

@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useRef } from 'react';
-import type { PublicQuestion } from '@recall/contracts';
+import type { EssayQuestion, PublicQuestion } from '@recall/contracts';
 import { Textarea } from '@/components/ui/input';
+import { circledLabel } from './cloze-blanks';
+import { EssayModelAnswer, hasScoredSegments, segmentPointsByCriterion, useEssayAnswerView } from './essay-answer-view';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
 
 type Q = Extract<PublicQuestion, { type: 'essay' }>;
-interface Rubric { criterion: string; maxPoints: number; guidance: string }
 
 export function Essay({ question, value, onChange, onSubmit, phase, answerKey, readOnly }: RendererProps<Q>) {
   const text = value?.type === 'essay' ? value.text : '';
@@ -16,8 +17,11 @@ export function Essay({ question, value, onChange, onSubmit, phase, answerKey, r
   useEffect(() => {
     if (!revealed && !readOnly) ref.current?.focus();
   }, [revealed, readOnly]);
-  const key = answerKey?.answer as { modelAnswer?: string; maxScore?: number; rubric?: Rubric[] } | undefined;
+  const key = answerKey?.answer as Partial<EssayQuestion['answer']> | undefined;
   const rubric = key?.rubric ?? [];
+  const { view, setView } = useEssayAnswerView();
+  const scored = view === 'scored' && hasScoredSegments(key?.modelAnswerSegments);
+  const segmentPoints = segmentPointsByCriterion(key?.modelAnswerSegments);
   const total = (selfScores ?? []).reduce((a, b) => a + (b || 0), 0);
   return (
     <div className="space-y-3">
@@ -40,10 +44,7 @@ export function Essay({ question, value, onChange, onSubmit, phase, answerKey, r
       {!revealed ? <p className="text-[12px] text-ink-3">서술형은 자동 채점되지 않습니다. 제출 후 모범답안과 루브릭으로 직접 채점합니다. 최대 {question.answer.maxScore}점</p> : null}
       {revealed && key ? (
         <div className="space-y-3">
-          <section className="rounded-md border border-line bg-muted/60 p-3">
-            <h4 className="mb-1 text-[13px] font-semibold text-ink-2">모범답안</h4>
-            <Markdown className="prose-sm">{key.modelAnswer ?? ''}</Markdown>
-          </section>
+          <EssayModelAnswer modelAnswer={key.modelAnswer ?? ''} segments={key.modelAnswerSegments} rubric={rubric} view={view} onViewChange={setView} />
           <section className="rounded-md border border-line p-3" data-testid="rubric">
             <div className="mb-2 flex items-baseline justify-between">
               <h4 className="text-[13px] font-semibold text-ink-2">루브릭 자기평가</h4>
@@ -53,7 +54,7 @@ export function Essay({ question, value, onChange, onSubmit, phase, answerKey, r
               {rubric.map((r, i) => (
                 <li key={r.criterion} className="grid gap-1 sm:grid-cols-[1fr_auto] sm:items-center">
                   <div>
-                    <div className="text-sm font-medium"><Markdown inline className="prose-sm">{r.criterion}</Markdown> <span className="text-ink-3">({r.maxPoints}점)</span></div>
+                    <div className="text-sm font-medium">{scored ? <span className="mr-1 text-accent-soft-ink" aria-hidden>{circledLabel(i)}</span> : null}<Markdown inline className="prose-sm">{r.criterion}</Markdown> <span className="text-ink-3">({r.maxPoints}점{scored ? (segmentPoints.has(i) ? ` · 문장 배점 ${segmentPoints.get(i)}점` : ' · 답안 전체에 적용') : ''})</span></div>
                     <Markdown className="prose-sm text-[13px] text-ink-2">{r.guidance}</Markdown>
                   </div>
                   <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={`${r.criterion} 점수`}>

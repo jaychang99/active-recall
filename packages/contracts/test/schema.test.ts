@@ -20,6 +20,15 @@ describe('question-batch schema', () => {
     });
   }
 
+  it('essay modelAnswerSegments are optional (older batches stay valid)', () => {
+    const b = clone(validBatch);
+    const q = b.questions[4]!;
+    if (q.type !== 'essay') throw new Error('fixture changed');
+    expect(q.answer.modelAnswerSegments?.length).toBeGreaterThan(0);
+    delete q.answer.modelAnswerSegments;
+    expect(validateBatch(b).issues).toEqual([]);
+  });
+
   it('points issues at the question index and id', () => {
     const b = clone(validBatch);
     (b.questions[3] as { answer: unknown }).answer = { acceptedAnswers: [] };

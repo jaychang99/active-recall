@@ -22,6 +22,7 @@ import { NotesPanel } from './notes-panel';
 import { CardInfoTable } from './card-info';
 import { CopyQuestionButtons } from './copy-question';
 import { MetaMaskMenu, useMetaMask } from './meta-mask-menu';
+import { useEssayAnswerView } from '@/components/questions/essay-answer-view';
 import { MetaChip } from '@/components/questions/masked-chip';
 import type { MetaControl } from '@/components/questions/meta-mask';
 import { useSettings } from '@/components/layout/settings-context';
@@ -79,6 +80,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const qc = useQueryClient();
   const { settings } = useSettings();
   const meta = useMetaMask();
+  const essayView = useEssayAnswerView();
   // Card whose answer is open: the reveal-on-answer option shows hidden metadata only for exactly this card,
   // so the next card never flashes its metadata even for the frame before the phase resets.
   const [metaRevealedFor, setMetaRevealedFor] = useState<string | null>(null);
@@ -413,6 +415,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       { keys: 'f', description: '문제 표시 / 해제', group: '학습', handler: () => (item ? (cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' }), undefined) : false) },
       { keys: 'i', description: '카드 정보', group: '학습', handler: () => setShowInfo((v) => !v) },
       { keys: 'v', description: '메타데이터 모두 가리기 / 보이기', group: '학습', handler: () => { meta.toggleAll(); } },
+      { keys: 'b', description: '서술형 모범답안: 기본 / 문장별 배점', group: '학습', handler: () => (item?.type === 'essay' && phase !== 'answering' ? (essayView.toggle(), undefined) : false) },
       { keys: 's', description: '건너뛰기 (내일까지 묻기)', group: '학습', handler: () => (item && !unrated ? (cardMut.mutate({ action: 'bury' }), undefined) : false) },
       { keys: 'Escape', description: '입력창 나가기 / 닫기', group: '학습', handler: () => (showInfo ? (setShowInfo(false), undefined) : false) },
     ],

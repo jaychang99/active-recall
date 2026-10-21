@@ -155,6 +155,41 @@
             "maxPoints": 3,
             "guidance": "적절한 예시를 하나 이상씩 제시하고 근거를 연결한다."
           }
+        ],
+        "modelAnswerSegments": [
+          {
+            "text": "TCP는 연결 지향이며 ",
+            "points": 2,
+            "rubricIndex": 0,
+            "note": "TCP의 연결 지향 특성"
+          },
+          {
+            "text": "순서 보장, 재전송, 혼잡 제어 메커니즘을 제공한다. ",
+            "points": 2,
+            "rubricIndex": 1,
+            "note": "TCP의 신뢰성·제어 기능"
+          },
+          {
+            "text": "UDP는 비연결형이며 ",
+            "points": 1,
+            "rubricIndex": 0,
+            "note": "UDP의 비연결 특성"
+          },
+          {
+            "text": "기본적으로 재전송·순서 보장을 제공하지 않아 ",
+            "points": 2,
+            "rubricIndex": 1,
+            "note": "UDP는 이 기능을 기본 제공하지 않음"
+          },
+          {
+            "text": "지연에 민감한 실시간 트래픽이나 DNS 등에 쓰인다. ",
+            "points": 3,
+            "rubricIndex": 2,
+            "note": "사용 사례와 근거(지연 민감)를 연결"
+          },
+          {
+            "text": "다만 실제 성능은 애플리케이션 구현에 좌우된다."
+          }
         ]
       }
     },

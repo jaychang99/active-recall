@@ -32,6 +32,7 @@ describe('exams & analytics', () => {
     expect(submitted.body.score).toMatchObject({ objectiveTotal: 7, objectiveCorrect: 6, essayTotal: 1, essaySelfScore: 8, essayMaxScore: 10, answered: 8 });
     expect(submitted.body.score.objectiveAccuracy).toBeCloseTo(6 / 7);
     expect(submitted.body.questions[4].answerKey.answer.modelAnswer).toBeTruthy();
+    expect(submitted.body.questions[4].answerKey.answer.modelAnswerSegments).toHaveLength(6); // scored model answer travels with the key
     // FSRS untouched
     const cards = await ctx.prisma.cardState.findMany({ where: { userId: uid } });
     expect(cards.every((c) => c.status === 'NEW' && c.reps === 0)).toBe(true);
@@ -75,6 +76,10 @@ describe('exams & analytics', () => {
     expect([g.body.hideDifficulty, g.body.hideTags, g.body.hideSubject, g.body.hideSource]).toEqual([false, true, false, true]);
     expect(g.body.revealMetaOnAnswer).toBe(false);
     expect((await ctx.api.patch('/settings').send({ revealMetaOnAnswer: true }).expect(200)).body.revealMetaOnAnswer).toBe(true);
+    // essay model answer view: plain by default, scored persists, anything else is rejected
+    expect(g.body.essayAnswerView).toBe('plain');
+    expect((await ctx.api.patch('/settings').send({ essayAnswerView: 'scored' }).expect(200)).body.essayAnswerView).toBe('scored');
+    await ctx.api.patch('/settings').send({ essayAnswerView: 'fancy' }).expect(400);
     const backup = await ctx.api.get('/exports/backup.json').expect(200);
     expect(backup.body.version).toBe(2);
     expect(backup.body.questions).toHaveLength(8);

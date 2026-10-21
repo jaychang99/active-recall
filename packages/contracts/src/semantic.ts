@@ -51,6 +51,21 @@ export function validateQuestionSemantics(q: Question, qi: number): ValidationIs
       const sum = q.answer.rubric.reduce((s, r) => s + r.maxPoints, 0);
       if (sum !== q.answer.maxScore)
         push('/answer/rubric', `rubric maxPoints sum (${sum}) must equal answer.maxScore (${q.answer.maxScore})`);
+      const segs = q.answer.modelAnswerSegments;
+      if (segs) {
+        const perCriterion = new Map<number, number>();
+        segs.forEach((g, gi) => {
+          if ((g.points === undefined) !== (g.rubricIndex === undefined)) { push(`/answer/modelAnswerSegments/${gi}`, 'points and rubricIndex must be given together'); return; }
+          if (g.rubricIndex === undefined || g.points === undefined) return;
+          if (g.rubricIndex >= q.answer.rubric.length) { push(`/answer/modelAnswerSegments/${gi}/rubricIndex`, `rubricIndex ${g.rubricIndex} is out of range (rubric has ${q.answer.rubric.length} items)`); return; }
+          perCriterion.set(g.rubricIndex, (perCriterion.get(g.rubricIndex) ?? 0) + g.points);
+        });
+        if (!segs.some((g) => g.points !== undefined)) push('/answer/modelAnswerSegments', 'modelAnswerSegments needs at least one scored segment (points + rubricIndex)');
+        for (const [i, pts] of perCriterion) {
+          const max = q.answer.rubric[i]!.maxPoints;
+          if (pts > max) push('/answer/modelAnswerSegments', `segment points for rubric[${i}] (${pts}) exceed its maxPoints (${max})`);
+        }
+      }
       break;
     }
     case 'cloze': {

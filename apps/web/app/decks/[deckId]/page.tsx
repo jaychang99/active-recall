@@ -204,7 +204,7 @@ function AnswerSummary({ q }: { q: Question }) {
     case 'multiple_choice': return <>정답: {q.answer.choiceIds.map((id) => q.choices.find((c) => c.id === id)?.text).join(', ')}</>;
     case 'true_false': return <>정답: {q.answer.value ? 'O (참)' : 'X (거짓)'}</>;
     case 'short_answer': return <>인정 답안: {q.answer.acceptedAnswers.join(' / ')}</>;
-    case 'essay': return <>모범답안: {q.answer.modelAnswer.slice(0, 120)}… ({q.answer.maxScore}점)</>;
+    case 'essay': return <>모범답안: {q.answer.modelAnswer.slice(0, 120)}… ({q.answer.maxScore}점{q.answer.modelAnswerSegments?.length ? ' · 문장별 배점' : ''})</>;
     case 'cloze': return <>{q.blanks.map((b) => `${b.id}=${b.acceptedAnswers[0]}`).join(', ')}</>;
     case 'ordering': return <>순서: {q.answer.orderedIds.map((id) => q.items.find((i) => i.id === id)?.text).join(' → ')}</>;
     case 'matching': return <>{q.answer.pairs.map((p) => `${q.left.find((l) => l.id === p.leftId)?.text} ↔ ${q.right.find((r) => r.id === p.rightId)?.text}`).join(' · ')}</>;

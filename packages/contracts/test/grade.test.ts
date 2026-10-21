@@ -86,6 +86,14 @@ describe('graders', () => {
     }
   });
 
+  it('essay answer signature ignores the display-only modelAnswerSegments', () => {
+    const q = byId('net-q005') as Extract<Question, { type: 'essay' }>;
+    const without = { ...q, answer: { ...q.answer, modelAnswerSegments: undefined } };
+    delete without.answer.modelAnswerSegments;
+    expect(JSON.stringify(answerSignature(q))).toBe(JSON.stringify(answerSignature(without)));
+    expect(JSON.stringify(answerSignature({ ...q, answer: { ...q.answer, maxScore: 12 } }))).not.toBe(JSON.stringify(answerSignature(q)));
+  });
+
   it('answer signature ignores prompt typos but tracks answer edits', () => {
     const q = byId('net-q001') as Extract<Question, { type: 'single_choice' }>;
     const typo = { ...q, prompt: q.prompt + ' (수정)' };

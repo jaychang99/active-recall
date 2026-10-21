@@ -1001,6 +1001,41 @@
                   }
                 }
               }
+            },
+            "modelAnswerSegments": {
+              "description": "Optional (additive, v1.0.0-compatible): the model answer split into consecutive segments so the app can show which sentence earns which points. Joined in order they read as the model answer. A scored segment carries points + rubricIndex (0-based index into rubric); unscored segments are connective text. End a segment with \\n\\n for a paragraph break.",
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 60,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "points": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "rubricIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              }
             }
           }
         }
@@ -5237,5 +5272,5 @@
       }
     }
   },
-  "$comment": "Semantic validation outside JSON Schema: Within a deck, question IDs are unique. | IDs within each choices/items/left/right/blanks array must be unique. | single_choice.answer.choiceId must occur in choices. | multiple_choice.answer.choiceIds must all occur in choices, include >=2 and be a proper subset of choices. | cloze prompt placeholders {{id}} and blank IDs must be exactly equal. | ordering.answer.orderedIds must be a permutation of items[].id. | matching.answer.pairs must create a bijection of left and right IDs. | essay.answer.rubric[].maxPoints must sum to answer.maxScore. | Every answer must be verifiably supported by explanatory rationale. | Text fields may contain Markdown and LaTeX ($...$, $$...$$). acceptedAnswers are plain strings compared after normalization, never LaTeX. | Extended types (additive, v1.0.0-compatible): numeric (|given-value| <= max(tolerance, |value|*relativeTolerance)), cloze_select (prompt {{id}} placeholders == blanks ids; answerOptionId in options), statement_set (statement ids unique), categorize (item.categoryId in categories; ids unique), two_tier (answer.choiceId in choices and answer.reasonId in reasons), recall_card (self-checked unless acceptedAnswers given), stepwise (step ids unique; graded per step), highlight (answer.segmentIds subset of segments ids). | cloze_bank (placeholders = blank ids; bankItemId in bank; each bank item used at most once) | code_cloze (placeholders in code = blank ids) | matrix (cells reference rows/columns, no duplicates; selection=single → exactly one cell per row) | numeric_grid (cells/given reference rows/columns, each row×column used once) | list_answer (required ≤ items.length) | image_hotspot (exactly one of image.url/svg; answer.regionIds ⊂ regions; polygon ≥ 3 points) | parsons (answer.lines ids = permutation of lines ids; distractor ids disjoint) | find_and_fix (fix segmentIds ⊂ segments, unique, at least one untouched segment) | coordinate_point (points inside the plane; ids unique) | regex_answer (shouldMatch ∩ shouldNotMatch = ∅; modelPattern compiles, is safe and satisfies every example)."
+  "$comment": "Semantic validation outside JSON Schema: Within a deck, question IDs are unique. | IDs within each choices/items/left/right/blanks array must be unique. | single_choice.answer.choiceId must occur in choices. | multiple_choice.answer.choiceIds must all occur in choices, include >=2 and be a proper subset of choices. | cloze prompt placeholders {{id}} and blank IDs must be exactly equal. | ordering.answer.orderedIds must be a permutation of items[].id. | matching.answer.pairs must create a bijection of left and right IDs. | essay.answer.rubric[].maxPoints must sum to answer.maxScore. | essay.answer.modelAnswerSegments (optional): points and rubricIndex come together, rubricIndex < rubric.length, per-criterion segment points <= that criterion's maxPoints, at least one scored segment. | Every answer must be verifiably supported by explanatory rationale. | Text fields may contain Markdown and LaTeX ($...$, $$...$$). acceptedAnswers are plain strings compared after normalization, never LaTeX. | Extended types (additive, v1.0.0-compatible): numeric (|given-value| <= max(tolerance, |value|*relativeTolerance)), cloze_select (prompt {{id}} placeholders == blanks ids; answerOptionId in options), statement_set (statement ids unique), categorize (item.categoryId in categories; ids unique), two_tier (answer.choiceId in choices and answer.reasonId in reasons), recall_card (self-checked unless acceptedAnswers given), stepwise (step ids unique; graded per step), highlight (answer.segmentIds subset of segments ids). | cloze_bank (placeholders = blank ids; bankItemId in bank; each bank item used at most once) | code_cloze (placeholders in code = blank ids) | matrix (cells reference rows/columns, no duplicates; selection=single → exactly one cell per row) | numeric_grid (cells/given reference rows/columns, each row×column used once) | list_answer (required ≤ items.length) | image_hotspot (exactly one of image.url/svg; answer.regionIds ⊂ regions; polygon ≥ 3 points) | parsons (answer.lines ids = permutation of lines ids; distractor ids disjoint) | find_and_fix (fix segmentIds ⊂ segments, unique, at least one untouched segment) | coordinate_point (points inside the plane; ids unique) | regex_answer (shouldMatch ∩ shouldNotMatch = ∅; modelPattern compiles, is safe and satisfies every example)."
 }

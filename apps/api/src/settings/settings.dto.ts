@@ -16,6 +16,7 @@ export class UpdateSettingsDto {
   @IsOptional() @IsBoolean() hideSubject?: boolean;
   @IsOptional() @IsBoolean() hideSource?: boolean;
   @IsOptional() @IsBoolean() revealMetaOnAnswer?: boolean;
+  @IsOptional() @IsIn(['plain', 'scored']) essayAnswerView?: string;
   @IsOptional() @IsIn(['deck', 'random']) newCardOrder?: string;
   @IsOptional() @IsInt() @Min(0) @Max(10000) dailyReviewGoal?: number;
   @IsOptional() @IsInt() @Min(1) @Max(1000) leechThreshold?: number;

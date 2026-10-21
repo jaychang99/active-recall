@@ -103,9 +103,18 @@ export interface RubricItem {
   guidance: string;
 }
 
+/** One consecutive piece of the model answer. Scored pieces carry points for one rubric criterion (0-based index). */
+export interface ModelAnswerSegment {
+  text: string;
+  points?: number;
+  rubricIndex?: number;
+  note?: string;
+}
+
 export interface EssayQuestion extends QuestionBase {
   type: 'essay';
-  answer: { modelAnswer: string; maxScore: number; rubric: RubricItem[] };
+  /** modelAnswerSegments is optional (added later): older batches have only the plain modelAnswer. */
+  answer: { modelAnswer: string; maxScore: number; rubric: RubricItem[]; modelAnswerSegments?: ModelAnswerSegment[] };
 }
 
 export interface ClozeBlank {

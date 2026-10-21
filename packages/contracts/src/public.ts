@@ -83,8 +83,12 @@ export function answerSignature(q: Question): unknown {
       return { type: q.type, choiceIds: q.choices.map((c) => c.id), answer: q.answer };
     case 'true_false':
     case 'short_answer':
-    case 'essay':
       return { type: q.type, answer: q.answer };
+    case 'essay': {
+      // modelAnswerSegments only annotate the same answer for display: adding them must not reset the schedule.
+      const { modelAnswerSegments: _segments, ...answer } = q.answer;
+      return { type: q.type, answer };
+    }
     case 'cloze':
       return { type: q.type, blanks: q.blanks, placeholders: q.prompt.match(/\{\{[^}]+\}\}/g) ?? [] };
     case 'ordering':
