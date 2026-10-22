@@ -8,6 +8,12 @@ import type { CreatePromptSnapshotDto, ListPromptSnapshotsDto } from './prompts.
 export class PromptsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async get(userId: string, id: string) {
+    const snapshot = await this.prisma.promptSnapshot.findFirst({ where: { userId, id, deletedAt: null } });
+    if (!snapshot) throw ApiError.notFound('Prompt snapshot', id);
+    return snapshot;
+  }
+
   async list(userId: string, query: ListPromptSnapshotsDto) {
     const items = await this.prisma.promptSnapshot.findMany({
       where: { userId, deletedAt: null, kind: query.kind, ...(query.search?.trim() ? { name: { contains: query.search.trim() } } : {}) },

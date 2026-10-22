@@ -162,7 +162,7 @@ export default function SettingsPage() {
       <Panel id="prompt-defaults" className="mb-6 scroll-mt-20 px-5 py-2">
         <div className="flex flex-wrap items-center justify-between gap-2 pt-3">
           <h2 className="text-[13px] font-semibold text-ink-2">LLM 프롬프트 기본값</h2>
-          <Link href="/prompt" className="text-[13px] text-accent underline-offset-4 hover:underline">복사 이력·프리셋 관리 →</Link>
+          <Link href="/prompt/history" className="text-[13px] text-accent underline-offset-4 hover:underline">복사 이력·프리셋 관리 →</Link>
         </div>
         <p className="mb-1 text-[12px] text-ink-3">상단 「LLM 프롬프트」 버튼으로 복사할 때 쓰이는 CONFIG 값입니다. 프롬프트 문서의 값과 다른 항목만 저장되며, 저장 버튼으로 반영됩니다.</p>
         <PromptOptionsForm value={promptOpts} onChange={(next) => set('promptDefaults', toSavedDefaults(next))} base={PROMPT_DEFAULTS} decks={decks.data} subjects={subjects.data} />

@@ -1,5 +1,5 @@
 'use client';
-import { ClipboardCopy, FileJson, FileText, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { ClipboardCopy, FileJson, FileText, History, SlidersHorizontal, Sparkles } from 'lucide-react';
 import Link from '@/components/ui/navigation-link';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,10 @@ export function CopyPromptButton({ compact }: { compact?: boolean }) {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/prompt" data-testid="copy-prompt-options"><SlidersHorizontal className="h-4 w-4 text-ink-3" /> 옵션·복사 이력·프리셋</Link>
+          <Link href="/prompt" data-testid="copy-prompt-options"><SlidersHorizontal className="h-4 w-4 text-ink-3" /> 옵션 조정해서 복사…</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/prompt/history"><History className="h-4 w-4 text-ink-3" /> 복사 이력·프리셋</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <div className="px-2 py-1.5 text-[11px] leading-relaxed text-ink-3">PDF·교안·주제를 함께 첨부하면 LLM이 Import 가능한 JSON을 만듭니다.</div>

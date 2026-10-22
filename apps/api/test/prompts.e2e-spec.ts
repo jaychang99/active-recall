@@ -23,13 +23,18 @@ describe('prompt history and presets', () => {
   it('keeps presets independent of deleted history and scopes reads, rename and delete to their owner', async () => {
     const history = (await ctx.api.post('/prompt-library').send({ kind: 'history', name: '이력', copyKind: 'bundle', options }).expect(201)).body;
     const preset = (await ctx.api.post('/prompt-library').send({ kind: 'preset', name: '  시험 준비  ', options: history.optionsJson }).expect(201)).body;
+    expect((await ctx.api.get(`/prompt-library/${history.id}`).expect(200)).body.optionsJson).toEqual(options);
+    expect((await ctx.api.get(`/prompt-library/${preset.id}`).expect(200)).body.optionsJson).toEqual(options);
     expect(preset.name).toBe('시험 준비');
     const b = ctx.as('b');
     expect((await b.get('/prompt-library?kind=preset').expect(200)).body.items).toEqual([]);
+    await b.get(`/prompt-library/${history.id}`).expect(404);
+    await b.get(`/prompt-library/${preset.id}`).expect(404);
     await b.patch(`/prompt-library/${preset.id}`).send({ name: '탈취' }).expect(404);
     await b.delete(`/prompt-library/${preset.id}`).expect(404);
     await ctx.api.patch(`/prompt-library/${history.id}`).send({ name: '이력 변경' }).expect(404);
     await ctx.api.delete(`/prompt-library/${history.id}`).expect(200);
+    await ctx.api.get(`/prompt-library/${history.id}`).expect(404);
     await ctx.api.patch(`/prompt-library/${preset.id}`).send({ name: '새 이름' }).expect(200);
     const saved = (await ctx.api.get('/prompt-library?kind=preset').expect(200)).body.items;
     expect(saved).toMatchObject([{ name: '새 이름', optionsJson: options }]);

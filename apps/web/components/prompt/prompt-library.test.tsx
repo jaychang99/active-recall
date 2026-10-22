@@ -4,7 +4,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { api } from '@/lib/api';
 import { resolvePromptOptions } from '@/lib/prompt-options';
 import { PromptLibrary } from './prompt-library';
+import { SavePromptPresetButton } from './prompt-preset-dialog';
 
+vi.mock('@/components/ui/navigation-link', () => ({ default: ({ children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a {...props}>{children}</a> }));
 vi.mock('@/lib/api', () => ({ api: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 afterEach(cleanup);
@@ -13,19 +15,16 @@ const options = resolvePromptOptions({ sourceMode: 'general_knowledge', mainTopi
 const history = { id: 'h1', kind: 'history', copyKind: 'bundle', name: '이전 설정', optionsJson: options, createdAt: '2026-10-22T00:00:00Z' };
 const current = resolvePromptOptions(null);
 
-function mount(onLoad = vi.fn()) {
+function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(<QueryClientProvider client={qc}><PromptLibrary value={current} onLoad={onLoad} loaded /></QueryClientProvider>);
-  return onLoad;
+  render(<QueryClientProvider client={qc}><SavePromptPresetButton value={current} /><PromptLibrary /></QueryClientProvider>);
 }
 
-it('loads a separate full snapshot, and saving history as a preset does not use the current form', async () => {
+it('links to the saved snapshot on the prompt page, and saves history as an independent preset', async () => {
   vi.mocked(api).mockImplementation(async (_path, request) => request?.method === 'POST' ? {} : { items: [history], nextOffset: null });
-  const onLoad = mount();
-  fireEvent.click(await screen.findByTestId('prompt-snapshot-load'));
-  expect(onLoad).toHaveBeenCalledWith(options);
-  expect(onLoad.mock.calls[0]![0].difficulty).not.toBe(options.difficulty);
-  fireEvent.click(screen.getByRole('button', { name: /^프리셋으로 저장$/ }));
+  mount();
+  expect(await screen.findByTestId('prompt-snapshot-load')).toHaveAttribute('href', '/prompt?from=h1');
+  fireEvent.click(within(screen.getByTestId('prompt-library')).getByRole('button', { name: /^프리셋으로 저장$/ }));
   const dialog = screen.getByRole('dialog');
   fireEvent.change(within(dialog).getByLabelText('프리셋 이름'), { target: { value: '시험용' } });
   fireEvent.click(within(dialog).getByRole('button', { name: /^저장$/ }));

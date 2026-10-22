@@ -2,7 +2,7 @@
 import Link from '@/components/ui/navigation-link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Database, FolderTree, GraduationCap, Home, Inbox, Keyboard, Layers, Menu, Search, Settings, Share2, Sparkles, Upload } from 'lucide-react';
+import { BarChart3, Database, FolderTree, GraduationCap, History, Home, Inbox, Keyboard, Layers, Menu, Search, Settings, Share2, Sparkles, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useShortcuts } from '@/lib/shortcuts/provider';
@@ -26,6 +26,7 @@ export const NAV = [
   { href: '/exam', label: '시험', icon: GraduationCap, key: 'g e' },
   { href: '/import', label: '가져오기', icon: Upload, key: 'g i' },
   { href: '/prompt', label: '프롬프트', icon: Sparkles, key: 'g p' },
+  { href: '/prompt/history', label: '복사 이력·프리셋', icon: History, key: 'g l' },
   { href: '/insights', label: '통계', icon: BarChart3, key: 'g n' },
   { href: '/data', label: '데이터', icon: Database, key: 'g t' },
   { href: '/settings', label: '설정', icon: Settings, key: 'g ,' },
@@ -86,7 +87,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <nav className="mt-2 flex flex-col gap-0.5 px-2">
             {NAV.map((n) => {
               if (n.href === '/decks' || n.href === '/subjects') return <CollectionMenu key={n.href} kind={n.href === '/decks' ? 'decks' : 'subjects'} onNavigate={() => setMobileNav(false)} />;
-              const active = n.href === '/' ? pathname === '/' : pathname.startsWith(n.href);
+              const active = n.href === '/' || n.href === '/prompt' ? pathname === n.href : pathname.startsWith(n.href);
               return (
                 <Link
                   key={n.href}

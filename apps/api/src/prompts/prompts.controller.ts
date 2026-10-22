@@ -11,6 +11,7 @@ import { PromptsService } from './prompts.service';
 export class PromptsController {
   constructor(private readonly prompts: PromptsService) {}
   @Get() list(@CurrentUser() user: AuthUser, @Query() query: ListPromptSnapshotsDto) { return this.prompts.list(user.id, query); }
+  @Get(':id') get(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.prompts.get(user.id, id); }
   @Post() create(@CurrentUser() user: AuthUser, @Body() dto: CreatePromptSnapshotDto) { return this.prompts.create(user.id, dto); }
   @Patch(':id') rename(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: RenamePromptPresetDto) { return this.prompts.rename(user.id, id, dto.name); }
   @Delete(':id') remove(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.prompts.remove(user.id, id); }
