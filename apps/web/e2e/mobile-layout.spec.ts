@@ -95,6 +95,37 @@ async function mockSidebarCollections(page: Page) {
 
 test.beforeEach(async ({ page }) => { await mockApp(page); });
 
+test('completed subject sessions fetch a new queue while reload preserves the current order', async ({ page }) => {
+  let requests = 0;
+  await page.route('**/analytics/**', (route) => route.fulfill({ json: {} }));
+  await page.route('**/study/queue?*', async (route) => {
+    requests++;
+    const ordered = requests === 1 ? questions : [...questions].reverse();
+    await route.fulfill({ json: { scope: 'all', mode: 'scheduled', counts: { total: questions.length },
+      items: ordered.map((q) => ({ questionId: q.id, externalId: q.id, question: toPublicQuestion(q), type: q.type,
+        deck: { id: 'deck', title: '모바일 테스트', subject: '과목' }, hasHint: false, reviewRound: 1, noteCount: 0,
+        card: { status: 'NEW', version: 0, flagged: false }, preview: null })),
+    } });
+  });
+  await page.goto('/study/all?subject=과목');
+  await expect(page.getByTestId('study-screen')).toHaveAttribute('data-question-id', questions[0]!.id);
+  await page.reload();
+  await expect.poll(() => requests).toBe(2);
+  await expect(page.getByTestId('study-screen')).toHaveAttribute('data-question-id', questions[0]!.id);
+  for (const q of questions) {
+    await expect(page.getByTestId('study-screen')).toHaveAttribute('data-question-id', q.id);
+    await page.getByTestId('reveal-btn').click();
+    await page.getByTestId('rating-bar').locator('[data-rating="3"]').click();
+    await page.getByTestId('next-btn').click();
+  }
+  await expect(page.getByTestId('session-summary')).toBeVisible();
+  await page.getByRole('link', { name: '대시보드로', exact: true }).click();
+  await expect(page).toHaveURL('/');
+  await page.goBack();
+  await expect.poll(() => requests).toBe(3);
+  await expect(page.getByTestId('study-screen')).toHaveAttribute('data-question-id', questions.at(-1)!.id);
+});
+
 function deferred() {
   let resolve!: () => void;
   const promise = new Promise<void>((done) => { resolve = done; });

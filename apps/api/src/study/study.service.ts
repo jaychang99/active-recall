@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomInt } from 'node:crypto';
 import { gradeAnswer, toPublicQuestion, type AnswerPayload, type Question } from '@recall/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApiError } from '../common/api-error';
@@ -105,7 +106,8 @@ export class StudyService {
     const fresh = eligible.filter((r) => !r.card || r.card.status === CardStatus.NEW);
     const reviewBudget = Math.max(0, settings.reviewsPerDay - reviewsDoneToday);
     const newBudget = Math.max(0, settings.newCardsPerDay - newIntroducedToday);
-    const seed = Math.floor(now.getTime() / 60_000);
+    // Each new queue gets independent entropy, even when restarted within the same minute.
+    const seed = randomInt(0x1_0000_0000);
 
     switch (opts.mode) {
       case 'scheduled': {

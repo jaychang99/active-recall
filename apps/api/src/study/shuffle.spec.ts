@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { seededShuffle } from './study.service';
 
 describe('study queue seededShuffle', () => {
-  it('reaches every order of 4 items across consecutive minute seeds', () => {
+  it('reaches every order of 4 items across consecutive seeds', () => {
     const seen = new Set<string>();
     for (let seed = 29_000_000; seed < 29_002_000; seed++) seen.add(seededShuffle([0, 1, 2, 3], seed).join(''));
     expect(seen.size).toBe(24);

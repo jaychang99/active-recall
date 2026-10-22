@@ -91,13 +91,14 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   // Snapshot is read only after mount (sessionStorage is client-only; reading it during the first render
   // would make the client tree differ from the server-rendered skeleton → hydration mismatch).
   const [restored, setRestored] = useState<Snapshot | null | undefined>(undefined);
+  const [queueId] = useState(() => uid());
   // The queue is fetched once per session and then frozen: refetches (reconnect, focus, HMR) must never
   // reorder or drop cards under the learner. A reload within 6 hours resumes from the saved snapshot.
   const queue = useQuery({
-    queryKey: ['queue', params],
+    queryKey: ['queue', params, queueId],
     queryFn: () => api<Queue>(queueUrl(params)),
     staleTime: Infinity,
-    gcTime: Infinity,
+    gcTime: 0,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -441,7 +442,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
   if (!baseItems && !queue.isError) return <LoadingState label="학습할 문항을 준비하는 중…" className="mx-auto min-h-64 max-w-[840px]" />;
   if (queue.isError) return <div className="mx-auto max-w-[840px]"><ErrorState message={(queue.error as Error).message} onRetry={() => queue.refetch()} /></div>;
-  if (finished || !item) return <SessionSummary params={params} done={done} queue={queueMeta ?? queue.data!} onRestart={async () => { clearSnapshot(storageKey); setIndex(0); setDone([]); setExtraItems([]); setSkipped(new Set()); resetCard(); setBaseItems(null); setQueueMeta(null); const r = await queue.refetch(); if (r.data) { setBaseItems(r.data.items); setQueueMeta(r.data); } }} />;
+  if (finished || !item) return <SessionSummary params={params} done={done} queue={queueMeta ?? queue.data!} onRestart={async () => { clearSnapshot(storageKey); setIndex(0); setDone([]); setExtraItems([]); setSkipped(new Set()); const r = await queue.refetch(); if (r.data) { resetCard(); setBaseItems(r.data.items); setQueueMeta(r.data); } }} />;
 
   const progress = done.length;
   const total = items.length;
@@ -585,7 +586,7 @@ function SessionSummary({ params, done, queue, onRestart }: { params: StudyParam
       <div className="mt-6 flex flex-wrap gap-2">
         {params.mode === 'scheduled' && !nothing ? <Button variant="primary" onClick={onRestart}>더 학습하기</Button> : null}
         {browse && !nothing ? <Button variant="primary" onClick={onRestart}>처음부터 다시</Button> : null}
-        {nothing && !browse ? <Link href={`/study/${params.scope}?mode=cram`} className="inline-flex h-9 items-center rounded-md bg-accent px-3.5 text-sm font-medium text-accent-ink">전체 훑기 (cram)</Link> : null}
+        {nothing && !browse ? <Link href={`/study/${params.scope}?mode=cram${params.subject ? `&subject=${encodeURIComponent(params.subject)}` : ''}`} className="inline-flex h-9 items-center rounded-md bg-accent px-3.5 text-sm font-medium text-accent-ink">전체 훑기 (cram)</Link> : null}
         {nothing && !browse && params.scope !== 'all' ? <Link href={`/study/${params.scope}?mode=browse`} className="inline-flex h-9 items-center rounded-md border border-line px-3.5 text-sm" data-testid="browse-link">구경하기 (기록 없음)</Link> : null}
         <Link href={params.scope === 'all' ? '/' : `/decks/${params.scope}`} className="inline-flex h-9 items-center rounded-md border border-line px-3.5 text-sm">{params.scope === 'all' ? '대시보드로' : '덱으로 돌아가기'}</Link>
         <Link href="/insights" className="inline-flex h-9 items-center rounded-md border border-line px-3.5 text-sm">통계 보기</Link>
