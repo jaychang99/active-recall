@@ -10,6 +10,7 @@ import { SettingsProvider } from '@/components/layout/settings-context';
 import { PwaProvider } from '@/components/layout/pwa';
 import { BrowserTheme } from '@/components/layout/browser-theme';
 import { RequestFeedback } from '@/components/layout/request-feedback';
+import { ZoomGuard } from '@/components/layout/zoom-guard';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 5_000, refetchOnWindowFocus: false } } }));
@@ -18,6 +19,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={client}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <BrowserTheme />
+          <ZoomGuard />
           <RequestFeedback />
           <SettingsProvider>
             <PwaProvider>
