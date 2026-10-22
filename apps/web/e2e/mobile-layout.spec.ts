@@ -96,6 +96,26 @@ async function mockSidebarCollections(page: Page) {
 
 test.beforeEach(async ({ page }) => { await mockApp(page); });
 
+test('mobile zoom guards retain single-finger scrolling', async ({ page }) => {
+  await page.goto('/study/all?mode=cram');
+  await expect(page.getByTestId('study-actions')).toBeVisible();
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /maximum-scale=1/);
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /user-scalable=no/);
+  await expect(page.locator('html')).toHaveCSS('touch-action', 'pan-x pan-y');
+  const prevented = await page.evaluate(() => {
+    const gesture = new Event('gesturestart', { cancelable: true });
+    document.dispatchEvent(gesture);
+    const scroll = new Event('touchmove', { cancelable: true });
+    Object.defineProperty(scroll, 'touches', { value: [{}] });
+    document.dispatchEvent(scroll);
+    const pinch = new Event('touchmove', { cancelable: true });
+    Object.defineProperty(pinch, 'touches', { value: [{}, {}] });
+    document.dispatchEvent(pinch);
+    return { gesture: gesture.defaultPrevented, scroll: scroll.defaultPrevented, pinch: pinch.defaultPrevented };
+  });
+  expect(prevented).toEqual({ gesture: true, scroll: false, pinch: true });
+});
+
 test('saved mobile submit side swaps only the two answer buttons and survives reload', async ({ page }) => {
   await page.goto('/settings');
   await page.getByLabel('모바일 제출 버튼 위치', { exact: true }).selectOption('right');
@@ -127,7 +147,7 @@ test('saved mobile submit side swaps only the two answer buttons and survives re
 
 test('completed subject sessions fetch a new queue while reload preserves the current order', async ({ page }) => {
   let requests = 0;
-  await page.route('**/analytics/**', (route) => route.fulfill({ json: {} }));
+  await page.route('**/analytics/**', (route) => route.fulfill({ status: 503, json: { message: 'offline' } }));
   await page.route('**/study/queue?*', async (route) => {
     requests++;
     const ordered = requests === 1 ? questions : [...questions].reverse();
@@ -627,15 +647,54 @@ test('action bar follows keyboard viewport changes and ignores pinch zoom', asyn
     Object.assign(window.visualViewport!, { height: 440, offsetTop: 30, scale: 1 });
     window.visualViewport!.dispatchEvent(new Event('resize'));
   });
-  await expect(bar).toHaveCSS('bottom', `${page.viewportSize()!.height - 470}px`);
+  // Browser chrome/viewport changes without an active field are not a keyboard.
+  await expect(bar).toHaveAttribute('data-keyboard', 'false');
+  await expect(bar).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+  const field = page.locator('[data-study-root] input:not([type="checkbox"]), [data-study-root] textarea').first();
+  await field.focus();
+  await expect(bar).toHaveAttribute('data-keyboard', 'true');
+  await expect(bar).toHaveCSS('bottom', '0px');
+  await expect(bar).toHaveCSS('transform', `matrix(1, 0, 0, 1, 0, -${page.viewportSize()!.height - 470})`);
+  // Scrolling while typing must not rewrite layout or scroll the field back into view.
+  const changes = await page.evaluate(async () => {
+    let mutations = 0;
+    let scrolls = 0;
+    const observer = new MutationObserver((records) => { mutations += records.length; });
+    for (const element of [document.querySelector('[data-study-root]')!, document.querySelector('.study-actions')!]) {
+      observer.observe(element, { attributes: true, attributeFilter: ['style', 'data-keyboard'] });
+    }
+    const original = window.scrollBy;
+    window.scrollBy = () => { scrolls++; };
+    try {
+      for (let i = 0; i < 8; i++) {
+        window.visualViewport!.dispatchEvent(new Event('scroll'));
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      return { mutations, scrolls };
+    } finally {
+      window.scrollBy = original;
+      observer.disconnect();
+    }
+  });
+  expect(changes).toEqual({ mutations: 0, scrolls: 0 });
   await page.evaluate(() => {
     Object.assign(window.visualViewport!, { scale: 2 });
     window.visualViewport!.dispatchEvent(new Event('resize'));
   });
   await expect(bar).toHaveCSS('bottom', '0px');
+  await expect(bar).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
   await page.evaluate(() => {
     Object.assign(window.visualViewport!, { height: window.innerHeight, offsetTop: 0, scale: 1 });
     window.visualViewport!.dispatchEvent(new Event('resize'));
   });
   await expect(bar).toHaveCSS('bottom', '0px');
+  await expect(bar).toHaveAttribute('data-keyboard', 'false');
+  await page.evaluate(() => {
+    Object.assign(window.visualViewport!, { height: 440, offsetTop: 30 });
+    window.visualViewport!.dispatchEvent(new Event('resize'));
+  });
+  await expect(bar).toHaveAttribute('data-keyboard', 'true');
+  await field.blur();
+  await expect(bar).toHaveAttribute('data-keyboard', 'false');
+  await expectActions(page);
 });

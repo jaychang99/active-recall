@@ -12,6 +12,7 @@ export default defineConfig({
   projects: [
     { name: 'small-mobile', use: { ...devices['Pixel 7'], viewport: { width: 320, height: 740 } } },
     { name: 'mobile', use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 } } },
+    { name: 'mobile-webkit', use: { ...devices['iPhone 13'], viewport: { width: 390, height: 844 } } },
     { name: 'tablet', use: { ...devices['Pixel 7'], viewport: { width: 768, height: 1024 } } },
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
   ],

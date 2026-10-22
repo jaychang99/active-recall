@@ -169,7 +169,10 @@ input, textarea, select { scroll-margin-block: 5rem 10rem; }
     position: fixed;
     z-index: 20;
     inset-inline: 0;
-    bottom: var(--keyboard-inset, 0px);
+    /* Keep a stable fixed anchor/layer while Safari animates its browser toolbar. */
+    bottom: 0;
+    transform: translate3d(0, calc(0px - var(--keyboard-inset, 0px)), 0);
+    backface-visibility: hidden;
     margin-block: 0;
     border-top: 1px solid var(--line);
     background: var(--bg-elevated);
