@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp, exampleBatch, resetDb } from './helpers';
+import { promptOptionsFixture } from './prompt-fixture';
 
 describe('authentication', () => {
   let ctx: Awaited<ReturnType<typeof createApp>>;
@@ -161,6 +162,7 @@ describe('account deletion', () => {
     const exam = await as.post('/exams').send({ deckId, shuffle: false }).expect(201);
     await as.post(`/exams/${exam.body.id}/submit`).send({ responses: [{ questionId: qid, answerPayload: { type: 'single_choice', choiceId: 'a' } }] }).expect(200);
     await as.patch('/settings').send({ newCardsPerDay: 7 }).expect(200);
+    await as.post('/prompt-library').send({ kind: 'preset', name: '삭제 검증', options: promptOptionsFixture }).expect(201);
     await as.post('/shares').send({ kind: 'deck', deckId, emails: [name === 'a' ? 'b@test.local' : 'a@test.local'] }).expect(201);
     return uid;
   }
@@ -181,6 +183,7 @@ describe('account deletion', () => {
       exams: await p.examAttempt.count(where),
       examResponses: await p.examResponse.count(where),
       settings: await p.appSettings.count(where),
+      promptSnapshots: await p.promptSnapshot.count(where),
       shares: await p.share.count(where),
     };
   }

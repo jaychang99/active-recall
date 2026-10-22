@@ -100,6 +100,7 @@ model User {
   examAttempts     ExamAttempt[]
   examResponses    ExamResponse[]
   settings         AppSettings?
+  promptSnapshots  PromptSnapshot[]
   sharesSent       Share[]           @relation("SharesSent")
   sharesAccepted   Share[]           @relation("SharesAccepted")
 
@@ -402,6 +403,23 @@ model Share {
   @@index([userId, createdAt])
   @@index([recipientEmail, status])
   @@index([recipientId])
+}
+
+// Independent full snapshots for successful copies and explicitly saved presets. No retention cap.
+model PromptSnapshot {
+  id          String    @id @default(cuid())
+  userId      String
+  kind        String    @db.VarChar(16) // history | preset
+  name        String    @db.VarChar(200)
+  copyKind    String?   @db.VarChar(16) // bundle | prompt (history only)
+  optionsJson Json // complete CONFIG snapshot, including values equal to defaults
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, deletedAt, createdAt])
 }
 
 // One row per user (created lazily on first read).

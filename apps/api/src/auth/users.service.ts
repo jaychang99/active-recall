@@ -67,6 +67,7 @@ export class UsersService {
         counts.questions = (await tx.question.deleteMany({ where: { userId } })).count;
         counts.decks = (await tx.deck.deleteMany({ where: { userId } })).count;
         counts.settings = (await tx.appSettings.deleteMany({ where: { userId } })).count;
+        counts.promptSnapshots = (await tx.promptSnapshot.deleteMany({ where: { userId } })).count;
         counts.shares = (await tx.share.deleteMany({ where: { userId } })).count;
         // Shares still waiting for this person are answered as declined, so senders see they will not arrive.
         const { email } = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });

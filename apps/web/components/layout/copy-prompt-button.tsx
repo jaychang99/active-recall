@@ -4,7 +4,8 @@ import Link from '@/components/ui/navigation-link';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/tooltip';
-import { buildPromptBundle, promptText, schemaText } from '@/lib/prompt-bundle';
+import { schemaText } from '@/lib/prompt-bundle';
+import { useCopyPrompt } from '@/lib/prompt-library';
 import { resolvePromptOptions } from '@/lib/prompt-options';
 import { copyToClipboard } from '@/lib/utils';
 import { useSettings } from './settings-context';
@@ -17,7 +18,8 @@ async function copy(label: string, text: string) {
 
 /** Available on every page: one click copies the generator prompt + schema for an external LLM. */
 export function CopyPromptButton({ compact }: { compact?: boolean }) {
-  const { settings } = useSettings();
+  const { settings, loaded } = useSettings();
+  const { copy: copyPrompt, busy } = useCopyPrompt();
   const opts = resolvePromptOptions(settings.promptDefaults);
   const n = settings.promptDefaults ? Object.keys(settings.promptDefaults).length : 0;
   return (
@@ -30,10 +32,10 @@ export function CopyPromptButton({ compact }: { compact?: boolean }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-[280px]">
         <DropdownMenuLabel>클립보드로 복사{n ? ` · 저장된 기본값 ${n}개 적용` : ''}</DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => void copy('프롬프트 + 스키마', buildPromptBundle(opts))} data-testid="copy-prompt-bundle">
+        <DropdownMenuItem disabled={!loaded || busy} onSelect={() => void copyPrompt(opts, 'bundle')} data-testid="copy-prompt-bundle">
           <ClipboardCopy className="h-4 w-4 text-ink-3" /> 프롬프트 + 스키마 (추천)
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void copy('프롬프트', promptText(opts))}>
+        <DropdownMenuItem disabled={!loaded || busy} onSelect={() => void copyPrompt(opts, 'prompt')}>
           <FileText className="h-4 w-4 text-ink-3" /> 프롬프트만
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => void copy('JSON 스키마', schemaText())}>
@@ -41,7 +43,7 @@ export function CopyPromptButton({ compact }: { compact?: boolean }) {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/prompt" data-testid="copy-prompt-options"><SlidersHorizontal className="h-4 w-4 text-ink-3" /> 옵션 조정해서 복사… <span className="ml-auto text-[11px] text-ink-3">문항 수·언어·유형 비율</span></Link>
+          <Link href="/prompt" data-testid="copy-prompt-options"><SlidersHorizontal className="h-4 w-4 text-ink-3" /> 옵션·복사 이력·프리셋</Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <div className="px-2 py-1.5 text-[11px] leading-relaxed text-ink-3">PDF·교안·주제를 함께 첨부하면 LLM이 Import 가능한 JSON을 만듭니다.</div>

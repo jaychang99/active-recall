@@ -44,7 +44,7 @@ export async function createApp() {
 
 export async function resetDb(prisma: PrismaService) {
   // children first; pooled connections make SET FOREIGN_KEY_CHECKS unreliable
-  for (const t of ['Share', 'ExamResponse', 'ExamAttempt', 'PracticeLog', 'QuestionNote', 'ReviewLog', 'StudySession', 'CardState', 'QuestionSubject', 'Subject', 'Question', 'Deck', 'AppSettings', 'User']) {
+  for (const t of ['PromptSnapshot', 'Share', 'ExamResponse', 'ExamAttempt', 'PracticeLog', 'QuestionNote', 'ReviewLog', 'StudySession', 'CardState', 'QuestionSubject', 'Subject', 'Question', 'Deck', 'AppSettings', 'User']) {
     await prisma.$executeRawUnsafe(`DELETE FROM \`${t}\``);
   }
 }

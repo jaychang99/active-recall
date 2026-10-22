@@ -37,7 +37,7 @@ export class ExportsService {
   /** Everything the user owns, as raw rows (ids included; `userId` stripped — restore injects the importing user). */
   async backup(userId: string) {
     const where = { userId };
-    const [decks, questions, cards, reviews, notes, sessions, practices, exams, responses, settings, subjects, questionSubjects] = await Promise.all([
+    const [decks, questions, cards, reviews, notes, sessions, practices, exams, responses, settings, subjects, questionSubjects, promptSnapshots] = await Promise.all([
       this.prisma.deck.findMany({ where }),
       this.prisma.question.findMany({ where }),
       this.prisma.cardState.findMany({ where }),
@@ -50,6 +50,7 @@ export class ExportsService {
       this.prisma.appSettings.findMany({ where }),
       this.prisma.subject.findMany({ where }),
       this.prisma.questionSubject.findMany({ where }),
+      this.prisma.promptSnapshot.findMany({ where }),
     ]);
     const strip = (rows: Row[]) => rows.map(({ userId: _u, ...r }) => r);
     return {
@@ -68,6 +69,7 @@ export class ExportsService {
       settings: strip(settings),
       subjects: strip(subjects),
       questionSubjects: strip(questionSubjects),
+      promptSnapshots: strip(promptSnapshots),
     };
   }
 
@@ -205,6 +207,7 @@ export class ExportsService {
     const settingsRow = arr('settings').map(fix)[0];
     const settings: Row | null = settingsRow ? { ...settingsRow, id: undefined, userId } : null;
     if (settings) delete settings.id;
+    const promptSnapshots = arr('promptSnapshots').map(fix).map((r) => ({ ...r, id: randomUUID(), userId }));
 
     const counts: Record<string, number> = {};
     await this.prisma.$transaction(
@@ -222,6 +225,7 @@ export class ExportsService {
         await tx.question.deleteMany({ where: { userId } });
         await tx.deck.deleteMany({ where: { userId } });
         await tx.appSettings.deleteMany({ where: { userId } });
+        await tx.promptSnapshot.deleteMany({ where: { userId } });
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const insert = async (name: string, model: { createMany: (a: { data: any[] }) => Promise<unknown> }, rows: Row[]) => {
@@ -230,6 +234,7 @@ export class ExportsService {
         };
         if (settings) await tx.appSettings.create({ data: settings as never });
         counts.settings = settings ? 1 : 0;
+        await insert('promptSnapshots', tx.promptSnapshot, promptSnapshots);
         await insert('decks', tx.deck, decks);
         await insert('subjects', tx.subject, subjects);
         await insert('questions', tx.question, questions);

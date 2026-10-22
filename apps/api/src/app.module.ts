@@ -18,6 +18,7 @@ import { ExportsModule } from './exports/exports.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { SharesModule } from './shares/shares.module';
+import { PromptsModule } from './prompts/prompts.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { SharesModule } from './shares/shares.module';
     ExportsModule,
     AdminModule,
     SharesModule,
+    PromptsModule,
   ],
   controllers: [HealthController, SchemasController],
 })
