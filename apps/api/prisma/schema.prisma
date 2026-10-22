@@ -418,6 +418,7 @@ model AppSettings {
   maximumInterval        Int       @default(36500)
   enableFuzz             Boolean   @default(false)
   shuffleChoices         Boolean   @default(true)
+  mobileSubmitOnRight    Boolean   @default(false)
   /// Study screen: hide question metadata that could hint at the answer (each item toggles independently).
   hideDifficulty         Boolean   @default(false)
   hideTags               Boolean   @default(false)

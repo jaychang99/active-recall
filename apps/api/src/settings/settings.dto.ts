@@ -12,6 +12,7 @@ export class UpdateSettingsDto {
   @IsOptional() @IsInt() @Min(1) @Max(STUDY_SETTING_MAX) maximumInterval?: number;
   @IsOptional() @IsBoolean() enableFuzz?: boolean;
   @IsOptional() @IsBoolean() shuffleChoices?: boolean;
+  @IsOptional() @IsBoolean() mobileSubmitOnRight?: boolean;
   @IsOptional() @IsBoolean() hideDifficulty?: boolean;
   @IsOptional() @IsBoolean() hideTags?: boolean;
   @IsOptional() @IsBoolean() hideSubject?: boolean;

@@ -104,6 +104,12 @@ export default function SettingsPage() {
       <PageHeader title="설정" description="내 계정의 학습 설정입니다. 아래 값은 저장 버튼을 눌러야 반영됩니다." actions={<Button loading={save.isPending} variant="primary" onClick={submit} disabled={save.isPending} data-testid="save-settings">{save.isPending ? '저장 중…' : '저장'}</Button>} />
       <Panel className="mb-6 px-5 py-2">
         <h2 className="pt-3 text-[13px] font-semibold text-ink-2">화면</h2>
+        <Row label="모바일 제출 버튼 위치" hint="학습 화면의 제출·정답 공개 버튼 좌우 순서를 바꿉니다." id="mobileSubmitOnRight">
+          <Select id="mobileSubmitOnRight" className="w-full" value={form.mobileSubmitOnRight ? 'right' : 'left'} onChange={(e) => set('mobileSubmitOnRight', e.target.value === 'right')}>
+            <option value="left">왼쪽: 제출 / 오른쪽: 정답 공개</option>
+            <option value="right">왼쪽: 정답 공개 / 오른쪽: 제출</option>
+          </Select>
+        </Row>
         <Row label="테마" hint="바로 적용되고 이 브라우저에 저장됩니다 (저장 버튼과 무관)." id="theme">
           <Select id="theme" className="w-full" value={mounted ? (theme ?? 'light') : 'light'} onChange={(e) => setTheme(e.target.value)} aria-label="테마"><option value="light">라이트</option><option value="dark">다크</option><option value="system">시스템</option></Select>
         </Row>

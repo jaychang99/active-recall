@@ -161,6 +161,9 @@ input, textarea, select { scroll-margin-block: 5rem 10rem; }
   button, a, [role='button'] { touch-action: manipulation; }
 }
 @media (max-width: 767px) {
+  .study-answer-actions[data-submit-on-right='true'] > * { order: 3; }
+  .study-answer-actions[data-submit-on-right='true'] > :first-child { order: 2; }
+  .study-answer-actions[data-submit-on-right='true'] > :nth-child(2) { order: 1; }
   [data-study-root] { padding-bottom: calc(var(--study-actions-height, 160px) + 1rem); }
   .study-actions {
     position: fixed;

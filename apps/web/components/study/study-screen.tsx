@@ -502,7 +502,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         />
 
         {phase === 'answering' ? (
-          <StudyActions><div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+          <StudyActions><div className="study-answer-actions grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap" data-submit-on-right={settings.mobileSubmitOnRight ?? false}>
             <Button loading={gradeMut.isPending && !revealedBeforeAnswer} loadingLabel="채점 중…" variant="primary" size="lg" onClick={submit} disabled={gradeMut.isPending} kbd={typing ? '⌘⏎' : '⏎'} data-testid="submit-btn">제출</Button>
             <Button loading={gradeMut.isPending && revealedBeforeAnswer} loadingLabel="확인 중…" size="lg" onClick={reveal} disabled={gradeMut.isPending} kbd="Space" data-testid="reveal-btn"><Eye className="h-4 w-4" /> 정답 공개</Button>
             {item.hasHint ? <Button loading={hintPending} loadingLabel="힌트 확인…" disabled={gradeMut.isPending} variant="ghost" onClick={() => void showHint()} kbd="H" className="max-md:min-h-9 max-md:h-9"><Lightbulb className="h-4 w-4" /> 힌트</Button> : null}

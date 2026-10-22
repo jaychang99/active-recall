@@ -6,6 +6,7 @@ import { gradeAnswer, toPublicQuestion, type Question, type AnswerPayload } from
 const batch = JSON.parse(readFileSync(join(__dirname, '../../../examples/example-question-batch.json'), 'utf8'));
 const questions = (batch.questions as Question[]).filter((q) => ['short_answer', 'essay', 'cloze'].includes(q.type));
 const settings = {
+  mobileSubmitOnRight: false,
   shortcutsEnabled: true, shuffleChoices: false, autoAdvanceAfterRating: false, dailyReviewGoal: 50,
   showIntervalPreview: true, hideDifficulty: false, hideTags: false, hideSubject: false, hideSource: false,
   hideRound: false, revealMetaOnAnswer: false, essayAnswerView: 'plain', promptDefaults: null,
@@ -94,6 +95,35 @@ async function mockSidebarCollections(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => { await mockApp(page); });
+
+test('saved mobile submit side swaps only the two answer buttons and survives reload', async ({ page }) => {
+  await page.goto('/settings');
+  await page.getByLabel('모바일 제출 버튼 위치', { exact: true }).selectOption('right');
+  await page.getByTestId('save-settings').click();
+  await expect(page.getByText('설정을 저장했습니다', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('모바일 제출 버튼 위치', { exact: true })).toHaveValue('right');
+  await page.goto('/study/all?mode=cram');
+  const submit = page.getByTestId('submit-btn');
+  const reveal = page.getByTestId('reveal-btn');
+  await expect(submit).toBeVisible();
+  const mobile = page.viewportSize()!.width < 768;
+  await expect(submit).toHaveCSS('order', mobile ? '2' : '0');
+  await expect(reveal).toHaveCSS('order', mobile ? '1' : '0');
+  const a = (await submit.boundingBox())!;
+  const b = (await reveal.boundingBox())!;
+  expect(a.x > b.x).toBe(mobile);
+  await reveal.click();
+  await expect(page.getByTestId('rating-bar')).toBeVisible();
+  await expectNoOverflow(page);
+  await page.goto('/settings');
+  await page.getByLabel('모바일 제출 버튼 위치', { exact: true }).selectOption('left');
+  await page.getByTestId('save-settings').click();
+  await expect(page.getByText('설정을 저장했습니다', { exact: true })).toBeVisible();
+  await page.goto('/study/all?mode=cram');
+  await expect(submit).toBeVisible();
+  expect((await submit.boundingBox())!.x).toBeLessThan((await reveal.boundingBox())!.x);
+});
 
 test('completed subject sessions fetch a new queue while reload preserves the current order', async ({ page }) => {
   let requests = 0;

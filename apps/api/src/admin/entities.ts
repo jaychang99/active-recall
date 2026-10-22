@@ -233,6 +233,7 @@ export const ENTITIES: EntityMeta[] = [
       { name: 'revealMetaOnAnswer', label: '정답 공개 시 메타 표시', type: 'boolean', editable: true },
       { name: 'essayAnswerView', label: '서술형 모범답안 보기', type: 'enum', enumValues: ['plain', 'scored'], editable: true },
       { name: 'newCardOrder', label: '새 카드 순서', type: 'enum', enumValues: ['deck', 'random'], editable: true },
+      { name: 'mobileSubmitOnRight', label: '모바일 제출 버튼 오른쪽', type: 'boolean', editable: true },
       { name: 'requestRetention', label: '목표 기억률', type: 'number', editable: true },
       { name: 'maximumInterval', label: '최대 간격', type: 'number', editable: true, integer: true, ...STUDY_SETTING_LIMITS.maximumInterval },
       { name: 'enableFuzz', label: '퍼지', type: 'boolean', editable: true },

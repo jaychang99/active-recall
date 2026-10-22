@@ -8,6 +8,11 @@ const pipe = new ValidationPipe({ whitelist: true, transform: true, transformOpt
 const validate = (value: Record<string, unknown>) => pipe.transform(value, { type: 'body', metatype: UpdateSettingsDto });
 
 describe('study settings hard limits', () => {
+  it('preserves both mobile submit side choices through settings validation', async () => {
+    for (const mobileSubmitOnRight of [false, true]) {
+      await expect(validate({ mobileSubmitOnRight })).resolves.toMatchObject({ mobileSubmitOnRight });
+    }
+  });
   for (const [field, { min }] of Object.entries(STUDY_SETTING_LIMITS)) {
     it(`${field}: accepts 100,000, rejects 100,001 and preserves the lower/integer bound`, async () => {
       await expect(validate({ [field]: 100_000 })).resolves.toMatchObject({ [field]: 100_000 });
