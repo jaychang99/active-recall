@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 // UI regressions use deterministic API responses; no database or API server is required.
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'mobile-layout.spec.ts',
+  testMatch: ['mobile-layout.spec.ts', 'insights-ui.spec.ts'],
   timeout: 45_000,
   expect: { timeout: 10_000 },
   workers: 1,

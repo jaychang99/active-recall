@@ -11,12 +11,15 @@ import { ActivityHeatmap } from '@/components/insights/heatmap';
 import { BarChart, HBar } from '@/components/insights/charts';
 import { TYPE_LABEL, pct } from '@/lib/utils';
 import { Markdown } from '@/components/questions/markdown';
+import { ChevronRight } from 'lucide-react';
+import { QuestionDetailDialog } from '@/components/questions/question-detail-dialog';
 
 export default function InsightsPage() {
   const sp = useSearchParams();
   const [deckId, setDeckId] = useState(sp.get('deckId') ?? '');
   const [subject, setSubject] = useState(sp.get('subject') ?? '');
   const [days, setDays] = useState(30);
+  const [selectedQuestion, setSelectedQuestion] = useState<{ questionId: string; deck: string } | null>(null);
   const decks = useQuery({ queryKey: ['decks'], queryFn: () => api<Deck[]>('/decks') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => api<SubjectSummary[]>('/subjects') });
   const qs = new URLSearchParams({ days: String(days) });
@@ -67,7 +70,7 @@ export default function InsightsPage() {
               </Panel>
               <Panel className="p-5">
                 <h2 className="mb-3 text-[13px] font-semibold text-ink-2">가장 자주 틀린 문항 <span className="font-normal text-ink-3">· {days}일, Again 횟수</span></h2>
-                {o.hardest.length ? <ul className="space-y-1.5 text-[13px]">{o.hardest.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="bad">{h.again}</Badge><Markdown inline className="line-clamp-1 [&_p]:inline">{h.prompt}</Markdown><span className="ml-auto shrink-0 text-ink-3">{TYPE_LABEL[h.type]}</span></li>)}</ul> : <p className="text-sm text-ink-3">{days}일 동안 Again으로 평가한 문항이 없습니다.</p>}
+                {o.hardest.length ? <ul className="space-y-1.5 text-[13px]" aria-label="가장 자주 틀린 문항">{o.hardest.map((h) => <QuestionListItem key={h.questionId} item={h} badge={<Badge tone="bad">{h.again}</Badge>} onOpen={() => setSelectedQuestion(h)} />)}</ul> : <p className="text-sm text-ink-3">{days}일 동안 Again으로 평가한 문항이 없습니다.</p>}
               </Panel>
             </div>
             <Panel className="p-5">
@@ -99,7 +102,7 @@ export default function InsightsPage() {
           <section className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
             <Panel className="p-5">
               <h2 className="mb-3 text-[13px] font-semibold text-ink-2">리치(leech) <span className="font-normal text-ink-3">· 실패가 많은 카드</span></h2>
-              {o.leeches.length ? <ul className="space-y-1.5 text-[13px]">{o.leeches.map((h) => <li key={h.questionId} className="flex gap-2"><Badge tone="warn">실패 {h.lapses}</Badge><Markdown inline className="line-clamp-1 [&_p]:inline">{h.prompt}</Markdown></li>)}</ul> : <p className="text-sm text-ink-3">리치 카드가 없습니다. (설정의 리치 기준 이상 실패한 카드)</p>}
+              {o.leeches.length ? <ul className="space-y-1.5 text-[13px]" aria-label="리치 문항">{o.leeches.map((h) => <QuestionListItem key={h.questionId} item={h} badge={<Badge tone="warn">실패 {h.lapses}</Badge>} onOpen={() => setSelectedQuestion(h)} />)}</ul> : <p className="text-sm text-ink-3">리치 카드가 없습니다. (설정의 리치 기준 이상 실패한 카드)</p>}
               <Link href="/study/all?mode=mistakes" className="mt-3 inline-block text-sm text-accent underline-offset-4 hover:underline">틀린 문제 다시 보기 →</Link>
             </Panel>
             <Panel className="p-5">
@@ -119,6 +122,21 @@ export default function InsightsPage() {
 
         </div>
       ) : null}
+      {selectedQuestion ? <QuestionDetailDialog key={selectedQuestion.questionId} questionId={selectedQuestion.questionId} deckTitle={selectedQuestion.deck} onClose={() => setSelectedQuestion(null)} /> : null}
     </div>
+  );
+}
+
+function QuestionListItem({ item, badge, onOpen }: { item: { questionId: string; prompt: string; deck: string; type: string }; badge: React.ReactNode; onOpen: () => void }) {
+  return (
+    <li className="relative flex min-h-11 items-center gap-2 rounded-md px-2 py-2 hover:bg-muted/60 focus-within:ring-2 focus-within:ring-accent">
+      <button type="button" className="absolute inset-0 rounded-md focus:outline-none" onClick={onOpen} aria-label={`문항 상세 보기: ${item.prompt}`} />
+      <div inert className="pointer-events-none flex min-w-0 flex-1 items-center gap-2">
+        {badge}
+        <div className="min-w-0 flex-1"><Markdown inline className="line-clamp-1 [&_p]:inline">{item.prompt}</Markdown><span className="block truncate text-[12px] text-ink-3">{item.deck}</span></div>
+        <span className="shrink-0 text-[12px] text-ink-3">{TYPE_LABEL[item.type] ?? item.type}</span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+      </div>
+    </li>
   );
 }
