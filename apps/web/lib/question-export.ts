@@ -1,4 +1,4 @@
-import type { AnswerPayload, GradeResult, Question } from '@recall/contracts';
+import type { AnswerPayload, EssayQuestion, GradeResult, Question } from '@recall/contracts';
 import type { CardInfo, Note } from './api';
 import { TYPE_LABEL } from './utils';
 
@@ -102,6 +102,59 @@ export function explainPrompt(e: QuestionExport): string {
 - 마지막 '메모' 섹션은 제목 \`## 메모\` 아래에 \`\`\`text 블록 하나만 두세요(그 안은 일반 텍스트).
 
 ## 문제 데이터
+\`\`\`json
+${exportJson(stripDataUris(e))}
+\`\`\`
+`;
+}
+
+/**
+ * A grading request for an essay answer: score it criterion by criterion against the stored rubric and model answer.
+ * The answer text is passed separately because essays are often revealed rather than submitted, and the export
+ * drops a revealed attempt's answer.
+ */
+export function essayGradingPrompt(e: QuestionExport, answerText: string, selfScores?: number[]): string {
+  const q = e.question.data as EssayQuestion;
+  const { rubric, maxScore, modelAnswer, modelAnswerSegments } = q.answer;
+  const criteria = rubric.length
+    ? rubric.map((r, i) => `${i + 1}. **${r.criterion}** (${r.maxPoints}점)\n   - 채점 지침: ${r.guidance}`).join('\n')
+    : `따로 정해진 기준이 없습니다. 모범답안과 비교해 ${maxScore}점 만점으로 채점해 주세요.`;
+  const segments = modelAnswerSegments?.some((s) => s.points)
+    ? `\n\n### 모범답안 문장별 배점\n${modelAnswerSegments.map((s) => `- ${s.text.trim()}${s.points ? ` — ${s.points}점${typeof s.rubricIndex === 'number' && rubric[s.rubricIndex] ? ` (기준 ${s.rubricIndex + 1}. ${rubric[s.rubricIndex]!.criterion})` : ''}` : ''}${s.note ? ` · ${s.note}` : ''}`).join('\n')}`
+    : '';
+  const self = selfScores?.length && rubric.length
+    ? `\n\n## 내 자기 채점\n${rubric.map((r, i) => `- ${r.criterion}: ${selfScores[i] ?? 0} / ${r.maxPoints}`).join('\n')}\n- 합계: ${rubric.reduce((sum, _r, i) => sum + (selfScores[i] ?? 0), 0)} / ${maxScore}`
+    : '';
+  return `아래는 내가 학습 앱(Recall Studio)에서 서술형 문제에 쓴 답안입니다. 문제에 저장된 채점 기준(루브릭)과 모범답안에 따라 엄격하고 공정하게 채점해 주세요.
+
+## 문제
+${q.prompt}
+
+## 채점 기준 (총 ${maxScore}점)
+${criteria}
+
+## 모범답안
+${modelAnswer}${segments}
+
+## 내 답안
+\`\`\`text
+${answerText.trim()}
+\`\`\`${self}
+
+## 채점 방법
+1. 기준마다 0점부터 배점까지 점수를 주세요(채점 지침이 부분 점수를 허용하면 그에 따르세요). 근거는 내 답안의 문장을 그대로 인용해 설명하고, 답안에 쓰지 않은 내용을 의도로 짐작해 점수를 주지 마세요.
+2. 모범답안과 표현이 달라도 의미가 같으면 인정하세요. 사실 오류·모순·핵심 용어의 오용은 감점 사유로 분명히 적어 주세요.
+3. 빠뜨린 핵심 내용, 틀린 내용, 모호하거나 근거가 부족한 서술을 나눠서 정리해 주세요.
+4. 위에 자기 채점이 있으면 기준별로 비교하고, 점수가 다른 기준은 왜 다른지 설명해 주세요.
+5. 같은 기준으로 만점을 받을 수 있도록 내 답안을 고쳐 쓴 예시를 보여 주세요. 내 문장과 구성을 최대한 살리고, 바꾼 부분이 드러나게 해 주세요.
+6. 저장된 채점 기준이나 모범답안 자체에 오류·모호함이 있다고 판단되면 근거와 함께 지적해 주세요.
+
+## 형식
+- 한국어로 쓰고, 첫 줄은 \`총점: X / ${maxScore}\` 형식으로 시작해 주세요.
+- 이어서 기준별 표(| 기준 | 배점 | 점수 | 근거 |)를 두고, 그 아래에 3–6번 내용을 제목을 붙여 정리해 주세요. 수식은 LaTeX(\`$…$\`)로 써 주세요.
+- 맨 마지막에 제목 \`## 메모\` 아래, 학습 앱의 '메모'란에 그대로 붙여넣을 메모를 \`\`\`text 코드 블록 하나에 일반 텍스트로 담아 주세요: 총점, 기준별 점수, 빠뜨린 점, 다음에 기억할 것.
+
+## 문제 데이터 (참고용 전체 JSON — 출처·해설·회차별 메모 포함)
 \`\`\`json
 ${exportJson(stripDataUris(e))}
 \`\`\`
