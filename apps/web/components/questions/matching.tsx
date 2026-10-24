@@ -3,14 +3,15 @@ import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { cn, seededShuffle } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
+import { viewMatchingRight } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'matching' }>;
 
 export function Matching({ question, value, onChange, onSubmit, phase, grade, answerKey, shuffleSeed, readOnly, registerDigitHandler }: RendererProps<Q>) {
-  const right = useMemo(() => (shuffleSeed ? seededShuffle(question.right, `${question.id}:${shuffleSeed}`) : question.right), [question, shuffleSeed]);
+  const right = useMemo(() => viewMatchingRight(question, shuffleSeed), [question, shuffleSeed]);
   const pairs = value?.type === 'matching' ? value.pairs : [];
   const chosen = new Map(pairs.map((p) => [p.leftId, p.rightId]));
   const revealed = phase !== 'answering';

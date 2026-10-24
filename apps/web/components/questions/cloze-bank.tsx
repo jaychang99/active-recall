@@ -3,10 +3,11 @@ import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { cn, seededShuffle } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { ClozeRenderConfig } from './cloze-blanks';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
+import { viewBank } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'cloze_bank' }>;
 
@@ -15,7 +16,7 @@ type Q = Extract<PublicQuestion, { type: 'cloze_bank' }>;
 export function ClozeBank({ question, value, onChange, onSubmit, phase, grade, answerKey, shuffleSeed, readOnly }: RendererProps<Q>) {
   const chosen = value?.type === 'cloze_bank' ? value.blanks : {};
   const revealed = phase !== 'answering';
-  const bank = useMemo(() => (shuffleSeed ? seededShuffle(question.bank, `${question.id}:${shuffleSeed}`) : question.bank), [question, shuffleSeed]);
+  const bank = useMemo(() => viewBank(question, shuffleSeed), [question, shuffleSeed]);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const key = new Map((((answerKey?.blanks as { id: string; bankItemId: string }[] | undefined) ?? []).map((b) => [b.id, b.bankItemId])));
   const ids = useMemo(() => question.blanks.map((b) => b.id), [question.blanks]);

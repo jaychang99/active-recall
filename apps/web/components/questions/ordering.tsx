@@ -2,14 +2,15 @@
 import { ArrowDown, ArrowUp, Check, GripVertical, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { cn, seededShuffle } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
+import { viewOrderingStart } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'ordering' }>;
 
 export function Ordering({ question, value, onChange, phase, grade, answerKey, shuffleSeed, readOnly, registerDigitHandler }: RendererProps<Q>) {
-  const initial = useMemo(() => seededShuffle(question.items.map((i) => i.id), `${question.id}:${shuffleSeed ?? 'fixed'}`), [question, shuffleSeed]);
+  const initial = useMemo(() => viewOrderingStart(question, shuffleSeed), [question, shuffleSeed]);
   const order = value?.type === 'ordering' && value.orderedIds.length === question.items.length ? value.orderedIds : initial;
   const revealed = phase !== 'answering';
   const disabled = revealed || !!readOnly;

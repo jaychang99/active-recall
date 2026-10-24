@@ -1,16 +1,15 @@
 'use client';
 import { useEffect, useMemo } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { seededShuffle } from '@/lib/utils';
 import { ChoiceList, type ChoiceView } from './choice-list';
 import type { RendererProps } from './types';
+import { viewTwoTier } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'two_tier' }>;
 
 /** Answer + justification. Both lists are shuffled per round. Digits pick the answer first, then the reason. */
 export function TwoTier({ question, value, onChange, phase, answerKey, shuffleSeed, showKeyHints, readOnly, compact, registerDigitHandler }: RendererProps<Q>) {
-  const choices = useMemo(() => (shuffleSeed ? seededShuffle(question.choices, `${question.id}:c:${shuffleSeed}`) : question.choices), [question, shuffleSeed]);
-  const reasons = useMemo(() => (shuffleSeed ? seededShuffle(question.reasons, `${question.id}:r:${shuffleSeed}`) : question.reasons), [question, shuffleSeed]);
+  const { choices, reasons } = useMemo(() => viewTwoTier(question, shuffleSeed), [question, shuffleSeed]);
   const choiceId = value?.type === 'two_tier' ? value.choiceId : null;
   const reasonId = value?.type === 'two_tier' ? value.reasonId : null;
   const key = answerKey?.answer as { choiceId?: string; reasonId?: string } | undefined;

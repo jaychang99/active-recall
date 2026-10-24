@@ -1,14 +1,14 @@
 'use client';
 import { useEffect, useMemo } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { seededShuffle } from '@/lib/utils';
 import { ChoiceList, type ChoiceView } from './choice-list';
 import type { RendererProps } from './types';
+import { viewChoices } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'multiple_choice' }>;
 
 export function MultipleChoice({ question, value, onChange, phase, answerKey, shuffleSeed, showKeyHints, readOnly, compact, registerDigitHandler }: RendererProps<Q>) {
-  const ordered = useMemo(() => (shuffleSeed ? seededShuffle(question.choices, `${question.id}:${shuffleSeed}`) : question.choices), [question, shuffleSeed]);
+  const ordered = useMemo(() => viewChoices(question, shuffleSeed), [question, shuffleSeed]);
   const selected = value?.type === 'multiple_choice' ? value.choiceIds : [];
   const correct = new Set(((answerKey?.answer as { choiceIds?: string[] } | undefined)?.choiceIds ?? []) as string[]);
   const revealed = phase !== 'answering';

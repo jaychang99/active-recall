@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Question } from '@recall/contracts';
 import type { CardInfo, Note } from './api';
 import { buildQuestionExport, essayGradingPrompt, explainPrompt, exportJson, stripDataUris } from './question-export';
+import { viewChoices, viewMatchingRight, viewOrderingStart } from './view-order';
 
 const question = {
   id: 'q1',
@@ -37,7 +38,10 @@ const base = {
 describe('buildQuestionExport', () => {
   it('carries the full question, attempt, card and non-empty notes', () => {
     const e = buildQuestionExport(base);
-    expect(e.question.data).toBe(question);
+    // without a shuffle seed the authored order is the screen order; every entry carries its screen label
+    expect(e.question.data).toEqual({ ...question, choices: [{ ...(question as { choices: object[] }).choices[0], label: '1' }, { ...(question as { choices: object[] }).choices[1], label: '2' }] });
+    expect(e.question.order).toBe('screen');
+    expect(e.attempt.onScreen).toEqual({ mine: '1 (1)', correct: '2 (2)' });
     expect(e.question.typeLabel).not.toBe('');
     expect(e.attempt).toMatchObject({ reviewRound: 3, hintUsed: true, answerPayload: { choiceId: 'a' }, grade: { isCorrect: false } });
     expect(e.notes).toEqual([{ reviewRound: 1, body: '헷갈림', updatedAt: '2026-10-01T00:00:00.000Z', review: { rating: 'Again', reviewedAt: '2026-10-01T00:00:00.000Z', isCorrect: false } }]);
@@ -114,5 +118,37 @@ describe('essayGradingPrompt', () => {
     expect(p).toContain('따로 정해진 기준이 없습니다. 모범답안과 비교해 10점 만점으로 채점해 주세요.');
     expect(p).not.toContain('## 내 자기 채점');
     expect(p).not.toContain('문장별 배점');
+  });
+});
+
+describe('on-screen order in the export', () => {
+  const five = { ...question, choices: ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, text: id.toUpperCase() })), answer: { choiceId: 'c' } } as unknown as Question;
+  const seed = 'session-seed:3';
+
+  it('lists shuffled choices in the renderer order with screen numbers, and names answers by them', () => {
+    const shown = viewChoices(five as { id: string; choices: { id: string }[] }, seed).map((c) => c.id);
+    expect(shown).not.toEqual(['a', 'b', 'c', 'd', 'e']); // this seed does reorder
+    const e = buildQuestionExport({ ...base, question: { ...base.question, data: five }, answerPayload: { type: 'single_choice', choiceId: 'a' }, viewSeed: seed });
+    const choices = (e.question.data as unknown as { choices: { id: string; label: string }[] }).choices;
+    expect(choices.map((c) => c.id)).toEqual(shown);
+    expect(choices.map((c) => c.label)).toEqual(['1', '2', '3', '4', '5']);
+    expect(e.attempt.onScreen).toEqual({ mine: `${shown.indexOf('a') + 1} (A)`, correct: `${shown.indexOf('c') + 1} (C)` });
+    expect(explainPrompt(e)).toContain('내 화면에 보인 순서대로');
+  });
+
+  it('letters matching targets and keeps an ordering answer as arranged', () => {
+    const matching = { id: 'm1', type: 'matching', prompt: '?', left: [{ id: 'l1', text: 'L1' }, { id: 'l2', text: 'L2' }], right: [{ id: 'r1', text: 'R1' }, { id: 'r2', text: 'R2' }, { id: 'r3', text: 'R3' }], answer: { pairs: [{ leftId: 'l1', rightId: 'r1' }, { leftId: 'l2', rightId: 'r2' }] }, explanation: { summary: '' } } as unknown as Question;
+    const e = buildQuestionExport({ ...base, question: { ...base.question, type: 'matching', data: matching }, answerPayload: { type: 'matching', pairs: [{ leftId: 'l1', rightId: 'r2' }, { leftId: 'l2', rightId: null }] }, grade: null, viewSeed: seed });
+    const right = (e.question.data as unknown as { right: { id: string; label: string }[] }).right;
+    expect(right.map((r) => r.id)).toEqual(viewMatchingRight(matching as unknown as { id: string; right: { id: string }[] }, seed).map((r) => r.id));
+    expect(right.map((r) => r.label)).toEqual(['A', 'B', 'C']);
+    const L = (id: string) => right.find((r) => r.id === id)!.label;
+    expect(e.attempt.onScreen).toEqual({ mine: `1→${L('r2')}, 2→-`, correct: `1→${L('r1')}, 2→${L('r2')}` });
+
+    const ordering = { id: 'o1', type: 'ordering', prompt: '?', items: ['x', 'y', 'z'].map((id) => ({ id, text: id })), answer: { orderedIds: ['x', 'y', 'z'] }, explanation: { summary: '' } } as unknown as Question;
+    const arranged = buildQuestionExport({ ...base, question: { ...base.question, type: 'ordering', data: ordering }, answerPayload: { type: 'ordering', orderedIds: ['z', 'x', 'y'] }, grade: null, viewSeed: seed });
+    expect((arranged.question.data as unknown as { items: { id: string }[] }).items.map((i) => i.id)).toEqual(['z', 'x', 'y']);
+    const revealed = buildQuestionExport({ ...base, question: { ...base.question, type: 'ordering', data: ordering }, answerPayload: null, grade: null, revealedBeforeAnswer: true, viewSeed: seed });
+    expect((revealed.question.data as unknown as { items: { id: string }[] }).items.map((i) => i.id)).toEqual(viewOrderingStart(ordering as unknown as { id: string; items: { id: string }[] }, seed));
   });
 });

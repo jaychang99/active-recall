@@ -1,6 +1,7 @@
 import type { AnswerPayload, EssayQuestion, GradeResult, Question } from '@recall/contracts';
 import type { CardInfo, Note } from './api';
 import { TYPE_LABEL } from './utils';
+import { answerInLabels, onScreenQuestion } from './view-order';
 
 /** Everything the learner can see about one question after answering it, as one JSON document. */
 export interface QuestionExport {
@@ -8,12 +9,15 @@ export interface QuestionExport {
   exportedAt: string;
   deck: { id: string; title: string; subject: string };
   subjects: string[];
-  question: { id: string; externalId: string; type: string; typeLabel: string; revision: number | null; data: Question };
+  /** `data` lists choices, items and statements in the order I saw them, each with the `label` shown on screen. */
+  question: { id: string; externalId: string; type: string; typeLabel: string; revision: number | null; order: 'screen'; data: Question };
   attempt: {
     reviewRound: number;
     revealedBeforeAnswer: boolean;
     hintUsed: boolean;
     answerPayload: AnswerPayload | null;
+    /** My answer and the key in on-screen labels (choice-like types only). */
+    onScreen: { mine: string | null; correct: string | null } | null;
     grade: GradeResult | null;
   };
   card: CardInfo;
@@ -31,24 +35,29 @@ export interface QuestionExportInput {
   answerPayload: AnswerPayload | null;
   grade: GradeResult | null;
   notes: Note[];
+  /** The renderer's shuffle seed for this card (null = authored order). */
+  viewSeed?: string | null;
   now?: Date;
 }
 
 const RATING_LABEL = ['Again', 'Hard', 'Good', 'Easy'] as const;
 
 export function buildQuestionExport(i: QuestionExportInput): QuestionExport {
+  const answer = i.revealedBeforeAnswer ? null : i.answerPayload;
+  const data = onScreenQuestion(i.question.data, i.viewSeed ?? null, answer);
   return {
     format: 'recall-studio/question-export@1',
     exportedAt: (i.now ?? new Date()).toISOString(),
     deck: i.deck,
     subjects: i.subjects,
-    question: { id: i.question.id, externalId: i.question.externalId, type: i.question.type, typeLabel: TYPE_LABEL[i.question.type] ?? i.question.type, revision: i.question.revision ?? null, data: i.question.data },
+    question: { id: i.question.id, externalId: i.question.externalId, type: i.question.type, typeLabel: TYPE_LABEL[i.question.type] ?? i.question.type, revision: i.question.revision ?? null, order: 'screen', data },
     attempt: {
       reviewRound: i.reviewRound,
       revealedBeforeAnswer: i.revealedBeforeAnswer,
       hintUsed: i.hintUsed,
       // A reveal without submitting has no real answer (ordering/parsons start with a default arrangement).
-      answerPayload: i.revealedBeforeAnswer ? null : i.answerPayload,
+      answerPayload: answer,
+      onScreen: answerInLabels(data, answer),
       grade: i.revealedBeforeAnswer ? null : i.grade,
     },
     card: i.card,
@@ -84,6 +93,8 @@ export function exportJson(e: QuestionExport): string {
 export function explainPrompt(e: QuestionExport): string {
   const wrong = e.attempt.grade?.isCorrect === false;
   return `아래는 내가 학습 앱(Recall Studio)에서 방금 푼 문제 하나의 전체 데이터(JSON)입니다. 문제·보기·그래픽(SVG/이미지 설명)·정답·해설·보기별 해설·출처·내 답안·채점 결과·회차별 메모가 모두 들어 있습니다. 이 데이터를 바탕으로 앱에 저장된 해설보다 훨씬 자세한 해설을 부탁합니다.
+
+선지·항목·진술은 **내 화면에 보인 순서대로** 정렬되어 있고, 각 항목의 \`label\`(1, 2, … 또는 A, B, …)이 화면에 표시된 번호입니다. 정답·답안은 id로 저장되어 있으니 \`attempt.onScreen\`(화면 번호로 쓴 내 답과 정답)을 참고하고, 설명할 때는 항목을 이 화면 번호로 불러 주세요.
 
 ## 부탁하는 것
 1. **핵심 개념**: 이 문제가 묻는 개념·원리를 먼저 정리해 주세요. 왜 중요한지, 어디에 쓰이는지도 함께.

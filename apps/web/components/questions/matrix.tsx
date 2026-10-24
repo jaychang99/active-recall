@@ -2,9 +2,10 @@
 import { Check, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { cn, seededShuffle } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
+import { viewMatrixRows } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'matrix' }>;
 
@@ -14,7 +15,7 @@ export function Matrix({ question, value, onChange, onSubmit, phase, grade, answ
   const cells = value?.type === 'matrix' ? value.cells : [];
   const revealed = phase !== 'answering';
   const single = question.selection === 'single';
-  const rows = useMemo(() => (shuffleSeed ? seededShuffle(question.rows, `${question.id}:${shuffleSeed}`) : question.rows), [question, shuffleSeed]);
+  const rows = useMemo(() => viewMatrixRows(question, shuffleSeed), [question, shuffleSeed]);
   const has = (r: string, c: string) => cells.some((x) => x.rowId === r && x.columnId === c);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const expected = new Set((((answerKey?.answer as { cells?: { rowId: string; columnId: string }[] } | undefined)?.cells ?? []).map((c) => `${c.rowId}:${c.columnId}`)));

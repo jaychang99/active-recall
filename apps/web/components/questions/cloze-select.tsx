@@ -3,10 +3,11 @@ import { focusAnswerInput } from '@/lib/answer-focus';
 import { Check, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { cn, seededShuffle } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { ClozeRenderConfig } from './cloze-blanks';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
+import { viewClozeOptions } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'cloze_select' }>;
 
@@ -16,7 +17,7 @@ type Q = Extract<PublicQuestion, { type: 'cloze_select' }>;
 export function ClozeSelect({ question, value, onChange, onSubmit, phase, grade, answerKey, shuffleSeed, readOnly }: RendererProps<Q>) {
   const chosen = value?.type === 'cloze_select' ? value.blanks : {};
   const revealed = phase !== 'answering';
-  const options = useMemo(() => new Map(question.blanks.map((b) => [b.id, shuffleSeed ? seededShuffle(b.options, `${question.id}:${b.id}:${shuffleSeed}`) : b.options])), [question, shuffleSeed]);
+  const options = useMemo(() => new Map(question.blanks.map((b) => [b.id, viewClozeOptions(question, b, shuffleSeed)])), [question, shuffleSeed]);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const key = new Map((((answerKey?.blanks as { id: string; answerOptionId: string }[] | undefined) ?? []).map((b) => [b.id, b.answerOptionId])));
   const root = useRef<HTMLDivElement>(null);

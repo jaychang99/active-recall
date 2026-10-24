@@ -2,9 +2,10 @@
 import { Check, X } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { cn, seededShuffle } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
+import { viewStatements } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'statement_set' }>;
 
@@ -12,7 +13,7 @@ type Q = Extract<PublicQuestion, { type: 'statement_set' }>;
 export function StatementSet({ question, value, onChange, phase, grade, answerKey, shuffleSeed, showKeyHints, readOnly, registerDigitHandler }: RendererProps<Q>) {
   const vals = value?.type === 'statement_set' ? value.values : {};
   const revealed = phase !== 'answering';
-  const rows = useMemo(() => (shuffleSeed ? seededShuffle(question.statements, `${question.id}:${shuffleSeed}`) : question.statements), [question, shuffleSeed]);
+  const rows = useMemo(() => viewStatements(question, shuffleSeed), [question, shuffleSeed]);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const key = new Map((((answerKey?.statements as { id: string; value: boolean; explanation?: string }[] | undefined) ?? []).map((s) => [s.id, s])));
   const set = (id: string, v: boolean) => { if (!revealed && !readOnly) onChange({ type: 'statement_set', values: { ...vals, [id]: v } }); };

@@ -21,7 +21,7 @@ type SubjectRow = { id: string; name: string; source: string };
  * Only rendered after submit/reveal, so it never leaks the answer key while answering (and its C / P shortcuts
  * exist only while it is mounted).
  */
-export function CopyQuestionButtons({ item, answer, grade, revealedBeforeAnswer, hintUsed, shortcuts }: { item: QueueItem; answer: AnswerPayload | null; grade: GradeResult | null; revealedBeforeAnswer: boolean; hintUsed: boolean; shortcuts: boolean }) {
+export function CopyQuestionButtons({ item, answer, grade, revealedBeforeAnswer, hintUsed, shortcuts, viewSeed }: { item: QueueItem; answer: AnswerPayload | null; grade: GradeResult | null; revealedBeforeAnswer: boolean; hintUsed: boolean; shortcuts: boolean; viewSeed: string | null }) {
   const qc = useQueryClient();
   const id = item.questionId;
   const fullOpts = { queryKey: ['question', id], queryFn: () => api<FullQuestion>(`/questions/${id}?includeAnswer=true`) };
@@ -55,6 +55,7 @@ export function CopyQuestionButtons({ item, answer, grade, revealedBeforeAnswer,
         answerPayload: answer,
         grade,
         notes: n.notes,
+        viewSeed,
       });
       const text = kind === 'json' ? exportJson(doc) : kind === 'prompt' ? explainPrompt(doc) : essayGradingPrompt(doc, essayText, answer?.type === 'essay' ? answer.selfScores : undefined);
       const ok = await copyToClipboard(text);

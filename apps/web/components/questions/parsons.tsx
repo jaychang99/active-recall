@@ -2,8 +2,9 @@
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { cn, seededShuffle } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { RendererProps } from './types';
+import { viewParsonsPool } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'parsons' }>;
 type Line = { id: string; indent: number };
@@ -18,7 +19,7 @@ export function Parsons({ question, value, onChange, phase, grade, answerKey, sh
   const revealed = phase !== 'answering';
   const disabled = revealed || !!readOnly;
   const byId = new Map(question.blocks.map((b) => [b.id, b]));
-  const poolOrder = useMemo(() => seededShuffle(question.blocks.map((b) => b.id), `${question.id}:${shuffleSeed ?? 'fixed'}`), [question, shuffleSeed]);
+  const poolOrder = useMemo(() => viewParsonsPool(question, shuffleSeed), [question, shuffleSeed]);
   const inSolution = new Set(lines.map((l) => l.id));
   const pool = poolOrder.filter((id) => !inSolution.has(id));
   const expected = ((answerKey?.answer as { lines?: Line[] } | undefined)?.lines ?? []) as Line[];

@@ -508,6 +508,8 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
   const metaControl: MetaControl = { mask: meta.mask, revealed: meta.revealOnAnswer && phase !== 'answering' && cardKey !== null && metaRevealedFor === cardKey, onToggle: meta.toggle };
   const roundHidden = slotState(metaControl, 'round') === 'masked';
+  // One seed for the renderer and the copy buttons, so a copied prompt lists options as on screen.
+  const viewSeed = settings.shuffleChoices && item ? `${shuffleSeed}:${item.reviewRound}` : null;
   const phaseForRenderer: Phase = phase === 'answering' ? 'answering' : revealedBeforeAnswer ? 'revealed' : 'submitted';
   useEffect(() => {
     if (cardKey && window.matchMedia('(max-width: 767px)').matches) studyRoot.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
@@ -636,7 +638,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
           phase={phaseForRenderer}
           grade={grade?.grade ?? null}
           answerKey={grade?.answerKey ?? null}
-          shuffleSeed={settings.shuffleChoices ? `${shuffleSeed}:${item.reviewRound}` : null}
+          shuffleSeed={viewSeed}
           showKeyHints={shortcutsOn}
           registerDigitHandler={registerDigitHandler}
         />
@@ -655,7 +657,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             <div className="flex flex-wrap items-center gap-3">
               <Verdict grade={grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} />
               <div className="ml-auto flex flex-wrap items-center gap-1">
-                <CopyQuestionButtons item={item} answer={answer} grade={revealedBeforeAnswer ? null : grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} hintUsed={hintUsed} shortcuts={shortcutsOn} />
+                <CopyQuestionButtons item={item} answer={answer} grade={revealedBeforeAnswer ? null : grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} hintUsed={hintUsed} shortcuts={shortcutsOn} viewSeed={viewSeed} />
                 <Button size="sm" variant="ghost" onClick={() => setShowPrevious((v) => !v)} kbd="R" aria-expanded={showPrevious} aria-controls="previous-responses" data-testid="previous-toggle">
                   <History className="h-4 w-4" /> {showPrevious ? '이전 응답 접기' : '이전 응답 보기'}{previous.query.isSuccess ? <span className="tabular text-ink-3">{previous.items.length}</span> : null}
                 </Button>

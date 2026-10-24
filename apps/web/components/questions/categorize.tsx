@@ -2,9 +2,10 @@
 import { Check, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
-import { cn, seededShuffle } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
+import { viewCategorize } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'categorize' }>;
 
@@ -12,8 +13,7 @@ type Q = Extract<PublicQuestion, { type: 'categorize' }>;
 export function Categorize({ question, value, onChange, onSubmit, phase, grade, answerKey, shuffleSeed, showKeyHints, readOnly, registerDigitHandler }: RendererProps<Q>) {
   const asg = value?.type === 'categorize' ? value.assignments : {};
   const revealed = phase !== 'answering';
-  const items = useMemo(() => (shuffleSeed ? seededShuffle(question.items, `${question.id}:items:${shuffleSeed}`) : question.items), [question, shuffleSeed]);
-  const cats = useMemo(() => (shuffleSeed ? seededShuffle(question.categories, `${question.id}:cats:${shuffleSeed}`) : question.categories), [question, shuffleSeed]);
+  const { items, categories: cats } = useMemo(() => viewCategorize(question, shuffleSeed), [question, shuffleSeed]);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const key = new Map((((answerKey?.items as { id: string; categoryId: string }[] | undefined) ?? []).map((i) => [i.id, i.categoryId])));
   const label = (cid: string | null | undefined) => question.categories.find((c) => c.id === cid)?.label ?? '';
