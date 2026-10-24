@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Play, Upload } from 'lucide-react';
 import Link from '@/components/ui/navigation-link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { api, type Deck, type SubjectSummary } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -15,11 +15,20 @@ import { formatDateTime } from '@/lib/utils';
 
 export default function DecksPage() {
   const sp = useSearchParams();
+  const router = useRouter();
   const [tab, setTab] = useState<'active' | 'archived'>(sp.get('tab') === 'archived' ? 'archived' : 'active');
   const archived = tab === 'archived';
   const decks = useQuery({ queryKey: archived ? ['decks', 'archived'] : ['decks'], queryFn: () => api<Deck[]>(archived ? '/decks?archived=true' : '/decks') });
   const [q, setQ] = useState('');
-  const [subject, setSubject] = useState<string | null>(sp.get('subject'));
+  // The URL owns the subject filter so sidebar links work while /decks is already mounted.
+  const subject = sp.get('subject');
+  const setSubject = (next: string | null) => {
+    const params = new URLSearchParams(sp.toString());
+    if (next === null) params.delete('subject');
+    else params.set('subject', next);
+    const qs = params.toString();
+    router.replace(qs ? `/decks?${qs}` : '/decks', { scroll: false });
+  };
   // Archived subjects remain available when following an explicit subject link.
   const tagged = useQuery({ queryKey: ['subjects', 'all'], queryFn: () => api<SubjectSummary[]>('/subjects?includeArchived=true'), enabled: !!subject });
   const taggedDeckIds = new Set(tagged.data?.find((s) => s.name === subject)?.deckIds ?? []);
