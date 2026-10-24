@@ -203,7 +203,7 @@ export function PromptOptionsForm({ value: o, onChange, base = PROMPT_DEFAULTS, 
         <Row label="객관식 선지 수" {...row('mcqChoiceCount')} htmlFor={id('mcq')}>
           <NumberRange id={id('mcq')} value={o.mcqChoiceCount} min={LIMITS.mcqChoiceCount.min} max={LIMITS.mcqChoiceCount.max} unit="개" onChange={(v) => set('mcqChoiceCount', v)} />
         </Row>
-        <Row label="해설 깊이" hint="모든 설정에서 약어의 정식 전체 명칭과 뜻·역할을 풀어 쓰고, 처음 배우는 사람도 이해할 수 있도록 개념·풀이 근거·오답 이유를 자세히 설명합니다. 간략 = 해당 문제에 집중. 보통 = 선지별 해설·풀이 단계·오개념 정리. 상세 = 형제 개념 전체 비교와 연결 설명까지 담은 미니 강의." {...row('explanationDepth')} htmlFor={id('depth')}>
+        <Row label="해설 깊이" hint="모든 설정에서 약어의 정식 전체 명칭과 뜻·역할을 풀어 쓰고, 처음 배우는 사람도 이해할 수 있도록 개념·풀이 근거·오답 이유를 자세히 설명합니다. 간략 = 해당 문제에 집중. 보통 = 선지별 해설·풀이 단계·오개념 정리. 상세 = 형제 개념 전체 비교와 연결 설명까지 담은 미니 강의이며, 문제뿐 아니라 해설에서 쓰는 용어·약어까지 하나하나 자세히 풀이합니다." {...row('explanationDepth')} htmlFor={id('depth')}>
           <Select id={id('depth')} className="w-full" value={o.explanationDepth} onChange={(e) => set('explanationDepth', e.target.value as PromptOptions['explanationDepth'])}>{EXPLANATION_DEPTHS.map((d) => <option key={d} value={d}>{DEPTH_KO[d]}</option>)}</Select>
         </Row>
         <Row label="수식 표기" {...row('mathNotation')} htmlFor={id('math')}>
