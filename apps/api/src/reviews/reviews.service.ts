@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Grade } from 'ts-fsrs';
+import { gradeAnswer, type AnswerPayload, type GradeResult, type Question } from '@recall/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApiError } from '../common/api-error';
 import { toJson } from '../common/json';
@@ -7,6 +8,22 @@ import { SettingsService } from '../settings/settings.service';
 import { FsrsService, deserializeCard, serializeCard, serializeLog, stateToStatus, type SerializedCard } from '../fsrs/fsrs.service';
 import { CardStatus, Prisma, type CardState, type ReviewLog } from '../generated/prisma/client';
 import type { CreateReviewDto } from './reviews.dto';
+
+/** One earlier answer to a question: an effective (not undone) review, or a practice-mode attempt. */
+export interface PastResponse {
+  id: string;
+  kind: 'review' | 'practice';
+  at: Date;
+  reviewRound: number | null;
+  rating: number | null;
+  isCorrect: boolean | null;
+  revealedBeforeAnswer: boolean;
+  hintUsed: boolean;
+  /** null for "revealed without answering" and for records stored before answers were kept. */
+  answerPayload: AnswerPayload | null;
+  /** Re-graded against the current question so the renderer can mark it; null when it no longer fits. */
+  grade: GradeResult | null;
+}
 
 export interface ReviewResult {
   review: ReviewLog;
@@ -146,6 +163,43 @@ export class ReviewsService {
       const fresh = await tx.cardState.findUniqueOrThrow({ where: { questionId: review.questionId, userId } });
       return { review: undone, card: fresh, reviewRound: review.reviewRound };
     });
+  }
+
+  /** What was answered in earlier rounds (newest first), for the study screen's "previous responses" view. */
+  async responses(userId: string, questionId: string): Promise<{ items: PastResponse[] }> {
+    const question = await this.prisma.question.findFirst({ where: { id: questionId, userId, deletedAt: null }, select: { payloadJson: true } });
+    if (!question) throw ApiError.notFound('Question', questionId);
+    const [reviews, practices] = await Promise.all([
+      this.prisma.reviewLog.findMany({
+        where: { userId, questionId, undone: false, deletedAt: null },
+        orderBy: { reviewedAt: 'desc' },
+        take: 50,
+        select: { id: true, reviewRound: true, rating: true, reviewedAt: true, isCorrect: true, revealedBeforeAnswer: true, hintUsed: true, answerPayloadJson: true },
+      }),
+      this.prisma.practiceLog.findMany({
+        where: { userId, questionId, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: { id: true, createdAt: true, isCorrect: true, answerPayloadJson: true },
+      }),
+    ]);
+    const payload = question.payloadJson as unknown as Question;
+    const regrade = (answer: AnswerPayload | null) => {
+      if (!answer || answer.type !== payload.type) return null;
+      try { return gradeAnswer(payload, answer); } catch { return null; }
+    };
+    const items: PastResponse[] = [
+      ...reviews.map((r) => {
+        const answer = (r.answerPayloadJson as AnswerPayload | null) ?? null;
+        return { id: r.id, kind: 'review' as const, at: r.reviewedAt, reviewRound: r.reviewRound, rating: r.rating, isCorrect: r.isCorrect, revealedBeforeAnswer: r.revealedBeforeAnswer, hintUsed: r.hintUsed, answerPayload: answer, grade: regrade(answer) };
+      }),
+      ...practices.map((p) => {
+        const answer = (p.answerPayloadJson as AnswerPayload | null) ?? null;
+        return { id: p.id, kind: 'practice' as const, at: p.createdAt, reviewRound: null, rating: null, isCorrect: p.isCorrect, revealedBeforeAnswer: !answer, hintUsed: false, answerPayload: answer, grade: regrade(answer) };
+      }),
+    ];
+    items.sort((a, b) => b.at.getTime() - a.at.getTime());
+    return { items };
   }
 
   async listForQuestion(userId: string, questionId: string) {

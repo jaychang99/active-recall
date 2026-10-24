@@ -20,6 +20,10 @@ export class ReviewsController {
     return this.reviews.undo(user.id, id);
   }
 
+  @Get('responses/:questionId') responses(@CurrentUser() user: AuthUser, @Param('questionId') questionId: string) {
+    return this.reviews.responses(user.id, questionId);
+  }
+
   @Get() list(@CurrentUser() user: AuthUser, @Query('questionId') questionId?: string) {
     if (!questionId) throw ApiError.badRequest('questionId query parameter is required');
     return this.reviews.listForQuestion(user.id, questionId);

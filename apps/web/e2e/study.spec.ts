@@ -149,6 +149,35 @@ test.describe('study flow (keyboard-first)', () => {
     await expect(jump).toHaveAttribute('placeholder', '4');
   });
 
+  test('이전 응답 보기 shows earlier rounds after submit/reveal, closed by default, with an empty fallback', async ({ page, api }) => {
+    await api.patch(`${API}/settings`, { data: { autoAdvanceAfterRating: false } });
+    await gotoStudy(page, deckId, 'scheduled');
+    const screen = page.getByTestId('study-screen');
+    const toggle = page.getByTestId('previous-toggle');
+    await expect(toggle).toHaveCount(0); // only once the answer is open
+    await page.keyboard.press('Space');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByTestId('previous-responses')).toHaveCount(0);
+    await page.keyboard.press('r');
+    await expect(page.getByTestId('previous-responses-empty')).toBeVisible();
+    await page.keyboard.press('1'); // Again re-queues the card for a second round today
+    await expect(screen).toHaveAttribute('data-phase', 'rated');
+    const first = (await screen.getAttribute('data-question-id'))!;
+    // walk to the re-queued copy at the end of the session
+    await page.getByTestId('nav-jump').fill(String(await page.getByTestId('study-nav-track').locator('[data-status]').count()));
+    await page.getByTestId('nav-jump').press('Enter');
+    await expect(screen).toHaveAttribute('data-question-id', first);
+    await expect(screen).toHaveAttribute('data-round', '2');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Space');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await toggle.click();
+    const entries = page.getByTestId('previous-response');
+    await expect(entries).toHaveCount(1);
+    await expect(entries.first()).toContainText('1회차');
+    await expect(entries.first()).toContainText('답을 입력하지 않고 정답을 공개했습니다.');
+  });
+
   test('notes: one note per review round, visible as history after rating', async ({ page }) => {
     await gotoStudy(page, deckId, 'scheduled');
     await page.keyboard.press('m');

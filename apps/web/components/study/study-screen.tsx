@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Eye, Flag, Info, Lightbulb, PauseCircle, SkipForward, Undo2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, Flag, History, Info, Lightbulb, PauseCircle, SkipForward, Undo2 } from 'lucide-react';
 import Link from '@/components/ui/navigation-link';
 import { Markdown } from '@/components/questions/markdown';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -30,6 +30,7 @@ import { useSettings } from '@/components/layout/settings-context';
 import { dismissAnswerKeyboard } from '@/lib/answer-focus';
 import { StudyActions } from './study-actions';
 import { StudyNav, type NavCell } from './study-nav';
+import { PreviousResponsesPanel, usePreviousResponses } from './previous-responses';
 import { LoadingState } from '@/components/ui/loading';
 
 export interface StudyParams {
@@ -154,6 +155,9 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const [hint, setHint] = useState<string | null>(null);
   const [hintPending, setHintPending] = useState(false);
   const [showExplanation, setShowExplanation] = useState(true);
+  // "이전 응답 보기": closed on every card until asked for.
+  const [showPrevious, setShowPrevious] = useState(false);
+  const [sessionStartedAt] = useState(() => Date.now());
   const [done, setDone] = useState<Done[]>([]);
   // Cards visited this session, by keyOf(): moving between cards stashes the current one here and restores the target.
   const [memos, setMemos] = useState<Record<string, CardMemo>>({});
@@ -182,6 +186,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     setHintUsed(m?.hintUsed ?? false);
     setHint(m?.hint ?? null);
     setShowExplanation(true);
+    setShowPrevious(false);
     setPendingRating(null);
     startedAt.current = Date.now();
     submitLock.current = false;
@@ -374,6 +379,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       setHistory((h) => [...h.filter((k) => k !== key), key]);
       setPhase('rated');
       void qc.invalidateQueries({ queryKey: ['notes', item.questionId] });
+      void qc.invalidateQueries({ queryKey: ['responses', item.questionId] });
       for (const k of ['decks', 'subjects', 'deck', 'overview']) void qc.invalidateQueries({ queryKey: [k] });
       // Again/Hard on a learning step re-queues the card at the end of this session so it is seen again today.
       const appended = rating === 1 && (res.card.status === 'LEARNING' || res.card.status === 'RELEARNING') && !isPractice;
@@ -497,6 +503,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     return { status: !m ? 'todo' : m.phase === 'answering' ? 'draft' : 'answered' };
   });
   const lastRated = history.length ? memos[history[history.length - 1]!] : undefined;
+  const previous = usePreviousResponses(item?.questionId ?? '', item?.reviewRound ?? 0, sessionStartedAt, !!item && phase !== 'answering');
 
   const metaControl: MetaControl = { mask: meta.mask, revealed: meta.revealOnAnswer && phase !== 'answering' && cardKey !== null && metaRevealedFor === cardKey, onToggle: meta.toggle };
   const roundHidden = slotState(metaControl, 'round') === 'masked';
@@ -528,6 +535,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         setShowExplanation((v) => !v);
       } },
       { keys: 'e', description: '해설 토글', group: '학습', handler: () => (phase === 'answering' ? false : (setShowExplanation((v) => !v), undefined)) },
+      { keys: 'r', description: '이전 응답 보기 / 접기', group: '학습', handler: () => (phase === 'answering' ? false : (setShowPrevious((v) => !v), undefined)) },
       { keys: 'n', description: '다음 문제 (평가 후)', group: '학습', handler: () => (phase === 'rated' ? (next(), undefined) : phase === 'submitted' && unrated ? (advanceUnrated(), undefined) : false) },
       { keys: 'ArrowLeft', description: '이전 문제', group: '학습', handler: (e) => (ownsArrowKeys(e.target) ? false : (goTo(index - 1), undefined)) },
       { keys: 'ArrowRight', description: '다음 문제 (풀지 않고 이동)', group: '학습', handler: (e) => (ownsArrowKeys(e.target) ? false : (goTo(index + 1), undefined)) },
@@ -647,9 +655,13 @@ export function StudyScreen({ params }: { params: StudyParams }) {
               <Verdict grade={grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} />
               <div className="ml-auto flex flex-wrap items-center gap-1">
                 <CopyQuestionButtons item={item} answer={answer} grade={revealedBeforeAnswer ? null : grade.grade} revealedBeforeAnswer={revealedBeforeAnswer} hintUsed={hintUsed} shortcuts={shortcutsOn} />
+                <Button size="sm" variant="ghost" onClick={() => setShowPrevious((v) => !v)} kbd="R" aria-expanded={showPrevious} aria-controls="previous-responses" data-testid="previous-toggle">
+                  <History className="h-4 w-4" /> {showPrevious ? '이전 응답 접기' : '이전 응답 보기'}{previous.query.isSuccess ? <span className="tabular text-ink-3">{previous.items.length}</span> : null}
+                </Button>
                 <Button size="sm" variant="ghost" onClick={() => setShowExplanation((v) => !v)} kbd="E">{showExplanation ? '해설 접기' : '해설 보기'}</Button>
               </div>
             </div>
+            {showPrevious ? <PreviousResponsesPanel id="previous-responses" question={item.question} answerKey={grade.answerKey ?? null} items={previous.items} loading={previous.query.isPending} error={previous.query.isError} onRetry={() => void previous.query.refetch()} hideRound={roundHidden} /> : null}
             <ExplanationPanel explanation={grade.explanation} source={item.question.source} meta={metaControl} open={showExplanation} />
             {phase === 'submitted' ? (
               <StudyActions>{unrated ? (

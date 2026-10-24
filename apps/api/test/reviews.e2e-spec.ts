@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Rating, fsrs, generatorParameters, createEmptyCard } from 'ts-fsrs';
+import { Prisma } from '../src/generated/prisma/client';
 import { createApp, exampleBatch, resetDb } from './helpers';
 
 describe('reviews / FSRS / undo / queue / notes', () => {
@@ -62,6 +63,32 @@ describe('reviews / FSRS / undo / queue / notes', () => {
     expect(undo1.body.card.stateJson).toEqual(before.stateJson);
     expect(undo1.body.card.status).toBe('NEW');
     expect(await ctx.prisma.reviewLog.count({ where: { userId: uid, questionId: qid, undone: false } })).toBe(0);
+  });
+
+  it('previous responses: effective reviews and practice answers, newest first, re-graded, with empty fallbacks', async () => {
+    const choice = (choiceId: string) => ({ type: 'single_choice', choiceId });
+    const r1 = await ctx.api.post('/reviews').send({ questionId: qid, rating: 1, idempotencyKey: 'k-p1', answerPayload: choice('b'), isCorrect: false }).expect(201);
+    await ctx.api.post('/reviews').send({ questionId: qid, rating: 3, idempotencyKey: 'k-p2', answerPayload: choice('a'), isCorrect: true }).expect(201);
+    const r3 = await ctx.api.post('/reviews').send({ questionId: qid, rating: 2, idempotencyKey: 'k-p3', answerPayload: choice('c') }).expect(201);
+    await ctx.api.post(`/reviews/${r3.body.review.id}/undo`).expect(200);
+    await ctx.api.post('/study/practice').send({ questionId: qid, answerPayload: choice('a') }).expect(201);
+    await ctx.api.post('/study/practice').send({ questionId: qid, answerPayload: null }).expect(201);
+    // a record from before answers were stored
+    await ctx.prisma.reviewLog.update({ where: { id: r1.body.review.id, userId: uid }, data: { answerPayloadJson: Prisma.DbNull } });
+
+    const res = await ctx.api.get(`/reviews/responses/${qid}`).expect(200);
+    const items = res.body.items as { kind: string; reviewRound: number | null; rating: number | null; revealedBeforeAnswer: boolean; answerPayload: { choiceId: string } | null; grade: { isCorrect: boolean } | null }[];
+    expect(items.map((i) => i.kind)).toEqual(['practice', 'practice', 'review', 'review']);
+    const reviews = items.filter((i) => i.kind === 'review');
+    expect(reviews.map((i) => i.reviewRound)).toEqual([2, 1]); // the undone round is gone
+    expect(reviews[0]!.answerPayload?.choiceId).toBe('a');
+    expect(reviews[0]!.grade?.isCorrect).toBe(true);
+    expect(reviews[1]!.answerPayload).toBeNull();
+    expect(reviews[1]!.grade).toBeNull();
+    expect(items[0]!.revealedBeforeAnswer).toBe(true); // practice reveal without an answer
+    expect(items[1]!.grade?.isCorrect).toBe(true);
+    // scoped to the owner
+    await ctx.as('b').get(`/reviews/responses/${qid}`).expect(404);
   });
 
   it('queue respects daily limits, suspend, bury, and flagged/mistakes modes', async () => {
