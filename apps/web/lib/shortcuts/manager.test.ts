@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ShortcutManager, isEditableTarget } from './manager';
+import { ShortcutManager, isEditableTarget, ownsArrowKeys } from './manager';
 
 function key(init: Partial<KeyboardEventInit> & { key: string; target?: EventTarget; keyCode?: number }) {
   const e = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
@@ -39,6 +39,22 @@ describe('ShortcutManager', () => {
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     expect(isEditableTarget(cb)).toBe(false);
+  });
+
+  it('leaves arrow keys to radios, ranges and [data-arrow-keys] widgets', () => {
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    const range = document.createElement('input');
+    range.type = 'range';
+    const list = document.createElement('ol');
+    list.setAttribute('data-arrow-keys', '');
+    const line = document.createElement('button');
+    list.appendChild(line);
+    expect(ownsArrowKeys(radio)).toBe(true);
+    expect(ownsArrowKeys(range)).toBe(true);
+    expect(ownsArrowKeys(line)).toBe(true);
+    expect(ownsArrowKeys(document.createElement('button'))).toBe(false);
+    expect(ownsArrowKeys(document.body)).toBe(false);
   });
 
   it('ignores IME composition inside a text field and key repeat', () => {

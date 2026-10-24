@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import type { AnswerPayload, PublicQuestion } from '@recall/contracts';
 import { api, type Exam } from '@/lib/api';
 import { useShortcuts } from '@/lib/shortcuts/provider';
+import { ownsArrowKeys } from '@/lib/shortcuts/manager';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/misc';
 import { QuestionPrompt, QuestionRenderer } from '@/components/questions/question-renderer';
@@ -59,8 +60,8 @@ export default function ExamRunPage({ params }: { params: Promise<{ attemptId: s
 
   useShortcuts('study', [
     { keys: ['1', '2', '3', '4', '5', '6', '7', '8', '9'], description: '보기 선택', group: '시험', handler: (e) => { digit.current?.(Number(e.key)); } },
-    { keys: 'ArrowRight', description: '다음 문항', group: '시험', handler: () => go(index + 1) },
-    { keys: 'ArrowLeft', description: '이전 문항', group: '시험', handler: () => go(index - 1) },
+    { keys: 'ArrowRight', description: '다음 문항', group: '시험', handler: (e) => (ownsArrowKeys(e.target) ? false : go(index + 1)) },
+    { keys: 'ArrowLeft', description: '이전 문항', group: '시험', handler: (e) => (ownsArrowKeys(e.target) ? false : go(index - 1)) },
     { keys: 'Enter', description: '다음 문항', group: '시험', handler: () => (typing ? false : (go(index + 1), undefined)) },
     { keys: 'Enter', mod: 'ctrlOrMeta', allowInEditable: true, description: '다음 문항 (입력창)', group: '시험', handler: () => go(index + 1) },
   ], settings.shortcutsEnabled && !!current);

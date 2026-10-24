@@ -83,7 +83,7 @@ test.describe('study flow (keyboard-first)', () => {
     expect(reviews.today.reviewed).toBeGreaterThanOrEqual(8);
   });
 
-  test('Space reveals without answering; 1-4 does not grade before reveal; U undoes', async ({ page, api }) => {
+  test('Space reveals without answering; U reopens the card with its answer for re-rating', async ({ page, api }) => {
     await api.patch(`${API}/settings`, { data: { autoAdvanceAfterRating: false } });
     await gotoStudy(page, deckId, 'scheduled');
     const screen = page.getByTestId('study-screen');
@@ -95,25 +95,58 @@ test.describe('study flow (keyboard-first)', () => {
     const q = await (await api.get(`${API}/study/queue?deckId=${deckId}&mode=cram&limit=100`)).json();
     expect(q.items.filter((i: { card: { reps: number } }) => i.card.reps === 1)).toHaveLength(1);
     await page.keyboard.press('u');
-    await expect(screen).toHaveAttribute('data-phase', 'answering');
+    await expect(screen).toHaveAttribute('data-phase', 'submitted');
+    await expect(page.getByTestId('rating-bar')).toBeVisible();
     const q2 = await (await api.get(`${API}/study/queue?deckId=${deckId}&mode=cram&limit=100`)).json();
     expect(q2.items.filter((i: { card: { reps: number } }) => i.card.reps === 1)).toHaveLength(0);
     // Undo bumps the card version: rating the same card again must not 409 (regression: stale version in the frozen queue)
-    await page.keyboard.press('Space');
-    await expect(screen).toHaveAttribute('data-phase', 'submitted');
     await page.keyboard.press('3');
     await expect(screen).toHaveAttribute('data-phase', 'rated');
     await expect(page.getByText('평가를 저장하지 못했습니다')).toHaveCount(0);
-    // ...and the same after undo + reload (the session snapshot is resumed, versions re-synced from the server)
+    // ...and the same after undo + reload (the snapshot keeps the open answer, versions re-synced from the server)
     await page.keyboard.press('u');
-    await expect(screen).toHaveAttribute('data-phase', 'answering');
+    await expect(screen).toHaveAttribute('data-phase', 'submitted');
     await page.reload();
-    await expect(screen).toHaveAttribute('data-phase', 'answering');
-    await page.keyboard.press('Space');
     await expect(screen).toHaveAttribute('data-phase', 'submitted');
     await page.keyboard.press('3');
     await expect(screen).toHaveAttribute('data-phase', 'rated');
     await expect(page.getByText('평가를 저장하지 못했습니다')).toHaveCount(0);
+  });
+
+  test('←/→, the jump box and Cmd/Ctrl+Z move between cards and re-rate', async ({ page, api }) => {
+    await api.patch(`${API}/settings`, { data: { autoAdvanceAfterRating: true } });
+    await gotoStudy(page, deckId, 'scheduled');
+    const screen = page.getByTestId('study-screen');
+    const jump = page.getByTestId('nav-jump');
+    const first = (await screen.getAttribute('data-question-id'))!;
+    // Text answers are auto-focused and keep ←/→ for the caret; Esc leaves the field.
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('ArrowRight');
+    await expect(jump).toHaveAttribute('placeholder', '2');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('ArrowLeft');
+    await expect(screen).toHaveAttribute('data-question-id', first);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Space');
+    await expect(screen).toHaveAttribute('data-phase', 'submitted');
+    await page.keyboard.press('3');
+    await expect(jump).toHaveAttribute('placeholder', '2');
+    await expect(page.getByTestId('study-nav-track').locator('[data-status]').first()).toHaveAttribute('data-status', 'rated');
+    // Right after auto-advance (even inside an untouched, auto-focused field) Cmd/Ctrl+Z reopens the last card.
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+    await expect(screen).toHaveAttribute('data-question-id', first);
+    await expect(screen).toHaveAttribute('data-phase', 'submitted');
+    await expect(page.getByTestId('rating-bar')).toBeVisible();
+    await page.keyboard.press('4');
+    await expect(jump).toHaveAttribute('placeholder', '2');
+    const q = await (await api.get(`${API}/study/queue?deckId=${deckId}&mode=cram&limit=100`)).json();
+    expect(q.items.filter((i: { card: { reps: number } }) => i.card.reps === 1)).toHaveLength(1);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('g');
+    await expect(jump).toBeFocused();
+    await jump.fill('4');
+    await jump.press('Enter');
+    await expect(jump).toHaveAttribute('placeholder', '4');
   });
 
   test('notes: one note per review round, visible as history after rating', async ({ page }) => {

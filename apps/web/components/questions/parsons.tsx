@@ -43,7 +43,7 @@ export function Parsons({ question, value, onChange, phase, grade, answerKey, sh
       {!revealed ? <p className="text-[12px] text-ink-3">왼쪽 블록을 오른쪽 풀이로 옮겨 순서를 맞추고{checkIndent ? ' ←/→로 들여쓰기를 맞추세요' : ''}. 쓰이지 않는 블록이 있을 수 있습니다. 숫자키: n번째 블록 추가 · Backspace: 풀로 되돌림 · 드래그 가능</p> : null}
       <div className={cn('grid gap-3', !revealed && 'md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]')}>
         {!revealed ? (
-          <ul className="min-h-24 space-y-1 rounded-md border border-dashed border-line bg-muted/40 p-2" aria-label="블록 풀" data-testid="parsons-pool"
+          <ul className="min-h-24 space-y-1 rounded-md border border-dashed border-line bg-muted/40 p-2" aria-label="블록 풀" data-testid="parsons-pool" data-arrow-keys
             onDragOver={(e) => { if (dragging && inSolution.has(dragging)) e.preventDefault(); }}
             onDrop={() => { if (dragging) { const i = lines.findIndex((l) => l.id === dragging); if (i >= 0) remove(i); setDragging(null); } }}>
             {pool.map((id, i) => (
@@ -60,7 +60,7 @@ export function Parsons({ question, value, onChange, phase, grade, answerKey, sh
             {pool.length === 0 ? <li className="px-2 py-3 text-center text-[12px] text-ink-3">모든 블록을 사용했습니다</li> : null}
           </ul>
         ) : null}
-        <ol className="min-h-24 space-y-1 rounded-md border border-line bg-sunken p-2" aria-label="풀이" data-testid="parsons-solution"
+        <ol className="min-h-24 space-y-1 rounded-md border border-line bg-sunken p-2" aria-label="풀이" data-testid="parsons-solution" data-arrow-keys
           onDragOver={(e) => { if (dragging) e.preventDefault(); }}
           onDrop={() => { if (dragging && !inSolution.has(dragging)) { add(dragging); setDragging(null); } }}>
           {lines.map((l, i) => {

@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Eye, Flag, Info, Lightbulb, PauseCircle, SkipForward, Undo2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, Flag, Info, Lightbulb, PauseCircle, SkipForward, Undo2 } from 'lucide-react';
 import Link from '@/components/ui/navigation-link';
 import { Markdown } from '@/components/questions/markdown';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import type { AnswerPayload } from '@recall/contracts';
 import { api, ApiRequestError, type GradeResponse, type Queue, type QueueItem, type ReviewResponse } from '@/lib/api';
 import { useShortcuts } from '@/lib/shortcuts/provider';
+import { isEditableTarget, ownsArrowKeys } from '@/lib/shortcuts/manager';
 import { cn, uid } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +29,7 @@ import { slotState, type MetaControl } from '@/components/questions/meta-mask';
 import { useSettings } from '@/components/layout/settings-context';
 import { dismissAnswerKeyboard } from '@/lib/answer-focus';
 import { StudyActions } from './study-actions';
+import { StudyNav, type NavCell } from './study-nav';
 import { LoadingState } from '@/components/ui/loading';
 
 export interface StudyParams {
@@ -43,7 +45,12 @@ export interface StudyParams {
 
 type CardState = 'answering' | 'submitted' | 'rated';
 
-interface Snapshot { items: QueueItem[]; queue: Queue; index: number; done: Done[]; extraItems: QueueItem[]; skipped: string[]; savedAt: number }
+/** How a card was left: ←/→, jumps and undo restore it exactly (a draft, a revealed answer, a given rating). */
+interface CardMemo { phase: CardState; answer: AnswerPayload | null; grade: GradeResponse | null; revealedBeforeAnswer: boolean; hintUsed: boolean; hint: string | null; rating?: 1 | 2 | 3 | 4; reviewId?: string; interval?: string | null }
+/** Re-queued copies share the question id, so a card in the session is question + review round. */
+const keyOf = (i: QueueItem) => `${i.questionId}:${i.reviewRound}`;
+
+interface Snapshot { items: QueueItem[]; queue: Queue; index: number; done: Done[]; extraItems: QueueItem[]; skipped: string[]; memos?: Record<string, CardMemo>; history?: string[]; savedAt: number }
 const SNAPSHOT_TTL_MS = 6 * 60 * 60 * 1000;
 function readSnapshot(key: string): Snapshot | null {
   if (typeof window === 'undefined') return null;
@@ -62,7 +69,39 @@ function clearSnapshot(key: string) {
   try { window.sessionStorage.removeItem(key); } catch { /* ignore */ }
 }
 
-interface Done { questionId: string; rating?: number; isCorrect: boolean | null; reviewId?: string }
+interface Done { key?: string; questionId: string; rating?: number; isCorrect: boolean | null; reviewId?: string }
+
+function hasAnswer(p: AnswerPayload | null): boolean {
+  if (!p) return false;
+  switch (p.type) {
+    case 'single_choice': return p.choiceId !== null;
+    case 'multiple_choice': return p.choiceIds.length > 0;
+    case 'true_false': return p.value !== null;
+    case 'short_answer': return p.text.trim().length > 0;
+    case 'essay': return p.text.trim().length > 0;
+    case 'cloze': return Object.values(p.blanks).some((v) => v.trim().length > 0);
+    case 'ordering': return p.orderedIds.length > 0;
+    case 'matching': return p.pairs.some((x) => x.rightId);
+    case 'numeric': return p.value !== null;
+    case 'cloze_select': return Object.values(p.blanks).some(Boolean);
+    case 'statement_set': return Object.values(p.values).some((v) => v !== null && v !== undefined);
+    case 'categorize': return Object.values(p.assignments).some(Boolean);
+    case 'two_tier': return p.choiceId !== null && p.reasonId !== null;
+    case 'recall_card': return (p.text ?? '').trim().length > 0 || typeof p.selfCorrect === 'boolean';
+    case 'stepwise': return Object.values(p.answers).some((v) => v.trim().length > 0);
+    case 'highlight': return p.segmentIds.length > 0;
+    case 'cloze_bank': return Object.values(p.blanks).some(Boolean);
+    case 'code_cloze': return Object.values(p.blanks).some((v) => v.trim().length > 0);
+    case 'matrix': return p.cells.length > 0;
+    case 'numeric_grid': return Object.values(p.values).some((v) => v !== null && v !== undefined);
+    case 'list_answer': return p.entries.some((e) => e.trim().length > 0);
+    case 'image_hotspot': return p.points.length > 0;
+    case 'parsons': return p.lines.length > 0;
+    case 'find_and_fix': return p.fixes.length > 0;
+    case 'coordinate_point': return p.points.length > 0;
+    case 'regex_answer': return p.pattern.trim().length > 0;
+  }
+}
 
 const MODE_LABEL: Record<StudyParams['mode'], string> = { scheduled: '예정된 학습', cram: '전체 훑기 (cram)', mistakes: '틀린 문제', flagged: '표시한 문제', practice: '연습 (스케줄 영향 없음)', browse: '구경 (기록 없음)' };
 
@@ -116,13 +155,39 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const [hintPending, setHintPending] = useState(false);
   const [showExplanation, setShowExplanation] = useState(true);
   const [done, setDone] = useState<Done[]>([]);
-  const [lastReview, setLastReview] = useState<{ reviewId: string; questionId: string; index: number; rating: 1 | 2 | 3 | 4; interval: string | null } | null>(null);
+  // Cards visited this session, by keyOf(): moving between cards stashes the current one here and restores the target.
+  const [memos, setMemos] = useState<Record<string, CardMemo>>({});
+  // Rated cards in rating order; Cmd/Ctrl+Z and U walk back through it.
+  const [history, setHistory] = useState<string[]>([]);
   const [pendingRating, setPendingRating] = useState<1 | 2 | 3 | 4 | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [notesFocus, setNotesFocus] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [extraItems, setExtraItems] = useState<QueueItem[]>([]);
   const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  const startedAt = useRef<number>(0);
+  const digitHandler = useRef<((n: number) => void) | null>(null);
+  const submitLock = useRef(false);
+  const studyRoot = useRef<HTMLDivElement>(null);
+  const jumpInput = useRef<HTMLInputElement>(null);
+  const [shuffleSeed] = useState(() => uid());
+
+  // Show a card as it was left, or fresh when it has never been touched.
+  const applyMemo = useCallback((m: CardMemo | undefined, key: string | null) => {
+    setPhase(m?.phase ?? 'answering');
+    setMetaRevealedFor(m && m.phase !== 'answering' ? key : null);
+    setAnswer(m?.answer ?? null);
+    setGrade(m?.grade ?? null);
+    setRevealedBeforeAnswer(m?.revealedBeforeAnswer ?? false);
+    setHintUsed(m?.hintUsed ?? false);
+    setHint(m?.hint ?? null);
+    setShowExplanation(true);
+    setPendingRating(null);
+    startedAt.current = Date.now();
+    submitLock.current = false;
+  }, []);
+  const resetCard = useCallback(() => applyMemo(undefined, null), [applyMemo]);
+
   useEffect(() => {
     const snap = readSnapshot(storageKey);
     setRestored(snap);
@@ -133,19 +198,18 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       setDone(snap.done);
       setExtraItems(snap.extraItems);
       setSkipped(new Set(snap.skipped));
+      setMemos(snap.memos ?? {});
+      setHistory(snap.history ?? []);
+      const current = [...snap.items, ...snap.extraItems].filter((i) => !snap.skipped.includes(i.questionId))[snap.index];
+      if (current) applyMemo(snap.memos?.[keyOf(current)], keyOf(current));
     }
-  }, [storageKey]);
+  }, [storageKey, applyMemo]);
   useEffect(() => {
     if (queue.data && !baseItems) {
       setBaseItems(queue.data.items);
       setQueueMeta(queue.data);
     }
   }, [queue.data, baseItems]);
-  const startedAt = useRef<number>(0);
-  const digitHandler = useRef<((n: number) => void) | null>(null);
-  const submitLock = useRef(false);
-  const studyRoot = useRef<HTMLDivElement>(null);
-  const [shuffleSeed] = useState(() => uid());
 
   // Patch one card's state in the frozen queue (base + re-queued copies). The react-query cache is not the
   // source of truth once the queue is frozen, so updates must land here or the next rating sends a stale version.
@@ -176,17 +240,55 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
   const items = useMemo(() => [...(baseItems ?? []), ...extraItems].filter((i) => !skipped.has(i.questionId)), [baseItems, extraItems, skipped]);
   const item = items[index] ?? null;
+  const cardKey = item ? keyOf(item) : null;
   const finished = !!baseItems && (items.length === 0 || index >= items.length);
+  // The current card once its answer is open (drafts are not persisted, so typing never rewrites the snapshot).
+  const liveMemo = useMemo<CardMemo | null>(() => (phase !== 'answering' && grade ? { phase, answer, grade, revealedBeforeAnswer, hintUsed, hint } : null), [phase, answer, grade, revealedBeforeAnswer, hintUsed, hint]);
   // persist progress so a reload (or dev hot reload) resumes at the same card
   useEffect(() => {
     if (!baseItems || !queueMeta) return;
     if (finished) { clearSnapshot(storageKey); return; }
-    writeSnapshot(storageKey, { items: baseItems, queue: queueMeta, index, done, extraItems, skipped: [...skipped], savedAt: Date.now() });
-  }, [storageKey, baseItems, queueMeta, index, done, extraItems, skipped, finished]);
+    const saved = cardKey && liveMemo && memos[cardKey]?.phase !== 'rated' ? { ...memos, [cardKey]: liveMemo } : memos;
+    writeSnapshot(storageKey, { items: baseItems, queue: queueMeta, index, done, extraItems, skipped: [...skipped], memos: saved, history, savedAt: Date.now() });
+  }, [storageKey, baseItems, queueMeta, index, done, extraItems, skipped, finished, cardKey, liveMemo, memos, history]);
   const isPractice = params.mode === 'practice';
   // Browse: look at every question (limits, due dates, suspend/bury ignored); nothing is recorded, no rating step.
   const isBrowse = params.mode === 'browse';
   const unrated = isPractice || isBrowse;
+
+  // Remember the current card before leaving it. A rated card changes only through rate/undo.
+  const stash = useCallback(() => {
+    if (!cardKey) return;
+    const touched = phase !== 'answering' || hasAnswer(answer) || !!hint;
+    setMemos((m) => {
+      if (m[cardKey]?.phase === 'rated') return m;
+      if (touched) return { ...m, [cardKey]: { phase, answer, grade, revealedBeforeAnswer, hintUsed, hint } };
+      if (!(cardKey in m)) return m;
+      const rest = { ...m };
+      delete rest[cardKey];
+      return rest;
+    });
+  }, [cardKey, phase, answer, grade, revealedBeforeAnswer, hintUsed, hint]);
+
+  const moveTo = useCallback((target: number) => {
+    stash();
+    const t = items[target];
+    applyMemo(t ? memos[keyOf(t)] : undefined, t ? keyOf(t) : null);
+    setIndex(target);
+  }, [stash, items, memos, applyMemo]);
+
+  // The next card still to do after this one, then (unless a re-queued copy was just appended at the end)
+  // the ones skipped earlier; items.length when nothing is left.
+  const pickNext = useCallback((appended: boolean) => {
+    const open = (i: number) => {
+      const m = memos[keyOf(items[i]!)];
+      return unrated ? !m || m.phase === 'answering' : m?.phase !== 'rated';
+    };
+    for (let i = index + 1; i < items.length; i++) if (open(i)) return i;
+    if (appended) return items.length;
+    for (let i = 0; i < index; i++) if (open(i)) return i;
+    return items.length;
+  }, [memos, items, index, unrated]);
 
   // session bookkeeping
   useEffect(() => {
@@ -205,75 +307,33 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     if (startedAt.current === 0) startedAt.current = Date.now();
   }, []);
 
-  const resetCard = useCallback(() => {
-    setPhase('answering');
-    setMetaRevealedFor(null);
-    setAnswer(null);
-    setGrade(null);
-    setRevealedBeforeAnswer(false);
-    setHintUsed(false);
-    setHint(null);
-    setShowExplanation(true);
-    setPendingRating(null);
-    startedAt.current = Date.now();
-    submitLock.current = false;
-  }, []);
-
   const registerDigitHandler = useCallback((fn: ((n: number) => void) | null) => { digitHandler.current = fn; }, []);
 
   const gradeMut = useMutation({
-    mutationFn: async (payload: AnswerPayload | null) => {
+    mutationFn: async ({ payload }: { payload: AnswerPayload | null; revealed: boolean }) => {
       if (!item) throw new Error('no item');
       const res = await api<GradeResponse>(`/questions/${item.questionId}/grade`, { method: 'POST', json: { answerPayload: payload } });
       if (isPractice) await api('/study/practice', { method: 'POST', json: { questionId: item.questionId, sessionId: sessionId ?? undefined, answerPayload: payload, elapsedMs: Date.now() - startedAt.current } }).catch(() => {});
       return res;
     },
-    onSuccess: (res) => {
+    onSuccess: (res, { revealed }) => {
       setGrade(res);
       setPhase('submitted');
-      if (item) setMetaRevealedFor(`${item.questionId}:${item.reviewRound}`);
+      if (!item) return;
+      const key = keyOf(item);
+      setMetaRevealedFor(key);
+      // practice/browse have no rating step: an opened answer is what counts as done
+      if (unrated) setDone((d) => [...d.filter((x) => x.key !== key), { key, questionId: item.questionId, isCorrect: revealed ? null : res.grade.isCorrect }]);
     },
     onError: (e: Error) => { submitLock.current = false; toast.error('채점에 실패했습니다', { description: e.message }); },
   });
-
-  const hasAnswer = (p: AnswerPayload | null): boolean => {
-    if (!p) return false;
-    switch (p.type) {
-      case 'single_choice': return p.choiceId !== null;
-      case 'multiple_choice': return p.choiceIds.length > 0;
-      case 'true_false': return p.value !== null;
-      case 'short_answer': return p.text.trim().length > 0;
-      case 'essay': return p.text.trim().length > 0;
-      case 'cloze': return Object.values(p.blanks).some((v) => v.trim().length > 0);
-      case 'ordering': return p.orderedIds.length > 0;
-      case 'matching': return p.pairs.some((x) => x.rightId);
-      case 'numeric': return p.value !== null;
-      case 'cloze_select': return Object.values(p.blanks).some(Boolean);
-      case 'statement_set': return Object.values(p.values).some((v) => v !== null && v !== undefined);
-      case 'categorize': return Object.values(p.assignments).some(Boolean);
-      case 'two_tier': return p.choiceId !== null && p.reasonId !== null;
-      case 'recall_card': return (p.text ?? '').trim().length > 0 || typeof p.selfCorrect === 'boolean';
-      case 'stepwise': return Object.values(p.answers).some((v) => v.trim().length > 0);
-      case 'highlight': return p.segmentIds.length > 0;
-      case 'cloze_bank': return Object.values(p.blanks).some(Boolean);
-      case 'code_cloze': return Object.values(p.blanks).some((v) => v.trim().length > 0);
-      case 'matrix': return p.cells.length > 0;
-      case 'numeric_grid': return Object.values(p.values).some((v) => v !== null && v !== undefined);
-      case 'list_answer': return p.entries.some((e) => e.trim().length > 0);
-      case 'image_hotspot': return p.points.length > 0;
-      case 'parsons': return p.lines.length > 0;
-      case 'find_and_fix': return p.fixes.length > 0;
-      case 'coordinate_point': return p.points.length > 0;
-      case 'regex_answer': return p.pattern.trim().length > 0;
-    }
-  };
 
   const submit = useCallback(() => {
     if (phase !== 'answering' || submitLock.current || !item) return;
     if (!hasAnswer(answer)) { toast('답안을 입력한 뒤 제출하세요', { description: 'Space 키로 답을 바로 공개할 수도 있습니다.' }); return; }
     submitLock.current = true;
     dismissAnswerKeyboard();
-    gradeMut.mutate(answer);
+    gradeMut.mutate({ payload: answer, revealed: false });
   }, [phase, item, answer, gradeMut]);
 
   const reveal = useCallback(() => {
@@ -281,20 +341,19 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     submitLock.current = true;
     dismissAnswerKeyboard();
     setRevealedBeforeAnswer(true);
-    gradeMut.mutate(hasAnswer(answer) ? answer : null);
+    gradeMut.mutate({ payload: hasAnswer(answer) ? answer : null, revealed: true });
   }, [phase, item, answer, gradeMut]);
 
-  const next = useCallback(() => {
-    resetCard();
-    setIndex((i) => i + 1);
-  }, [resetCard]);
+  const next = useCallback((opts?: { appended?: boolean }) => {
+    const target = pickNext(!!opts?.appended);
+    if (target < index) toast('건너뛴 문제로 돌아갑니다', { description: `${target + 1}번 문제` });
+    moveTo(target);
+  }, [pickNext, moveTo, index]);
 
-  // practice/browse have no rating step: count the answer and move on
   const advanceUnrated = useCallback(() => {
     if (!item || !grade) return;
-    setDone((d) => [...d, { questionId: item.questionId, isCorrect: revealedBeforeAnswer ? null : grade.grade.isCorrect }]);
     next();
-  }, [item, grade, revealedBeforeAnswer, next]);
+  }, [item, grade, next]);
 
   const reviewMut = useMutation({
     mutationFn: async (rating: 1 | 2 | 3 | 4) => {
@@ -308,16 +367,20 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     },
     onSuccess: (res, rating) => {
       if (!item) return;
-      setDone((d) => [...d, { questionId: item.questionId, rating, isCorrect: grade?.grade.isCorrect ?? null, reviewId: res.review.id }]);
-      setLastReview({ reviewId: res.review.id, questionId: item.questionId, index, rating, interval: item.preview ? item.preview[(['again', 'hard', 'good', 'easy'] as const)[rating - 1]!].interval : null });
+      const key = keyOf(item);
+      const interval = item.preview ? item.preview[RATINGS[rating - 1]!.key].interval : null;
+      setDone((d) => [...d.filter((x) => x.key !== key), { key, questionId: item.questionId, rating, isCorrect: grade?.grade.isCorrect ?? null, reviewId: res.review.id }]);
+      setMemos((m) => ({ ...m, [key]: { phase: 'rated', answer, grade, revealedBeforeAnswer, hintUsed, hint, rating, reviewId: res.review.id, interval } }));
+      setHistory((h) => [...h.filter((k) => k !== key), key]);
       setPhase('rated');
       void qc.invalidateQueries({ queryKey: ['notes', item.questionId] });
-      for (const key of ['decks', 'subjects', 'deck', 'overview']) void qc.invalidateQueries({ queryKey: [key] });
+      for (const k of ['decks', 'subjects', 'deck', 'overview']) void qc.invalidateQueries({ queryKey: [k] });
       // Again/Hard on a learning step re-queues the card at the end of this session so it is seen again today.
-      if (rating === 1 && (res.card.status === 'LEARNING' || res.card.status === 'RELEARNING') && !isPractice) {
+      const appended = rating === 1 && (res.card.status === 'LEARNING' || res.card.status === 'RELEARNING') && !isPractice;
+      if (appended) {
         setExtraItems((x) => [...x, { ...item, card: { ...item.card, version: res.card.version, status: res.card.status }, reviewRound: res.reviewRound + 1, preview: null }]);
       }
-      if (settings.autoAdvanceAfterRating) next();
+      if (settings.autoAdvanceAfterRating) next({ appended });
     },
     onError: (e: Error, rating) => {
       setPendingRating(null);
@@ -340,30 +403,49 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     reviewMut.mutate(rating);
   }, [phase, reviewMut, pendingRating]);
 
+  // Undo reopens the card with its answer still shown, so it can be re-rated straight away.
   const undoMut = useMutation({
-    mutationFn: (reviewId: string) => api<ReviewResponse>(`/reviews/${reviewId}/undo`, { method: 'POST' }),
-    onSuccess: (res) => {
-      if (!lastReview) return;
-      setDone((d) => d.filter((x) => x.reviewId !== lastReview.reviewId));
-      setExtraItems((x) => x.filter((i) => !(i.questionId === lastReview.questionId && i.reviewRound === res.reviewRound + 1)));
-      setIndex(lastReview.index);
-      resetCard();
-      // keep the card's new version (undo bumps it too) so the next rating does not conflict
-      const { stateJson, ...card } = res.card;
-      void stateJson;
-      patchCard(lastReview.questionId, card);
-      void qc.invalidateQueries({ queryKey: ['notes', lastReview.questionId] });
-      for (const key of ['decks', 'subjects', 'deck', 'overview']) void qc.invalidateQueries({ queryKey: [key] });
-      setLastReview(null);
-      toast.success('마지막 평가를 되돌렸습니다', { description: 'FSRS 상태와 복습 기록이 이전 스냅샷으로 복구되었습니다.' });
+    mutationFn: ({ reviewId }: { key: string; reviewId: string }) => api<ReviewResponse>(`/reviews/${reviewId}/undo`, { method: 'POST' }),
+    onSuccess: (res, { key, reviewId }) => {
+      const target = items.findIndex((i) => keyOf(i) === key);
+      const undone = items[target];
+      const memo = memos[key];
+      const copyKey = undone ? keyOf({ ...undone, reviewRound: res.reviewRound + 1 }) : null;
+      const reopened: CardMemo | undefined = memo?.grade ? { phase: 'submitted', answer: memo.answer, grade: memo.grade, revealedBeforeAnswer: memo.revealedBeforeAnswer, hintUsed: memo.hintUsed, hint: memo.hint } : undefined;
+      setDone((d) => d.filter((x) => x.reviewId !== reviewId));
+      setHistory((h) => h.filter((k) => k !== key));
+      if (undone) {
+        setExtraItems((x) => x.filter((i) => keyOf(i) !== copyKey));
+        // keep the card's new version (undo bumps it too) so the next rating does not conflict
+        const { stateJson, ...card } = res.card;
+        void stateJson;
+        patchCard(undone.questionId, card);
+        void qc.invalidateQueries({ queryKey: ['notes', undone.questionId] });
+        stash();
+        applyMemo(reopened, key);
+        setIndex(target);
+      }
+      setMemos((m) => {
+        const rest = { ...m };
+        if (copyKey) delete rest[copyKey];
+        if (reopened) rest[key] = reopened;
+        else delete rest[key];
+        return rest;
+      });
+      for (const k of ['decks', 'subjects', 'deck', 'overview']) void qc.invalidateQueries({ queryKey: [k] });
+      toast.success(reopened ? '평가를 되돌렸습니다. 다시 평가하세요' : '평가를 되돌렸습니다', { description: 'FSRS 상태와 복습 기록이 평가 전으로 복구되었습니다.' });
     },
     onError: (e: Error) => toast.error('되돌리지 못했습니다', { description: e.message }),
   });
 
+  // The card on screen when it is rated, otherwise the most recently rated one.
+  const undoKey = cardKey && memos[cardKey]?.phase === 'rated' ? cardKey : (history.at(-1) ?? null);
   const undo = useCallback(() => {
-    if (!lastReview || undoMut.isPending) { if (!lastReview) toast('되돌릴 평가가 없습니다'); return; }
-    undoMut.mutate(lastReview.reviewId);
-  }, [lastReview, undoMut]);
+    if (undoMut.isPending || reviewMut.isPending) return;
+    const reviewId = undoKey ? memos[undoKey]?.reviewId : undefined;
+    if (!undoKey || !reviewId) { toast('되돌릴 평가가 없습니다'); return; }
+    undoMut.mutate({ key: undoKey, reviewId });
+  }, [undoKey, memos, undoMut, reviewMut.isPending]);
 
   const cardMut = useMutation({
     mutationFn: ({ action }: { action: 'flag' | 'unflag' | 'suspend' | 'bury' }) => api(`/cards/${item!.questionId}/${action}`, { method: 'POST' }),
@@ -375,8 +457,12 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         toast.success(flagged ? '문제를 표시했습니다' : '표시를 해제했습니다');
       } else {
         toast.success(v.action === 'bury' ? '내일까지 묻어두었습니다' : '문제를 보류했습니다', { description: '학습 큐에서 제외됩니다.' });
+        // Same order as "next", counted in the list without this card.
+        const target = pickNext(false);
+        const t = items[target];
         setSkipped((s) => new Set(s).add(item.questionId));
-        resetCard();
+        applyMemo(t ? memos[keyOf(t)] : undefined, t ? keyOf(t) : null);
+        setIndex(target > index ? target - 1 : target);
       }
     },
     onError: (e: Error) => toast.error('처리하지 못했습니다', { description: e.message }),
@@ -395,7 +481,23 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     finally { setHintPending(false); }
   }, [item, hint, phase, hintPending]);
 
-  const cardKey = item ? `${item.questionId}:${item.reviewRound}` : null;
+  // Grading/rating callbacks apply to the card they were started on, so moving waits for them.
+  const busy = gradeMut.isPending || reviewMut.isPending || undoMut.isPending || cardMut.isPending || hintPending;
+  const goTo = useCallback((target: number) => {
+    if (target === index) return;
+    if (target < 0 || target >= items.length) { toast(target < 0 ? '첫 문제입니다' : '마지막 문제입니다'); return; }
+    if (busy) { toast('저장 중입니다. 잠시 후 이동하세요'); return; }
+    dismissAnswerKeyboard();
+    moveTo(target);
+  }, [index, items.length, busy, moveTo]);
+  const cells: NavCell[] = items.map((it, i) => {
+    const m = memos[keyOf(it)];
+    if (m?.phase === 'rated') return { status: 'rated', rating: m.rating };
+    if (i === index) return { status: phase !== 'answering' ? 'answered' : hasAnswer(answer) ? 'draft' : 'todo' };
+    return { status: !m ? 'todo' : m.phase === 'answering' ? 'draft' : 'answered' };
+  });
+  const lastRated = history.length ? memos[history[history.length - 1]!] : undefined;
+
   const metaControl: MetaControl = { mask: meta.mask, revealed: meta.revealOnAnswer && phase !== 'answering' && cardKey !== null && metaRevealedFor === cardKey, onToggle: meta.toggle };
   const roundHidden = slotState(metaControl, 'round') === 'masked';
   const phaseForRenderer: Phase = phase === 'answering' ? 'answering' : revealedBeforeAnswer ? 'revealed' : 'submitted';
@@ -427,7 +529,17 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       } },
       { keys: 'e', description: '해설 토글', group: '학습', handler: () => (phase === 'answering' ? false : (setShowExplanation((v) => !v), undefined)) },
       { keys: 'n', description: '다음 문제 (평가 후)', group: '학습', handler: () => (phase === 'rated' ? (next(), undefined) : phase === 'submitted' && unrated ? (advanceUnrated(), undefined) : false) },
-      { keys: 'u', description: '마지막 평가 되돌리기', group: '학습', handler: () => { undo(); } },
+      { keys: 'ArrowLeft', description: '이전 문제', group: '학습', handler: (e) => (ownsArrowKeys(e.target) ? false : (goTo(index - 1), undefined)) },
+      { keys: 'ArrowRight', description: '다음 문제 (풀지 않고 이동)', group: '학습', handler: (e) => (ownsArrowKeys(e.target) ? false : (goTo(index + 1), undefined)) },
+      { keys: 'g', description: '번호로 문제 이동', group: '학습', handler: () => { jumpInput.current?.focus(); } },
+      // In a text field Cmd/Ctrl+Z stays the browser's text undo once anything was entered on this card; an
+      // untouched field (auto-focused right after rating) has nothing to undo, so it goes back to the last rating.
+      { keys: 'z', mod: 'ctrlOrMeta', allowInEditable: true, description: '이전 문제로 돌아가 다시 평가', group: '학습', handler: (e) => {
+        if (e.shiftKey || unrated) return false;
+        if (isEditableTarget(e.target) && (answer !== null || ((e.target as HTMLInputElement).value ?? '') !== '')) return false;
+        undo();
+      } },
+      { keys: 'u', description: '이전 평가 다시 하기', group: '학습', handler: () => (unrated ? false : (undo(), undefined)) },
       { keys: 'h', description: '힌트 보기', group: '학습', handler: () => (item?.hasHint && phase === 'answering' ? (void showHint(), undefined) : false) },
       { keys: 'm', description: '메모 작성 (이번 회차)', group: '학습', handler: () => (isBrowse ? false : (setNotesFocus((n) => n + 1), undefined)) },
       { keys: 'f', description: '문제 표시 / 해제', group: '학습', handler: () => (item ? (cardMut.mutate({ action: item.card.flagged ? 'unflag' : 'flag' }), undefined) : false) },
@@ -435,14 +547,28 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       { keys: 'v', description: '메타데이터 모두 가리기 / 보이기', group: '학습', handler: () => { meta.toggleAll(); } },
       { keys: 'b', description: '서술형 모범답안: 기본 / 문장별 배점', group: '학습', handler: () => (item?.type === 'essay' && phase !== 'answering' ? (essayView.toggle(), undefined) : false) },
       { keys: 's', description: '건너뛰기 (내일까지 묻기)', group: '학습', handler: () => (item && !unrated ? (cardMut.mutate({ action: 'bury' }), undefined) : false) },
-      { keys: 'Escape', description: '입력창 나가기 / 닫기', group: '학습', handler: () => (showInfo ? (setShowInfo(false), undefined) : false) },
+      { keys: 'Escape', allowInEditable: true, description: '입력창 나가기 / 닫기', group: '학습', handler: (e) => {
+        // Leaving the answer field hands ←/→ back to card navigation.
+        if (isEditableTarget(e.target) && e.target instanceof HTMLElement && studyRoot.current?.contains(e.target)) { e.target.blur(); return; }
+        return showInfo ? (setShowInfo(false), undefined) : false;
+      } },
     ],
     shortcutsOn && !finished && !!item,
+  );
+  // From the summary, step back into the session.
+  useShortcuts(
+    'study',
+    [
+      { keys: 'ArrowLeft', description: '마지막 문제로', group: '학습', handler: () => { goTo(items.length - 1); } },
+      { keys: 'z', mod: 'ctrlOrMeta', description: '마지막 문제로 돌아가 다시 평가', group: '학습', handler: (e) => (e.shiftKey || unrated ? false : (undo(), undefined)) },
+      { keys: 'u', description: '마지막 평가 다시 하기', group: '학습', handler: () => (unrated ? false : (undo(), undefined)) },
+    ],
+    shortcutsOn && finished && items.length > 0,
   );
 
   if (!baseItems && !queue.isError) return <LoadingState label="학습할 문항을 준비하는 중…" className="mx-auto min-h-64 max-w-[840px]" />;
   if (queue.isError) return <div className="mx-auto max-w-[840px]"><ErrorState message={(queue.error as Error).message} onRetry={() => queue.refetch()} /></div>;
-  if (finished || !item) return <SessionSummary params={params} done={done} queue={queueMeta ?? queue.data!} onRestart={async () => { clearSnapshot(storageKey); setIndex(0); setDone([]); setExtraItems([]); setSkipped(new Set()); const r = await queue.refetch(); if (r.data) { resetCard(); setBaseItems(r.data.items); setQueueMeta(r.data); } }} />;
+  if (finished || !item) return <SessionSummary params={params} done={done} queue={queueMeta ?? queue.data!} onBack={items.length ? () => goTo(items.length - 1) : undefined} onUndo={!unrated && history.length ? undo : undefined} undoing={undoMut.isPending} shortcuts={shortcutsOn} onRestart={async () => { clearSnapshot(storageKey); setIndex(0); setDone([]); setExtraItems([]); setSkipped(new Set()); setMemos({}); setHistory([]); const r = await queue.refetch(); if (r.data) { resetCard(); setBaseItems(r.data.items); setQueueMeta(r.data); } }} />;
 
   const progress = done.length;
   const total = items.length;
@@ -455,10 +581,15 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         <Badge tone={unrated ? 'warn' : 'neutral'}>{MODE_LABEL[params.mode]}</Badge>
         <span className="tabular">{progress} / {total} 완료</span>
         {params.mode === 'scheduled' ? <span className="tabular">오늘 복습 {queueMeta?.counts.reviewedToday ?? 0} / 목표 {settings.dailyReviewGoal}</span> : null}
-        {lastReview && phase === 'answering' ? <span className="flex items-center gap-1 tabular" data-testid="last-rating">직전 <span className={cn('font-medium', RATINGS[lastReview.rating - 1]!.cls.split(' ')[1])}>{RATINGS[lastReview.rating - 1]!.ko}</span>{lastReview.interval ? ` · ${lastReview.interval}` : ''} <kbd className="kbd" aria-hidden>U</kbd></span> : null}
+        {lastRated?.rating && phase === 'answering' ? (
+          <button type="button" onClick={undo} disabled={undoMut.isPending} className="-mx-1 flex min-h-8 items-center gap-1 rounded px-1 tabular hover:bg-muted hover:text-ink" data-testid="last-rating" aria-label={`직전 평가 ${RATINGS[lastRated.rating - 1]!.ko}: 되돌리고 다시 평가`}>
+            직전 <span className={cn('font-medium', RATINGS[lastRated.rating - 1]!.cls.split(' ')[1])}>{RATINGS[lastRated.rating - 1]!.ko}</span>{lastRated.interval ? ` · ${lastRated.interval}` : ''}
+            <Undo2 className="h-3.5 w-3.5" aria-hidden /><kbd className="kbd" aria-hidden>⌘Z</kbd>
+          </button>
+        ) : null}
         <span className="ml-auto flex items-center gap-1"><kbd className="kbd">?</kbd> 단축키</span>
       </div>
-      <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-sunken" aria-hidden><div className="h-full bg-accent transition-[width] duration-200" style={{ width: `${(progress / Math.max(1, total)) * 100}%` }} /></div>
+      <StudyNav ref={jumpInput} cells={cells} index={index} onGo={goTo} disabled={busy} shortcuts={shortcutsOn} />
 
       <article className="space-y-5" key={`${item.questionId}:${item.reviewRound}`}>
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -535,8 +666,13 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             ) : null}
             {phase === 'rated' ? (
               <StudyActions><div className="flex flex-wrap items-center gap-2">
-                <Button variant="primary" size="lg" onClick={next} kbd="N" data-testid="next-btn">다음 문제 <ArrowRight className="h-4 w-4" /></Button>
-                <Button loading={undoMut.isPending} loadingLabel="평가 복구 중…" variant="ghost" onClick={undo} kbd="U"><Undo2 className="h-4 w-4" /> 평가 되돌리기</Button>
+                <Button variant="primary" size="lg" onClick={() => next()} kbd="N" data-testid="next-btn">다음 문제 <ArrowRight className="h-4 w-4" /></Button>
+                <Button loading={undoMut.isPending} loadingLabel="평가 복구 중…" variant="ghost" onClick={undo} kbd="⌘Z" data-testid="undo-btn"><Undo2 className="h-4 w-4" /> 다시 평가</Button>
+                {cardKey && memos[cardKey]?.rating ? (
+                  <span className="text-[13px] text-ink-3 tabular sm:ml-auto" data-testid="given-rating">
+                    평가 <span className={cn('font-medium', RATINGS[memos[cardKey]!.rating! - 1]!.cls.split(' ')[1])}>{RATINGS[memos[cardKey]!.rating! - 1]!.ko}</span>{memos[cardKey]!.interval ? ` · ${memos[cardKey]!.interval}` : ''}
+                  </span>
+                ) : null}
               </div></StudyActions>
             ) : null}
           </div>
@@ -559,7 +695,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   );
 }
 
-function SessionSummary({ params, done, queue, onRestart }: { params: StudyParams; done: Done[]; queue: Queue; onRestart: () => void }) {
+function SessionSummary({ params, done, queue, onRestart, onBack, onUndo, undoing, shortcuts }: { params: StudyParams; done: Done[]; queue: Queue; onRestart: () => void; onBack?: () => void; onUndo?: () => void; undoing?: boolean; shortcuts?: boolean }) {
   const gradable = done.filter((d) => d.isCorrect !== null);
   const correct = gradable.filter((d) => d.isCorrect).length;
   const counts = [1, 2, 3, 4].map((r) => done.filter((d) => d.rating === r).length);
@@ -584,6 +720,8 @@ function SessionSummary({ params, done, queue, onRestart }: { params: StudyParam
         </div>
       )}
       <div className="mt-6 flex flex-wrap gap-2">
+        {onBack ? <Button variant="ghost" onClick={onBack} kbd={shortcuts ? '←' : undefined} data-testid="summary-back"><ArrowLeft className="h-4 w-4" /> 마지막 문제로</Button> : null}
+        {onUndo ? <Button variant="ghost" loading={undoing} loadingLabel="평가 복구 중…" onClick={onUndo} kbd={shortcuts ? '⌘Z' : undefined} data-testid="summary-undo"><Undo2 className="h-4 w-4" /> 마지막 평가 다시 하기</Button> : null}
         {params.mode === 'scheduled' && !nothing ? <Button variant="primary" onClick={onRestart}>더 학습하기</Button> : null}
         {browse && !nothing ? <Button variant="primary" onClick={onRestart}>처음부터 다시</Button> : null}
         {nothing && !browse ? <Link href={`/study/${params.scope}?mode=cram${params.subject ? `&subject=${encodeURIComponent(params.subject)}` : ''}`} className="inline-flex h-9 items-center rounded-md bg-accent px-3.5 text-sm font-medium text-accent-ink">전체 훑기 (cram)</Link> : null}

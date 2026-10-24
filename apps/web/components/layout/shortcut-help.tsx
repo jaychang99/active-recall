@@ -2,7 +2,7 @@
 import { useActiveBindings } from '@/lib/shortcuts/provider';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 
-const KEY_LABEL: Record<string, string> = { ' ': 'Space', Escape: 'Esc', Enter: 'Enter', ArrowDown: '↓', ArrowUp: '↑' };
+const KEY_LABEL: Record<string, string> = { ' ': 'Space', Escape: 'Esc', Enter: 'Enter', ArrowDown: '↓', ArrowUp: '↑', ArrowLeft: '←', ArrowRight: '→' };
 
 export function ShortcutHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const bindings = useActiveBindings();

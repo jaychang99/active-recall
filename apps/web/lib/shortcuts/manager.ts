@@ -42,6 +42,16 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   return !!target.closest('[data-shortcuts="off"]');
 }
 
+/**
+ * Focus sits in a control that uses ←/→ itself: native radios and ranges, or anything inside `[data-arrow-keys]`
+ * (e.g. Parsons indent). Arrow-key navigation bindings return false there so the control keeps the key.
+ */
+export function ownsArrowKeys(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target instanceof HTMLInputElement && (target.type === 'radio' || target.type === 'range')) return true;
+  return !!target.closest('[data-arrow-keys]');
+}
+
 export function isComposing(e: KeyboardEvent): boolean {
   return e.isComposing || e.keyCode === 229 || e.key === 'Process';
 }

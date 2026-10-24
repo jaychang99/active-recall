@@ -140,6 +140,8 @@ test('saved mobile submit side swaps only the two answer buttons and survives re
   await page.getByLabel('모바일 제출 버튼 위치', { exact: true }).selectOption('left');
   await page.getByTestId('save-settings').click();
   await expect(page.getByText('설정을 저장했습니다', { exact: true })).toBeVisible();
+  // The session snapshot reopens the revealed card; start a fresh session to see the answer buttons again.
+  await page.evaluate(() => sessionStorage.clear());
   await page.goto('/study/all?mode=cram');
   await expect(submit).toBeVisible();
   expect((await submit.boundingBox())!.x).toBeLessThan((await reveal.boundingBox())!.x);
@@ -579,7 +581,7 @@ test('typing, answer reveal, grading and next question keep mobile controls reac
     await expect(page.getByTestId('study-screen')).toHaveAttribute('data-type', q.type);
     await expectActions(page);
     if (isMobile) expect(await page.evaluate(() => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName ?? ''))).toBe(false);
-    const field = page.locator('[data-testid="study-screen"] input:not([type="checkbox"]), [data-testid="study-screen"] textarea').first();
+    const field = page.locator('[data-testid="study-screen"] article input:not([type="checkbox"]), [data-testid="study-screen"] article textarea').first();
     await field.fill('모바일 입력 테스트');
     await expect(field).toBeFocused();
     await expectNoOverflow(page);
