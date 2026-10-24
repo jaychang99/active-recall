@@ -178,6 +178,42 @@ test.describe('study flow (keyboard-first)', () => {
     await expect(entries.first()).toContainText('답을 입력하지 않고 정답을 공개했습니다.');
   });
 
+  test('외부 LLM 답변 링크: one per round, with the latest and earlier rounds shown as previews', async ({ page, api }) => {
+    await page.route('**/link-preview?**', (route) => {
+      const url = new URL(route.request().url()).searchParams.get('url')!;
+      return route.fulfill({ json: { url, finalUrl: url, status: 'ok', title: `대화 ${url.split('/').pop()}`, description: null, siteName: 'ChatGPT', image: null, icon: null } });
+    });
+    await api.patch(`${API}/settings`, { data: { autoAdvanceAfterRating: false } });
+    await gotoStudy(page, deckId, 'scheduled');
+    const screen = page.getByTestId('study-screen');
+    await expect(page.getByTestId('llm-links')).toHaveCount(0); // never while answering
+    await page.keyboard.press('Space');
+    const input = page.getByTestId('llm-link-input');
+    await expect(page.getByTestId('llm-latest-toggle')).toBeDisabled();
+    await input.fill('not a link');
+    await expect(page.getByText('http(s)로 시작하는 링크를 입력하세요.')).toBeVisible();
+    await input.fill('https://chatgpt.com/share/r1');
+    await input.press('Enter');
+    const card = page.getByTestId('llm-links').getByTestId('link-preview').first();
+    await expect(card).toHaveAttribute('data-status', 'ok');
+    await expect(card).toContainText('대화 r1');
+    await expect(card).toContainText('미리보기 확인됨');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('1'); // Again re-queues the card as round 2
+    await expect(screen).toHaveAttribute('data-phase', 'rated');
+    const first = (await screen.getAttribute('data-question-id'))!;
+    await page.getByTestId('nav-jump').fill(String(await page.getByTestId('study-nav-track').locator('[data-status]').count()));
+    await page.getByTestId('nav-jump').press('Enter');
+    await expect(screen).toHaveAttribute('data-question-id', first);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Space');
+    await expect(page.getByTestId('llm-link-input')).toHaveValue(''); // round 2 has its own link
+    await page.getByTestId('llm-latest-toggle').click();
+    await expect(page.getByTestId('llm-links').getByTestId('link-preview')).toContainText('1회차');
+    await page.getByTestId('llm-history-toggle').click();
+    await expect(page.getByTestId('llm-history').getByTestId('link-preview')).toHaveCount(1);
+  });
+
   test('notes: one note per review round, visible as history after rating', async ({ page }) => {
     await gotoStudy(page, deckId, 'scheduled');
     await page.keyboard.press('m');

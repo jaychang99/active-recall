@@ -31,6 +31,7 @@ import { dismissAnswerKeyboard } from '@/lib/answer-focus';
 import { StudyActions } from './study-actions';
 import { StudyNav, type NavCell } from './study-nav';
 import { PreviousResponsesPanel, usePreviousResponses } from './previous-responses';
+import { LlmLinksPanel } from './llm-links';
 import { LoadingState } from '@/components/ui/loading';
 
 export interface StudyParams {
@@ -663,6 +664,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             </div>
             {showPrevious ? <PreviousResponsesPanel id="previous-responses" question={item.question} answerKey={grade.answerKey ?? null} items={previous.items} loading={previous.query.isPending} error={previous.query.isError} onRetry={() => void previous.query.refetch()} hideRound={roundHidden} /> : null}
             <ExplanationPanel explanation={grade.explanation} source={item.question.source} meta={metaControl} open={showExplanation} />
+            {!isBrowse ? <LlmLinksPanel questionId={item.questionId} round={item.reviewRound} hideRound={roundHidden} /> : null}
             {phase === 'submitted' ? (
               <StudyActions>{unrated ? (
                 <div className="flex items-center gap-3 md:flex-wrap md:gap-2">

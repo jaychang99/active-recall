@@ -59,6 +59,7 @@ export class UsersService {
         counts.exams = (await tx.examAttempt.deleteMany({ where: { userId } })).count;
         counts.practices = (await tx.practiceLog.deleteMany({ where: { userId } })).count;
         counts.notes = (await tx.questionNote.deleteMany({ where: { userId } })).count;
+        counts.llmLinks = (await tx.llmAnswerLink.deleteMany({ where: { userId } })).count;
         counts.reviews = (await tx.reviewLog.deleteMany({ where: { userId } })).count;
         counts.sessions = (await tx.studySession.deleteMany({ where: { userId } })).count;
         counts.cards = (await tx.cardState.deleteMany({ where: { userId } })).count;

@@ -37,7 +37,7 @@ export class ExportsService {
   /** Everything the user owns, as raw rows (ids included; `userId` stripped — restore injects the importing user). */
   async backup(userId: string) {
     const where = { userId };
-    const [decks, questions, cards, reviews, notes, sessions, practices, exams, responses, settings, subjects, questionSubjects, promptSnapshots] = await Promise.all([
+    const [decks, questions, cards, reviews, notes, sessions, practices, exams, responses, settings, subjects, questionSubjects, promptSnapshots, llmLinks] = await Promise.all([
       this.prisma.deck.findMany({ where }),
       this.prisma.question.findMany({ where }),
       this.prisma.cardState.findMany({ where }),
@@ -51,6 +51,7 @@ export class ExportsService {
       this.prisma.subject.findMany({ where }),
       this.prisma.questionSubject.findMany({ where }),
       this.prisma.promptSnapshot.findMany({ where }),
+      this.prisma.llmAnswerLink.findMany({ where }),
     ]);
     const strip = (rows: Row[]) => rows.map(({ userId: _u, ...r }) => r);
     return {
@@ -70,6 +71,8 @@ export class ExportsService {
       subjects: strip(subjects),
       questionSubjects: strip(questionSubjects),
       promptSnapshots: strip(promptSnapshots),
+      // Added within v2; older backups simply have no `llmLinks`.
+      llmLinks: strip(llmLinks),
     };
   }
 
@@ -180,6 +183,12 @@ export class ExportsService {
       const oldLog = str(r.reviewLogId);
       notes.push({ ...r, id: randomUUID(), questionId, reviewLogId: oldLog ? (reviewIds.get(oldLog) ?? null) : null, userId });
     }
+    const llmLinks: Row[] = [];
+    for (const r of arr('llmLinks').map(fix)) {
+      const questionId = questionIds.get(str(r.questionId) ?? '');
+      if (!questionId || !str(r.url)) continue;
+      llmLinks.push({ ...r, id: randomUUID(), questionId, userId });
+    }
     const practices: Row[] = [];
     for (const r of arr('practices').map(fix)) {
       const questionId = questionIds.get(str(r.questionId) ?? '');
@@ -217,6 +226,7 @@ export class ExportsService {
         await tx.examAttempt.deleteMany({ where: { userId } });
         await tx.practiceLog.deleteMany({ where: { userId } });
         await tx.questionNote.deleteMany({ where: { userId } });
+        await tx.llmAnswerLink.deleteMany({ where: { userId } });
         await tx.reviewLog.deleteMany({ where: { userId } });
         await tx.studySession.deleteMany({ where: { userId } });
         await tx.cardState.deleteMany({ where: { userId } });
@@ -243,6 +253,7 @@ export class ExportsService {
         await insert('sessions', tx.studySession, sessions);
         await insert('reviews', tx.reviewLog, reviews);
         await insert('notes', tx.questionNote, notes);
+        await insert('llmLinks', tx.llmAnswerLink, llmLinks);
         await insert('practices', tx.practiceLog, practices);
         await insert('exams', tx.examAttempt, exams);
         await insert('responses', tx.examResponse, responses);

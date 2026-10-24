@@ -49,6 +49,7 @@ async function mockApp(page: Page) {
     if (/^\/questions\/[^/]+$/.test(path)) return json({ question: questions.find((q) => path.endsWith(q.id)) });
     if (path === '/reviews') return json({ review: { id: 'review' }, card: { status: 'REVIEW', version: 1 }, reviewRound: 2 });
     if (path.startsWith('/reviews/responses/')) return json({ items: [] });
+    if (path.endsWith('/llm-links')) return json({ questionId: 'q', currentRound: 1, links: [] });
     if (path === '/exams/ui-test') return json({ id: 'ui-test', title: '모바일 시험', startedAt: new Date().toISOString(), config: {}, questions: questions.map((q) => ({ questionId: q.id, type: q.type, question: toPublicQuestion(q) })) });
     if (new URL(request.url()).origin !== new URL(page.url()).origin) throw new Error(`Unmocked API: ${path}`);
     return route.continue();
