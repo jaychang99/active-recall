@@ -19,6 +19,7 @@ import { NoteHistoryItem } from '@/components/study/notes-panel';
 import { DeckSubjectDialog } from '@/components/decks/deck-subject-dialog';
 import { ShareDialog } from '@/components/shares/share-dialog';
 import { ArchiveButton } from '@/components/decks/archive-button';
+import { RenameDeckDialog } from '@/components/decks/rename-deck-dialog';
 import { STATUS_LABEL, TYPE_LABEL, cn, formatDate, relativeDue } from '@/lib/utils';
 
 const TYPES = Object.keys(TYPE_LABEL);
@@ -76,7 +77,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
-        title={d.title}
+        title={<span className="flex min-w-0 items-center gap-1"><span className="min-w-0 break-words" data-testid="deck-title">{d.title}</span><RenameDeckDialog deckId={d.id} title={d.title} onRenamed={invalidate} /></span>}
         description={<>{d.subject} · {d.language} · {d.progress.total}문항 · 마지막 복습 {d.lastReviewedAt ? formatDate(d.lastReviewedAt) : '없음'}{d.description ? <> · {d.description}</> : null}</>}
         actions={
           <>

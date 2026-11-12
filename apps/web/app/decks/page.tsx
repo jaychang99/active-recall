@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { EmptyState, ErrorState, PageHeader, Panel, ProgressStrip, LoadingState } from '@/components/ui/misc';
 import { Tabs, tabPanelProps } from '@/components/ui/tabs';
 import { ArchiveButton } from '@/components/decks/archive-button';
+import { RenameDeckDialog } from '@/components/decks/rename-deck-dialog';
 import { formatDateTime } from '@/lib/utils';
 
 export default function DecksPage() {
@@ -64,6 +65,7 @@ export default function DecksPage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {d.progress.dueToday > 0 ? <Badge tone="accent">due {d.progress.dueToday}</Badge> : null}
+                  <RenameDeckDialog deckId={d.id} title={d.title} />
                   {!archived ? <ArchiveButton kind="decks" id={d.id} name={d.title} archived={false} /> : null}
                 </div>
               </div>

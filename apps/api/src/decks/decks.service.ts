@@ -89,6 +89,10 @@ export class DecksService {
     if (!deck) throw ApiError.notFound('Deck', id);
     const { tags, ...rest } = data;
     if (rest.subject !== undefined && !rest.subject.trim()) throw ApiError.badRequest('subject must not be empty');
+    if (rest.title !== undefined) {
+      rest.title = rest.title.trim();
+      if (!rest.title) throw ApiError.badRequest('title must not be empty');
+    }
     const updated = await this.prisma.$transaction(async (tx) => {
       const row = await tx.deck.update({ where: { id, userId }, data: { ...rest, ...(rest.subject ? { subject: rest.subject.trim() } : {}), ...(tags ? { tagsJson: tags } : {}) } });
       // Changing the primary subject moves every question's deck-sourced subject link along with it.

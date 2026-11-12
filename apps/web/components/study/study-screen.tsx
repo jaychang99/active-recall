@@ -30,6 +30,7 @@ import { useSettings } from '@/components/layout/settings-context';
 import { dismissAnswerKeyboard } from '@/lib/answer-focus';
 import { StudyActions } from './study-actions';
 import { StudyNav, type NavCell } from './study-nav';
+import { StudyRunner } from './study-runner';
 import { PreviousResponsesPanel, usePreviousResponses } from './previous-responses';
 import { LlmLinksPanel } from './llm-links';
 import { LoadingState } from '@/components/ui/loading';
@@ -586,6 +587,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
   return (
     <div ref={studyRoot} className="mx-auto w-full max-w-[840px] scroll-mt-16" data-study-root data-testid="study-screen" data-phase={phase} data-type={item.type} data-round={item.reviewRound} data-question-id={item.questionId}>
+      <StudyRunner done={progress} total={total} />
       {/* progress strip */}
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-3">
         {queueMeta?.deck || params.subject ? <MetaChip k="subject" label={queueMeta?.deck ? '덱' : '과목'} control={metaControl} testId="meta-subject" className="font-medium text-ink"><span>{queueMeta?.deck?.title ?? `과목: ${params.subject}`}</span></MetaChip> : <span className="font-medium text-ink" data-testid="meta-subject">모든 덱</span>}

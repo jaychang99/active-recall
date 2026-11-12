@@ -196,6 +196,15 @@ describe('deck subject reassignment', () => {
     uid = await ctx.userId('a');
   });
 
+  it('renames a deck (trimmed), keeps its slug, and rejects a blank title', async () => {
+    const before = (await ctx.api.get(`/decks/${deckId}`).expect(200)).body;
+    const r = await ctx.api.patch(`/decks/${deckId}`).send({ title: '  새 덱 이름  ' }).expect(200);
+    expect(r.body.title).toBe('새 덱 이름');
+    expect(r.body.slug).toBe(before.slug);
+    await ctx.api.patch(`/decks/${deckId}`).send({ title: '   ' }).expect(400);
+    expect((await ctx.api.get(`/decks/${deckId}`).expect(200)).body.title).toBe('새 덱 이름');
+  });
+
   it('replacing the deck subject moves all deck-sourced links to an existing subject, keeps manual ones', async () => {
     await ctx.api.post('/subjects').send({ name: 'Networking 101' }).expect(201);
     const q = await ctx.prisma.question.findFirstOrThrow({ where: { userId: uid, externalId: 'net-q001' } });

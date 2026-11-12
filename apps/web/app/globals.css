@@ -148,6 +148,19 @@ main { min-width: 0; }
 @media (prefers-reduced-motion: reduce) {
   .rs-progress-indeterminate { animation: none; width: 100%; opacity: 0.6; }
 }
+/* Study runner: legs/arms swing in opposite phase, the body bobs twice per stride. */
+.rs-runner-body { animation: rs-runner-bob 0.3s ease-in-out infinite alternate; }
+.rs-runner-leg { transform-origin: 11.5px 14px; animation: rs-runner-leg 0.6s ease-in-out infinite alternate; }
+.rs-runner-arm { transform-origin: 13.5px 9.5px; animation: rs-runner-arm 0.6s ease-in-out infinite alternate; }
+.rs-runner-b { animation-direction: alternate-reverse; }
+@keyframes rs-runner-leg { from { transform: rotate(-35deg); } to { transform: rotate(30deg); } }
+@keyframes rs-runner-arm { from { transform: rotate(40deg); } to { transform: rotate(-35deg); } }
+@keyframes rs-runner-bob { from { transform: translateY(0); } to { transform: translateY(-1px); } }
+@media (prefers-reduced-motion: reduce) {
+  .rs-runner-body, .rs-runner-leg, .rs-runner-arm { animation: none; }
+  .rs-runner-b.rs-runner-leg { transform: rotate(25deg); }
+  .rs-runner-b.rs-runner-arm { transform: rotate(-30deg); }
+}
 /* Allow ordinary touch scrolling on both axes without pinch or double-tap zoom. */
 html { touch-action: pan-x pan-y; }
 input, textarea, select { scroll-margin-block: 5rem 10rem; }
