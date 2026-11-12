@@ -36,6 +36,21 @@ describe('reviews / FSRS / undo / queue / notes', () => {
     }
   });
 
+  it('returns the interval preview of the new card state for a re-queued copy (null when previews are hidden)', async () => {
+    const res = await ctx.api.post('/reviews').send({ questionId: qid, rating: 1, idempotencyKey: 'k-next-1' }).expect(201);
+    expect(res.body.card.status).toBe('LEARNING');
+    const p = res.body.nextPreview;
+    for (const k of ['again', 'hard', 'good', 'easy']) expect(typeof p[k].interval).toBe('string');
+    // it previews the card as rated, the same thing the next queue load would show
+    const queue = await ctx.api.get(`/study/queue?deckId=${deckId}&mode=cram`).expect(200);
+    const item = queue.body.items.find((i: { questionId: string }) => i.questionId === qid);
+    expect(item.preview.good.interval).toBe(p.good.interval);
+    // a replayed retry carries it too
+    expect((await ctx.api.post('/reviews').send({ questionId: qid, rating: 1, idempotencyKey: 'k-next-1' }).expect(201)).body.nextPreview.good.interval).toBe(p.good.interval);
+    await ctx.api.patch('/settings').send({ showIntervalPreview: false }).expect(200);
+    expect((await ctx.api.post('/reviews').send({ questionId: qid, rating: 3, idempotencyKey: 'k-next-2' }).expect(201)).body.nextPreview).toBeNull();
+  });
+
   it('idempotent retries do not duplicate and the version guards races', async () => {
     const body = { questionId: qid, rating: 3, idempotencyKey: 'k-dup-1', expectedVersion: 0 };
     const [a, b] = await Promise.all([ctx.api.post('/reviews').send(body), ctx.api.post('/reviews').send(body)]);

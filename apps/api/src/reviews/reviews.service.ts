@@ -31,6 +31,11 @@ export interface ReviewResult {
   reviewRound: number;
   /** true when the request was a retry and the stored result was returned. */
   replayed: boolean;
+  /**
+   * Interval preview for the card's new state, for a copy re-queued in the same session (Again on a learning step):
+   * the client must not compute intervals itself. null when the user hides interval previews.
+   */
+  nextPreview: ReturnType<FsrsService['preview']> | null;
 }
 
 @Injectable()
@@ -42,7 +47,7 @@ export class ReviewsService {
     private readonly fsrs: FsrsService,
   ) {}
 
-  private async replay(userId: string, idempotencyKey: string): Promise<ReviewResult | null> {
+  private async replay(userId: string, idempotencyKey: string): Promise<Omit<ReviewResult, 'nextPreview'> | null> {
     const existing = await this.prisma.reviewLog.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } } });
     if (!existing) return null;
     const card = await this.prisma.cardState.findUniqueOrThrow({ where: { questionId: existing.questionId, userId } });
@@ -50,10 +55,16 @@ export class ReviewsService {
   }
 
   async create(userId: string, dto: CreateReviewDto): Promise<ReviewResult> {
-    const prior = await this.replay(userId, dto.idempotencyKey);
-    if (prior) return prior;
     const settings = await this.settings.get(userId);
     const params = { requestRetention: settings.requestRetention, maximumInterval: settings.maximumInterval, enableFuzz: settings.enableFuzz };
+    const result = await this.record(userId, dto, params);
+    const nextPreview = settings.showIntervalPreview ? this.fsrs.preview(params, deserializeCard(result.card.stateJson as unknown as SerializedCard), new Date()) : null;
+    return { ...result, nextPreview };
+  }
+
+  private async record(userId: string, dto: CreateReviewDto, params: { requestRetention: number; maximumInterval: number; enableFuzz: boolean }): Promise<Omit<ReviewResult, 'nextPreview'>> {
+    const prior = await this.replay(userId, dto.idempotencyKey);
+    if (prior) return prior;
     try {
       return await this.prisma.$transaction(async (tx) => {
         const question = await tx.question.findFirst({ where: { id: dto.questionId, userId, deletedAt: null }, select: { id: true } });

@@ -386,7 +386,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       // Again/Hard on a learning step re-queues the card at the end of this session so it is seen again today.
       const appended = rating === 1 && (res.card.status === 'LEARNING' || res.card.status === 'RELEARNING') && !isPractice;
       if (appended) {
-        setExtraItems((x) => [...x, { ...item, card: { ...item.card, version: res.card.version, status: res.card.status }, reviewRound: res.reviewRound + 1, preview: null }]);
+        setExtraItems((x) => [...x, { ...item, card: { ...item.card, version: res.card.version, status: res.card.status }, reviewRound: res.reviewRound + 1, preview: res.nextPreview ?? null }]);
       }
       if (settings.autoAdvanceAfterRating) next({ appended });
     },

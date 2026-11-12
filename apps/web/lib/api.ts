@@ -77,7 +77,7 @@ export interface Queue {
   nextLearningDueAt: string | null; items: QueueItem[];
 }
 export interface GradeResponse { questionId: string; grade: GradeResult; answerKey: Record<string, unknown>; explanation: { summary: string; steps?: string[]; misconceptions?: string[]; references?: { document: string; location?: string; url?: string }[] } }
-export interface ReviewResponse { review: { id: string; rating: number; reviewedAt: string; reviewRound: number }; card: CardInfo & { stateJson: unknown }; reviewRound: number; replayed: boolean }
+export interface ReviewResponse { review: { id: string; rating: number; reviewedAt: string; reviewRound: number }; card: CardInfo & { stateJson: unknown }; reviewRound: number; replayed: boolean; /** Intervals for the card's new state (a re-queued copy shows these). */ nextPreview: IntervalPreview | null }
 export interface Note { id: string; questionId: string; reviewRound: number; reviewLogId: string | null; body: string; createdAt: string; updatedAt: string; review: { id: string; rating: number; reviewedAt: string; isCorrect: boolean | null; undone: boolean } | null }
 export interface NotesResponse { questionId: string; currentRound: number; notes: Note[] }
 export type EssayAnswerView = 'plain' | 'scored';
