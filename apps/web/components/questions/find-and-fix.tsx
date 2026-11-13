@@ -1,18 +1,19 @@
 'use client';
 import { Check, X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
 import { Input } from '@/components/ui/input';
 import { isComposing } from '@/lib/shortcuts/manager';
 import { cn } from '@/lib/utils';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
+import { STRUCK_TEXT, StrikeModeToggle, useStrikes } from './strikes';
 
 type Q = Extract<PublicQuestion, { type: 'find_and_fix' }>;
 
 /** Select the wrong segment(s) and type the corrected value for each. Segment order is the passage, never shuffled.
  *  Digits 1-9 toggle the first nine segments; Enter in the last correction input submits. */
-export function FindAndFix({ question, value, onChange, onSubmit, phase, grade, answerKey, showKeyHints, readOnly, registerDigitHandler }: RendererProps<Q>) {
+export function FindAndFix({ question, value, onChange, onSubmit, phase, grade, answerKey, shuffleSeed, showKeyHints, readOnly, registerDigitHandler }: RendererProps<Q>) {
   const fixes = value?.type === 'find_and_fix' ? value.fixes : [];
   const revealed = phase !== 'answering';
   const disabled = revealed || !!readOnly;
@@ -20,8 +21,11 @@ export function FindAndFix({ question, value, onChange, onSubmit, phase, grade, 
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const expected = new Map((((answerKey?.answer as { fixes?: { segmentId: string; acceptedAnswers: string[] }[] } | undefined)?.fixes ?? []).map((f) => [f.segmentId, f.acceptedAnswers])));
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const strikes = useStrikes(question.id, shuffleSeed, phase, readOnly);
+  const [strikeMode, setStrikeMode] = useState(false);
   const toggle = (id: string) => {
     if (disabled) return;
+    strikes.unstrike(id);
     const next = selected.has(id) ? fixes.filter((f) => f.segmentId !== id) : [...fixes, { segmentId: id, text: '' }];
     onChange({ type: 'find_and_fix', fixes: next });
     if (!selected.has(id)) setTimeout(() => inputs.current[id]?.focus(), 10);
@@ -32,16 +36,19 @@ export function FindAndFix({ question, value, onChange, onSubmit, phase, grade, 
 
   return (
     <div className="space-y-3">
-      {!revealed ? <p className="text-[12px] text-ink-3">틀린 조각을 클릭(또는 1–9 키)해 선택한 뒤, 아래에서 고친 값을 입력하세요.</p> : null}
+      {!revealed ? <p className="text-[12px] text-ink-3">틀린 조각을 클릭(또는 1–9 키)해 선택한 뒤, 아래에서 고친 값을 입력하세요. 맞다고 확인한 조각은 지우기 모드(또는 우클릭)로 취소선을 그어 둘 수 있습니다.</p> : null}
+      {strikes.enabled ? <StrikeModeToggle on={strikeMode} onChange={setStrikeMode} count={strikes.struck.size} onClear={strikes.clear} /> : null}
       <p className="prose-q leading-[2.1]" data-testid="find-fix-passage">
         {question.segments.map((s, i) => {
           const chosen = selected.has(s.id);
           const isAns = expected.has(s.id);
           const p = parts.get(s.id);
           const state = !revealed ? (chosen ? 'sel' : 'idle') : isAns && p?.correct ? 'hit' : isAns && chosen ? 'located' : isAns ? 'missed' : chosen ? 'wrong' : 'idle';
+          const struck = !chosen && strikes.has(s.id);
           return (
-            <button key={s.id} type="button" aria-pressed={chosen} disabled={disabled} onClick={() => toggle(s.id)} data-segment-id={s.id}
-              className={cn('mx-0.5 rounded px-1 py-0.5 text-left font-mono text-[0.95em] transition-colors disabled:cursor-default', state === 'idle' && 'hover:bg-muted', state === 'sel' && 'bg-accent-soft text-accent-soft-ink ring-1 ring-accent', state === 'hit' && 'bg-ok-soft text-ok-ink ring-1 ring-ok', state === 'located' && 'bg-warn-soft text-warn-ink ring-1 ring-warn', state === 'missed' && 'bg-ok-soft/50 text-ok-ink ring-1 ring-dashed ring-ok', state === 'wrong' && 'bg-bad-soft text-bad-ink line-through ring-1 ring-bad')}>
+            <button key={s.id} type="button" aria-pressed={chosen} disabled={disabled} onClick={() => (strikeMode && !chosen ? strikes.toggle(s.id) : toggle(s.id))} data-segment-id={s.id} data-struck={struck || undefined}
+              onContextMenu={strikes.enabled ? (e) => { e.preventDefault(); if (!chosen) strikes.toggle(s.id); } : undefined}
+              className={cn('mx-0.5 rounded px-1 py-0.5 text-left font-mono text-[0.95em] transition-colors disabled:cursor-default', state === 'idle' && 'hover:bg-muted', struck && STRUCK_TEXT, strikeMode && !chosen && 'cursor-crosshair', state === 'sel' && 'bg-accent-soft text-accent-soft-ink ring-1 ring-accent', state === 'hit' && 'bg-ok-soft text-ok-ink ring-1 ring-ok', state === 'located' && 'bg-warn-soft text-warn-ink ring-1 ring-warn', state === 'missed' && 'bg-ok-soft/50 text-ok-ink ring-1 ring-dashed ring-ok', state === 'wrong' && 'bg-bad-soft text-bad-ink line-through ring-1 ring-bad')}>
               {showKeyHints && i < 9 && !revealed ? <sup className="mr-0.5 font-sans text-[10px] text-ink-3">{i + 1}</sup> : null}{s.text}
             </button>
           );

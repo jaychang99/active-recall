@@ -5,6 +5,7 @@ import type { PublicQuestion } from '@recall/contracts';
 import { cn } from '@/lib/utils';
 import type { RendererProps } from './types';
 import { viewParsonsPool } from '@/lib/view-order';
+import { STRUCK_TEXT, StrikeButton, useStrikes } from './strikes';
 
 type Q = Extract<PublicQuestion, { type: 'parsons' }>;
 type Line = { id: string; indent: number };
@@ -18,6 +19,7 @@ export function Parsons({ question, value, onChange, phase, grade, answerKey, sh
   const lines: Line[] = value?.type === 'parsons' ? value.lines : [];
   const revealed = phase !== 'answering';
   const disabled = revealed || !!readOnly;
+  const strikes = useStrikes(question.id, shuffleSeed, phase, readOnly);
   const byId = new Map(question.blocks.map((b) => [b.id, b]));
   const poolOrder = useMemo(() => viewParsonsPool(question, shuffleSeed), [question, shuffleSeed]);
   const inSolution = new Set(lines.map((l) => l.id));
@@ -31,7 +33,7 @@ export function Parsons({ question, value, onChange, phase, grade, answerKey, sh
   const poolButtons = useRef<(HTMLButtonElement | null)[]>([]);
 
   const set = (next: Line[]) => { if (!disabled) onChange({ type: 'parsons', lines: next }); };
-  const add = (id: string, at = lines.length) => { const next = [...lines]; next.splice(at, 0, { id, indent: 0 }); set(next); requestAnimationFrame(() => solButtons.current[at]?.focus()); };
+  const add = (id: string, at = lines.length) => { strikes.unstrike(id); const next = [...lines]; next.splice(at, 0, { id, indent: 0 }); set(next); requestAnimationFrame(() => solButtons.current[at]?.focus()); };
   const remove = (i: number) => { set(lines.filter((_, k) => k !== i)); requestAnimationFrame(() => poolButtons.current[0]?.focus()); };
   const move = (from: number, to: number) => { if (to < 0 || to >= lines.length) return; const next = [...lines]; const [it] = next.splice(from, 1); next.splice(to, 0, it!); set(next); requestAnimationFrame(() => solButtons.current[to]?.focus()); };
   const indent = (i: number, d: number) => set(lines.map((l, k) => (k === i ? { ...l, indent: Math.max(0, Math.min(10, l.indent + d)) } : l)));
@@ -41,21 +43,23 @@ export function Parsons({ question, value, onChange, phase, grade, answerKey, sh
 
   return (
     <div className="space-y-2" data-testid="parsons">
-      {!revealed ? <p className="text-[12px] text-ink-3">왼쪽 블록을 오른쪽 풀이로 옮겨 순서를 맞추고{checkIndent ? ' ←/→로 들여쓰기를 맞추세요' : ''}. 쓰이지 않는 블록이 있을 수 있습니다. 숫자키: n번째 블록 추가 · Backspace: 풀로 되돌림 · 드래그 가능</p> : null}
+      {!revealed ? <p className="text-[12px] text-ink-3">왼쪽 블록을 오른쪽 풀이로 옮겨 순서를 맞추고{checkIndent ? ' ←/→로 들여쓰기를 맞추세요' : ''}. 쓰이지 않는 블록이 있을 수 있습니다(취소선 버튼으로 지워 두기). 숫자키: n번째 블록 추가 · Backspace: 풀로 되돌림 · 드래그 가능</p> : null}
       <div className={cn('grid gap-3', !revealed && 'md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]')}>
         {!revealed ? (
           <ul className="min-h-24 space-y-1 rounded-md border border-dashed border-line bg-muted/40 p-2" aria-label="블록 풀" data-testid="parsons-pool" data-arrow-keys
             onDragOver={(e) => { if (dragging && inSolution.has(dragging)) e.preventDefault(); }}
             onDrop={() => { if (dragging) { const i = lines.findIndex((l) => l.id === dragging); if (i >= 0) remove(i); setDragging(null); } }}>
             {pool.map((id, i) => (
-              <li key={id} draggable={!disabled} onDragStart={() => setDragging(id)} onDragEnd={() => setDragging(null)}>
+              <li key={id} draggable={!disabled} onDragStart={() => setDragging(id)} onDragEnd={() => setDragging(null)} className="group flex items-center gap-1" data-struck={strikes.has(id) || undefined}>
                 <button ref={(el) => { poolButtons.current[i] = el; }} type="button" disabled={disabled} data-block-id={id} aria-label={`블록 추가: ${byId.get(id)?.code ?? id}`}
                   onClick={() => add(id)} onKeyDown={(e) => { if (e.key === 'ArrowRight') { e.preventDefault(); add(id); } }}
-                  className="flex w-full items-center gap-2 rounded-md border border-line bg-elevated px-2 py-1.5 text-left hover:border-accent">
+                  onContextMenu={strikes.enabled ? (e) => { e.preventDefault(); strikes.toggle(id); } : undefined}
+                  className={cn('flex min-w-0 flex-1 items-center gap-2 rounded-md border bg-elevated px-2 py-1.5 text-left hover:border-accent', strikes.has(id) ? 'border-dashed border-line' : 'border-line')}>
                   <span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-muted text-[11px] font-semibold tabular text-ink-2">{i + 1}</span>
-                  {code(id)}
+                  <span className={cn(strikes.has(id) && STRUCK_TEXT)}>{code(id)}</span>
                   <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-ink-3" />
                 </button>
+                {strikes.enabled ? <StrikeButton struck={strikes.has(id)} onToggle={() => strikes.toggle(id)} label={`${i + 1}번 블록`} /> : null}
               </li>
             ))}
             {pool.length === 0 ? <li className="px-2 py-3 text-center text-[12px] text-ink-3">모든 블록을 사용했습니다</li> : null}

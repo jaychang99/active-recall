@@ -1,10 +1,11 @@
 'use client';
-import { Check, X } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { Check, Slash, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
 import { cn } from '@/lib/utils';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
+import { StrikeModeToggle, useStrikes } from './strikes';
 import { viewMatrixRows } from '@/lib/view-order';
 
 type Q = Extract<PublicQuestion, { type: 'matrix' }>;
@@ -22,8 +23,11 @@ export function Matrix({ question, value, onChange, onSubmit, phase, grade, answ
   const firstInputs = useRef<(HTMLInputElement | null)[]>([]);
   useEffect(() => { registerDigitHandler?.((n) => firstInputs.current[n - 1]?.focus()); }, [registerDigitHandler]);
 
+  const strikes = useStrikes(question.id, shuffleSeed, phase, readOnly);
+  const [strikeMode, setStrikeMode] = useState(false);
   const toggle = (r: string, c: string) => {
     if (revealed || readOnly) return;
+    strikes.unstrike(`${r}:${c}`);
     let next = cells.filter((x) => !(x.rowId === r && x.columnId === c));
     if (single) next = next.filter((x) => x.rowId !== r);
     if (single || !has(r, c)) next = [...next, { rowId: r, columnId: c }];
@@ -32,7 +36,8 @@ export function Matrix({ question, value, onChange, onSubmit, phase, grade, answ
 
   return (
     <div className="space-y-2">
-      {!revealed ? <p className="text-[12px] text-ink-3">{single ? '행마다 해당하는 열 하나를 고르세요.' : '해당하는 칸을 모두 표시하세요 (없는 행이 있을 수도 있습니다).'} Enter: 제출</p> : null}
+      {!revealed ? <p className="text-[12px] text-ink-3">{single ? '행마다 해당하는 열 하나를 고르세요.' : '해당하는 칸을 모두 표시하세요 (없는 행이 있을 수도 있습니다).'} 아니라고 판단한 칸은 지우기 모드(또는 우클릭)로 빗금을 쳐 둘 수 있습니다. Enter: 제출</p> : null}
+      {strikes.enabled ? <StrikeModeToggle on={strikeMode} onChange={setStrikeMode} count={strikes.struck.size} onClear={strikes.clear} /> : null}
       <div className="overflow-x-auto rounded-md border border-line">
         <table className="w-full border-collapse text-sm" data-testid="matrix-grid">
           <thead>
@@ -57,14 +62,19 @@ export function Matrix({ question, value, onChange, onSubmit, phase, grade, answ
                     const on = has(r.id, c.id);
                     const exp = expected.has(`${r.id}:${c.id}`);
                     const state = !revealed ? (on ? 'on' : 'off') : exp && on ? 'hit' : exp ? 'missed' : on ? 'wrong' : 'off';
+                    const cellKey = `${r.id}:${c.id}`;
+                    const struck = !on && strikes.has(cellKey);
                     return (
                       <td key={c.id} className="px-2 py-2 text-center">
-                        <label className={cn('inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded border', state === 'off' && 'border-line-strong bg-elevated', state === 'on' && 'border-accent bg-accent text-accent-ink', state === 'hit' && 'border-ok bg-ok text-accent-ink', state === 'missed' && 'border-dashed border-ok bg-ok-soft text-ok-ink', state === 'wrong' && 'border-bad bg-bad-soft text-bad-ink', (revealed || readOnly) && 'cursor-default')}>
+                        <label data-struck={struck || undefined}
+                          onClick={strikes.enabled && strikeMode && !on ? (e) => { e.preventDefault(); strikes.toggle(cellKey); } : undefined}
+                          onContextMenu={strikes.enabled ? (e) => { e.preventDefault(); if (!on) strikes.toggle(cellKey); } : undefined}
+                          className={cn('inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded border', state === 'off' && (struck ? 'border-dashed border-line bg-muted text-ink-3' : 'border-line-strong bg-elevated'), strikeMode && !on && !revealed && 'cursor-crosshair', state === 'on' && 'border-accent bg-accent text-accent-ink', state === 'hit' && 'border-ok bg-ok text-accent-ink', state === 'missed' && 'border-dashed border-ok bg-ok-soft text-ok-ink', state === 'wrong' && 'border-bad bg-bad-soft text-bad-ink', (revealed || readOnly) && 'cursor-default')}>
                           <input ref={(el) => { if (j === 0) firstInputs.current[i] = el; }} type={single ? 'radio' : 'checkbox'} name={single ? `${question.id}-${r.id}` : undefined} className="sr-only" checked={on} disabled={revealed || readOnly}
                             aria-label={`${r.text} × ${c.text}`} data-cell={`${r.id}:${c.id}`}
                             onChange={() => toggle(r.id, c.id)}
                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onSubmit(); } if (e.key === ' ' && single) { e.preventDefault(); toggle(r.id, c.id); } }} />
-                          {state === 'on' || state === 'hit' || state === 'missed' ? <Check className="h-4 w-4" strokeWidth={3} /> : state === 'wrong' ? <X className="h-4 w-4" strokeWidth={3} /> : null}
+                          {state === 'on' || state === 'hit' || state === 'missed' ? <Check className="h-4 w-4" strokeWidth={3} /> : state === 'wrong' ? <X className="h-4 w-4" strokeWidth={3} /> : struck ? <Slash className="h-4 w-4" aria-label="지움" /> : null}
                         </label>
                       </td>
                     );

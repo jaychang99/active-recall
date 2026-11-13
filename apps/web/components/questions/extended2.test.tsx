@@ -37,7 +37,7 @@ describe('extended set-2 renderers', () => {
     const selects = container.querySelectorAll<HTMLSelectElement>('select[data-blank-id]');
     expect(selects.length).toBe(2);
     expect(selects[1]!.querySelectorAll('option').length).toBe(4);
-    expect(container.querySelector('[data-testid="cloze-bank"] li')?.className).toContain('line-through');
+    expect(container.querySelector('[data-testid="cloze-bank"] li')?.hasAttribute('data-used')).toBe(true);
     fireEvent.change(selects[1]!, { target: { value: 'k1' } }); // moving an item clears the other blank
     expect(onChange).toHaveBeenCalledWith({ type: 'cloze_bank', blanks: { b2: 'k1' } });
   });

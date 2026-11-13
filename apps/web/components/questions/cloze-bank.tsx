@@ -8,6 +8,7 @@ import type { ClozeRenderConfig } from './cloze-blanks';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
 import { viewBank } from '@/lib/view-order';
+import { STRUCK_TEXT, useStrikes } from './strikes';
 
 type Q = Extract<PublicQuestion, { type: 'cloze_bank' }>;
 
@@ -16,6 +17,7 @@ type Q = Extract<PublicQuestion, { type: 'cloze_bank' }>;
 export function ClozeBank({ question, value, onChange, onSubmit, phase, grade, answerKey, shuffleSeed, readOnly }: RendererProps<Q>) {
   const chosen = value?.type === 'cloze_bank' ? value.blanks : {};
   const revealed = phase !== 'answering';
+  const strikes = useStrikes(question.id, shuffleSeed, phase, readOnly);
   const bank = useMemo(() => viewBank(question, shuffleSeed), [question, shuffleSeed]);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const key = new Map((((answerKey?.blanks as { id: string; bankItemId: string }[] | undefined) ?? []).map((b) => [b.id, b.bankItemId])));
@@ -52,7 +54,7 @@ export function ClozeBank({ question, value, onChange, onSubmit, phase, grade, a
               }
             }}>
             <option value="">— 보기 —</option>
-            {bank.map((b) => { const u = usedBy(b.id); return <option key={b.id} value={b.id}>{b.text}{u && u !== id ? ` (빈칸 ${ids.indexOf(u) + 1}에 사용)` : ''}</option>; })}
+            {bank.map((b) => { const u = usedBy(b.id); return <option key={b.id} value={b.id}>{b.text}{u && u !== id ? ` (빈칸 ${ids.indexOf(u) + 1}에 사용)` : strikes.has(b.id) ? ' (지움)' : ''}</option>; })}
           </select>
         ) : (
           <span className={cn('rounded-md border px-2 py-0.5 text-[0.95rem]', p?.correct ? 'border-ok bg-ok-soft text-ok-ink' : 'border-bad bg-bad-soft text-bad-ink')}>
@@ -70,16 +72,24 @@ export function ClozeBank({ question, value, onChange, onSubmit, phase, grade, a
   return (
     <div className="space-y-3">
       <ul className="flex flex-wrap gap-1.5" aria-label="단어 보기" data-testid="cloze-bank">
-        {bank.map((b) => (
-          <li key={b.id} className={cn('rounded-full border px-2.5 py-0.5 text-[13px]', used.has(b.id) ? 'border-line bg-muted text-ink-3 line-through' : 'border-line-strong bg-elevated text-ink')}>
-            <Markdown inline className="prose-sm">{b.text}</Markdown>
-          </li>
-        ))}
+        {bank.map((b) => {
+          const isUsed = used.has(b.id);
+          const struck = !isUsed && strikes.has(b.id);
+          const chip = cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[13px]', isUsed ? 'border-line bg-muted text-ink-3' : struck ? 'border-dashed border-line bg-transparent' : 'border-line-strong bg-elevated text-ink');
+          const body = <>{isUsed ? <Check className="h-3 w-3 shrink-0" aria-label="사용됨" /> : null}<Markdown inline className={cn('prose-sm', struck && STRUCK_TEXT)}>{b.text}</Markdown></>;
+          return (
+            <li key={b.id} data-used={isUsed || undefined} data-struck={struck || undefined}>
+              {strikes.enabled && !isUsed ? (
+                <button type="button" aria-pressed={struck} onClick={() => strikes.toggle(b.id)} title={struck ? '지운 표시 해제' : '답이 아닌 보기로 지우기'} className={cn(chip, 'hover:border-ink-3')}>{body}</button>
+              ) : <span className={chip}>{body}</span>}
+            </li>
+          );
+        })}
       </ul>
       <div ref={root}>
         <Markdown className="text-[1.125rem] leading-[2.2]" cloze={cloze}>{question.prompt}</Markdown>
       </div>
-      {!revealed ? <p className="text-[12px] text-ink-3">보기 풀에서 빈칸마다 하나씩 고르세요(각 보기 한 번만, 쓰이지 않는 보기도 있음). Enter: 다음 빈칸 / 제출</p> : null}
+      {!revealed ? <p className="text-[12px] text-ink-3">보기 풀에서 빈칸마다 하나씩 고르세요(각 보기 한 번만, 쓰이지 않는 보기도 있음). 위의 보기를 누르면 취소선으로 지워 둘 수 있습니다. Enter: 다음 빈칸 / 제출</p> : null}
     </div>
   );
 }

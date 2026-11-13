@@ -1,12 +1,13 @@
 'use client';
 import { focusAnswerInput } from '@/lib/answer-focus';
-import { Check, X } from 'lucide-react';
+import { Check, Strikethrough, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
 import { cn } from '@/lib/utils';
 import { Markdown } from './markdown';
 import type { RendererProps } from './types';
 import { viewMatchingRight } from '@/lib/view-order';
+import { STRUCK_TEXT, useStrikes } from './strikes';
 
 type Q = Extract<PublicQuestion, { type: 'matching' }>;
 
@@ -16,6 +17,7 @@ export function Matching({ question, value, onChange, onSubmit, phase, grade, an
   const chosen = new Map(pairs.map((p) => [p.leftId, p.rightId]));
   const revealed = phase !== 'answering';
   const disabled = revealed || !!readOnly;
+  const strikes = useStrikes(question.id, shuffleSeed, phase, readOnly);
   const parts = new Map((grade?.detail.parts ?? []).map((p) => [p.id, p]));
   const expected = new Map((((answerKey?.answer as { pairs?: { leftId: string; rightId: string }[] } | undefined)?.pairs ?? []).map((p) => [p.leftId, p.rightId])));
   const rightText = (id: string | null | undefined) => question.right.find((r) => r.id === id)?.text ?? '';
@@ -65,7 +67,7 @@ export function Matching({ question, value, onChange, onSubmit, phase, grade, an
                   >
                     <option value="">— 선택 —</option>
                     {right.map((r, j) => (
-                      <option key={r.id} value={r.id}>{letter(j)}. {r.text}</option>
+                      <option key={r.id} value={r.id}>{letter(j)}. {r.text}{strikes.has(r.id) ? ' (지움)' : ''}</option>
                     ))}
                   </select>
                 ) : (
@@ -82,11 +84,29 @@ export function Matching({ question, value, onChange, onSubmit, phase, grade, an
           })}
         </ul>
         {!revealed ? (
-          <ol className="space-y-1 rounded-md border border-line bg-muted/50 p-3 text-sm" aria-label="오른쪽 항목">
-            {right.map((r, j) => (
-              <li key={r.id} className="flex gap-2"><span className="font-semibold tabular text-ink-2">{letter(j)}.</span><Markdown className="prose-sm">{r.text}</Markdown></li>
-            ))}
-          </ol>
+          <div className="self-start">
+            <ol className="space-y-0.5 rounded-md border border-line bg-muted/50 p-2 text-sm" aria-label="오른쪽 항목" data-testid="matching-right">
+              {right.map((r, j) => {
+                const struck = strikes.has(r.id);
+                return (
+                  <li key={r.id}>
+                    {strikes.enabled ? (
+                      <button type="button" aria-pressed={struck} data-right-id={r.id} data-struck={struck || undefined} onClick={() => strikes.toggle(r.id)}
+                        title={struck ? '지운 표시 해제' : '이미 썼거나 해당 없는 항목으로 지우기'}
+                        className="group flex w-full items-start gap-2 rounded px-1 py-0.5 text-left hover:bg-muted">
+                        <span className="font-semibold tabular text-ink-2">{letter(j)}.</span>
+                        <Markdown className={cn('prose-sm min-w-0 flex-1', struck && STRUCK_TEXT)}>{r.text}</Markdown>
+                        <Strikethrough className={cn('mt-1 h-3.5 w-3.5 shrink-0 text-ink-3 transition-opacity', struck ? 'opacity-100' : 'opacity-0 group-hover:opacity-70 group-focus-visible:opacity-70 [@media(hover:none)]:opacity-40')} aria-hidden />
+                      </button>
+                    ) : (
+                      <div className="flex gap-2 px-1 py-0.5"><span className="font-semibold tabular text-ink-2">{letter(j)}.</span><Markdown className="prose-sm">{r.text}</Markdown></div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+            {strikes.enabled ? <p className="mt-1 text-[11px] text-ink-3">항목을 누르면 취소선으로 지워 둘 수 있습니다 (보기 전용).</p> : null}
+          </div>
         ) : null}
       </div>
     </div>

@@ -1,18 +1,22 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { PublicQuestion } from '@recall/contracts';
 import { cn } from '@/lib/utils';
 import type { RendererProps } from './types';
+import { STRUCK_TEXT, StrikeModeToggle, useStrikes } from './strikes';
 
 type Q = Extract<PublicQuestion, { type: 'highlight' }>;
 
 /** Select the segments that apply (errors, evidence). Segment order is the passage itself, so never shuffled. Digits 1-9 toggle the first nine segments. */
-export function Highlight({ question, value, onChange, phase, grade, answerKey, showKeyHints, readOnly, registerDigitHandler }: RendererProps<Q>) {
+export function Highlight({ question, value, onChange, phase, grade, answerKey, shuffleSeed, showKeyHints, readOnly, registerDigitHandler }: RendererProps<Q>) {
   const sel = new Set(value?.type === 'highlight' ? value.segmentIds : []);
   const revealed = phase !== 'answering';
   const expected = new Set(((answerKey?.answer as { segmentIds?: string[] } | undefined)?.segmentIds ?? []) as string[]);
+  const strikes = useStrikes(question.id, shuffleSeed, phase, readOnly);
+  const [strikeMode, setStrikeMode] = useState(false);
   const toggle = (id: string) => {
     if (revealed || readOnly) return;
+    strikes.unstrike(id);
     const next = new Set(sel);
     if (next.has(id)) next.delete(id); else next.add(id);
     onChange({ type: 'highlight', segmentIds: [...next] });
@@ -23,15 +27,18 @@ export function Highlight({ question, value, onChange, phase, grade, answerKey, 
   });
   return (
     <div className="space-y-2">
-      {!revealed ? <p className="text-[12px] text-ink-3">해당하는 조각을 모두 클릭(또는 1–9 키)해서 표시하세요.</p> : null}
+      {!revealed ? <p className="text-[12px] text-ink-3">해당하는 조각을 모두 클릭(또는 1–9 키)해서 표시하세요. 아닌 조각은 지우기 모드(또는 우클릭)로 취소선을 그어 둘 수 있습니다.</p> : null}
+      {strikes.enabled ? <StrikeModeToggle on={strikeMode} onChange={setStrikeMode} count={strikes.struck.size} onClear={strikes.clear} /> : null}
       <p className="prose-q leading-[2.1]" data-testid="highlight-passage">
         {question.segments.map((s, i) => {
           const chosen = sel.has(s.id);
           const isAns = expected.has(s.id);
           const state = !revealed ? (chosen ? 'sel' : 'idle') : isAns && chosen ? 'hit' : isAns ? 'missed' : chosen ? 'wrong' : 'idle';
+          const struck = !chosen && strikes.has(s.id);
           return (
-            <button key={s.id} type="button" aria-pressed={chosen} disabled={revealed || readOnly} onClick={() => toggle(s.id)} data-segment-id={s.id}
-              className={cn('mx-0.5 rounded px-1 py-0.5 text-left transition-colors disabled:cursor-default', state === 'idle' && 'hover:bg-muted', state === 'sel' && 'bg-accent-soft text-accent-soft-ink ring-1 ring-accent', state === 'hit' && 'bg-ok-soft text-ok-ink ring-1 ring-ok', state === 'missed' && 'bg-ok-soft/50 text-ok-ink ring-1 ring-dashed ring-ok', state === 'wrong' && 'bg-bad-soft text-bad-ink line-through ring-1 ring-bad')}>
+            <button key={s.id} type="button" aria-pressed={chosen} disabled={revealed || readOnly} onClick={() => (strikeMode && !chosen ? strikes.toggle(s.id) : toggle(s.id))} data-segment-id={s.id} data-struck={struck || undefined}
+              onContextMenu={strikes.enabled ? (e) => { e.preventDefault(); if (!chosen) strikes.toggle(s.id); } : undefined}
+              className={cn('mx-0.5 rounded px-1 py-0.5 text-left transition-colors disabled:cursor-default', state === 'idle' && 'hover:bg-muted', struck && STRUCK_TEXT, strikeMode && !chosen && 'cursor-crosshair', state === 'sel' && 'bg-accent-soft text-accent-soft-ink ring-1 ring-accent', state === 'hit' && 'bg-ok-soft text-ok-ink ring-1 ring-ok', state === 'missed' && 'bg-ok-soft/50 text-ok-ink ring-1 ring-dashed ring-ok', state === 'wrong' && 'bg-bad-soft text-bad-ink line-through ring-1 ring-bad')}>
               {showKeyHints && i < 9 && !revealed ? <sup className="mr-0.5 text-[10px] text-ink-3">{i + 1}</sup> : null}{s.text}
             </button>
           );
