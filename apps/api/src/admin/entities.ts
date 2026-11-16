@@ -234,6 +234,7 @@ export const ENTITIES: EntityMeta[] = [
       { name: 'hideRound', label: '회차 가림', type: 'boolean', editable: true },
       { name: 'revealMetaOnAnswer', label: '정답 공개 시 메타 표시', type: 'boolean', editable: true },
       { name: 'blockEasyWhenWrong', label: '틀리면 쉬움 막기', type: 'boolean', editable: true },
+      { name: 'dockActionsDesktop', label: 'PC 평가 버튼 하단 고정', type: 'boolean', editable: true },
       { name: 'essayAnswerView', label: '서술형 모범답안 보기', type: 'enum', enumValues: ['plain', 'scored'], editable: true },
       { name: 'newCardOrder', label: '새 카드 순서', type: 'enum', enumValues: ['deck', 'random'], editable: true },
       { name: 'mobileSubmitOnRight', label: '모바일 제출 버튼 오른쪽', type: 'boolean', editable: true },

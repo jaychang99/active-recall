@@ -1,8 +1,11 @@
 'use client';
 import { useEffect, useRef } from 'react';
 
-/** One set of controls: inline on desktop, above the visible viewport's bottom on mobile. */
-export function StudyActions({ children }: { children: React.ReactNode }) {
+/**
+ * One set of controls: inline on desktop, above the visible viewport's bottom on mobile. `dock` also docks it on
+ * desktop (lined up with the study column); `'slide'` makes it rise from the bottom edge as it appears.
+ */
+export function StudyActions({ children, dock }: { children: React.ReactNode; dock?: 'slide' | 'static' }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const bar = ref.current;
@@ -16,7 +19,16 @@ export function StudyActions({ children }: { children: React.ReactNode }) {
     let lastHeight = -1;
     // Measure only when the bar itself changes size, not on every viewport scroll.
     const measure = () => {
-      if (!mobile.matches) {
+      if (dock && !mobile.matches) {
+        // Docked on desktop: span the study column, not the whole window (the sidebar stays clear).
+        const r = root.getBoundingClientRect();
+        bar.style.setProperty('--dock-left', `${Math.round(r.left)}px`);
+        bar.style.setProperty('--dock-width', `${Math.round(r.width)}px`);
+      } else {
+        bar.style.removeProperty('--dock-left');
+        bar.style.removeProperty('--dock-width');
+      }
+      if (!mobile.matches && !dock) {
         root.style.removeProperty('--study-actions-height');
         lastHeight = -1;
         return;
@@ -67,8 +79,9 @@ export function StudyActions({ children }: { children: React.ReactNode }) {
     };
     const onFocus = () => update(true);
     const onBlur = () => update();
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(() => { lastHeight = -1; measure(); });
     observer.observe(bar);
+    observer.observe(root);
     viewport?.addEventListener('resize', onResize);
     viewport?.addEventListener('scroll', onScroll);
     window.addEventListener('resize', onResize);
@@ -88,6 +101,6 @@ export function StudyActions({ children }: { children: React.ReactNode }) {
       root.removeEventListener('focusout', onBlur);
       root.style.removeProperty('--study-actions-height');
     };
-  }, []);
-  return <div ref={ref} className="study-actions" data-testid="study-actions"><div className="mx-auto w-full max-w-[840px]">{children}</div></div>;
+  }, [dock]);
+  return <div ref={ref} className="study-actions" data-dock={dock} data-testid="study-actions"><div className="mx-auto w-full max-w-[840px]">{children}</div></div>;
 }

@@ -819,7 +819,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             <ExplanationPanel explanation={grade.explanation} source={item.question.source} meta={metaControl} open={showExplanation} />
             {!isBrowse ? <LlmLinksPanel questionId={item.questionId} round={item.reviewRound} hideRound={roundHidden} /> : null}
             {phase === 'submitted' ? (
-              <StudyActions>{unrated ? (
+              <StudyActions dock={settings.dockActionsDesktop ? 'slide' : undefined}>{unrated ? (
                 <div className="flex items-center gap-3 md:flex-wrap md:gap-2">
                   <span className="min-w-0 flex-1 text-[12px] text-ink-3 md:flex-initial" data-testid="study-mode-notice">{isBrowse ? '구경 모드: 학습 기록과 FSRS 스케줄에 남지 않습니다.' : '연습 모드: FSRS 스케줄은 바뀌지 않습니다.'}</span>
                   <Button className="shrink-0 md:order-first" variant="primary" size="lg" onClick={advanceUnrated} kbd="N" data-testid="next-btn">다음 <ArrowRight className="h-4 w-4" /></Button>
@@ -838,7 +838,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
               </p>
             ) : null}
             {phase === 'rated' ? (
-              <StudyActions><div className="flex flex-wrap items-center gap-2">
+              <StudyActions dock={settings.dockActionsDesktop ? 'static' : undefined}><div className="flex flex-wrap items-center gap-2">
                 <Button variant="primary" size="lg" onClick={() => next()} kbd="N" data-testid="next-btn">다음 문제 <ArrowRight className="h-4 w-4" /></Button>
                 <Button loading={undoMut.isPending} loadingLabel="평가 복구 중…" variant="ghost" onClick={undo} kbd="⌘Z" data-testid="undo-btn"><Undo2 className="h-4 w-4" /> 다시 평가</Button>
                 {cardKey && memos[cardKey]?.rating ? (

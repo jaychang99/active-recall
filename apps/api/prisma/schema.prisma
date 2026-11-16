@@ -509,6 +509,8 @@ model AppSettings {
   revealMetaOnAnswer     Boolean   @default(false)
   /// Study screen: disable the Easy rating when the answer was wrong (partial included) or revealed without answering.
   blockEasyWhenWrong     Boolean   @default(false)
+  /// Desktop study screen: after answering, slide the rating/next controls up and dock them to the viewport bottom (mobile always docks).
+  dockActionsDesktop     Boolean   @default(false)
   /// How an essay's model answer is shown after submitting: plain (the text) | scored (segments with their points; falls back to plain when the question has no segments).
   essayAnswerView        String    @default("plain") @db.VarChar(16)
   newCardOrder           String    @default("deck") @db.VarChar(16) // deck | random
