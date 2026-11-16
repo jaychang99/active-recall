@@ -5,7 +5,7 @@ import { SettingsService } from '../settings/settings.service';
 import { endOfDayInTz } from '../common/time';
 import { CardStatus } from '../generated/prisma/client';
 import { emptyProgress, type DeckProgress } from '../decks/decks.service';
-import { archiveFilter, latestReviewsByQuestion, recentReviewsFirst, type CollectionListOptions } from '../common/collections';
+import { archiveFilter, latestReviewsByQuestion, recentlyStudiedFirst, type CollectionListOptions } from '../common/collections';
 
 export interface SubjectSummary {
   id: string;
@@ -19,6 +19,7 @@ export interface SubjectSummary {
   updatedAt: Date;
   archivedAt: Date | null;
   lastReviewedAt: Date | null;
+  lastStudiedAt: Date | null;
 }
 
 @Injectable()
@@ -86,7 +87,7 @@ export class SubjectsService {
       },
     });
     const reviews = await latestReviewsByQuestion(userId, this.prisma, { deck: { deletedAt: null }, subjects: { some: { deletedAt: null, subjectId: { in: subjects.map((s) => s.id) } } } });
-    return recentReviewsFirst(subjects.map((s) => {
+    return recentlyStudiedFirst(subjects.map((s) => {
       const progress = emptyProgress();
       let lastReviewedAt: Date | null = null;
       const deckIds = new Set<string>();
@@ -105,7 +106,7 @@ export class SubjectsService {
         else progress.relearning++;
         if (status !== CardStatus.NEW && c && !c.suspended && c.dueAt <= dayEnd) progress.dueToday++;
       }
-      return { id: s.id, name: s.name, color: s.color, description: s.description, questionCount: s.questions.length, deckIds: [...deckIds], progress, createdAt: s.createdAt, updatedAt: s.updatedAt, archivedAt: s.archivedAt, lastReviewedAt };
+      return { id: s.id, name: s.name, color: s.color, description: s.description, questionCount: s.questions.length, deckIds: [...deckIds], progress, createdAt: s.createdAt, updatedAt: s.updatedAt, archivedAt: s.archivedAt, lastReviewedAt, lastStudiedAt: s.lastStudiedAt };
     }));
   }
 

@@ -69,7 +69,7 @@ export default function DecksPage() {
                   {!archived ? <ArchiveButton kind="decks" id={d.id} name={d.title} archived={false} /> : null}
                 </div>
               </div>
-              <p className="text-[12px] text-ink-3">마지막 복습 {d.lastReviewedAt ? formatDateTime(d.lastReviewedAt) : '없음'}</p>
+              <p className="text-[12px] text-ink-3">최근 열람 {d.lastStudiedAt ? formatDateTime(d.lastStudiedAt) : '없음'}</p>
               <ProgressStrip p={d.progress} />
               <div className="flex flex-wrap gap-1">{d.tags.map((t) => <Badge key={t}>{t}</Badge>)}{d.progress.flagged ? <Badge tone="warn">표시 {d.progress.flagged}</Badge> : null}{d.progress.suspended ? <Badge tone="outline">보류 {d.progress.suspended}</Badge> : null}</div>
               <div className="relative z-10 mt-auto flex flex-wrap gap-2">

@@ -74,7 +74,7 @@ export default function SubjectsPage() {
               </div>
             </div>
             <Link href={`/decks?subject=${encodeURIComponent(s.name)}`} aria-label={`${s.name} 덱 보기`} className="mt-1 block text-[12px] text-ink-3 after:absolute after:inset-0 after:rounded-lg">{s.questionCount}문항 · 덱 {s.deckIds.length}개 · due {s.progress.dueToday}</Link>
-            <p className="mt-1 text-[12px] text-ink-3">마지막 복습 {s.lastReviewedAt ? formatDateTime(s.lastReviewedAt) : '없음'}</p>
+            <p className="mt-1 text-[12px] text-ink-3">최근 열람 {s.lastStudiedAt ? formatDateTime(s.lastStudiedAt) : '없음'}</p>
             <ProgressStrip p={s.progress} className="mt-3" />
             <div className="relative z-10 mt-3 flex flex-wrap gap-2">
               {archived ? <ArchiveButton kind="subjects" id={s.id} name={s.name} archived showLabel /> : null}

@@ -9,6 +9,8 @@ import { pct } from '@/lib/utils';
 import { CopyPromptButton } from '@/components/layout/copy-prompt-button';
 import { ActivityHeatmap } from '@/components/insights/heatmap';
 
+const RECENT_COUNT = 5;
+
 export default function DashboardPage() {
   const decks = useQuery({ queryKey: ['decks'], queryFn: () => api<Deck[]>('/decks') });
   const overview = useQuery({ queryKey: ['overview', {}], queryFn: () => api<Overview>('/analytics/overview?days=30') });
@@ -16,6 +18,9 @@ export default function DashboardPage() {
   const o = overview.data;
   const dueTotal = decks.data?.reduce((a, d) => a + d.progress.dueToday, 0) ?? 0;
   const newTotal = decks.data?.reduce((a, d) => a + d.progress.new, 0) ?? 0;
+  // The API orders both lists by last opened (browse, cram, study or exam) — the same "recent" as the sidebar.
+  const recentDecks = decks.data?.slice(0, RECENT_COUNT);
+  const recentSubjects = subjects.data?.slice(0, RECENT_COUNT);
 
   if (decks.isError) return <ErrorState message={(decks.error as Error).message} onRetry={() => decks.refetch()} />;
 
@@ -73,14 +78,14 @@ export default function DashboardPage() {
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold">덱</h2>
-          <Link href="/decks" className="text-sm text-accent">전체 보기</Link>
+          <h2 className="text-base font-semibold">최근 본 덱</h2>
+          <MoreLink href="/decks" label="덱 더 보기" />
         </div>
         {decks.isLoading ? <LoadingState label="덱 목록을 불러오는 중…" className="min-h-28" /> : null}
-        {decks.data?.length ? (
+        {recentDecks?.length ? (
           <Panel>
-            <ul className="divide-y divide-line">
-              {decks.data.map((d) => (
+            <ul className="divide-y divide-line" aria-label="최근 본 덱">
+              {recentDecks.map((d) => (
                 <li key={d.id} className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-3 lg:grid-cols-[minmax(0,1fr)_12rem_auto_auto] transition-colors hover:bg-muted/50">
                   <div className="min-w-0">
                     <Link href={`/decks/${d.id}`} className="block truncate font-medium after:absolute after:inset-0">{d.title}</Link>
@@ -101,15 +106,15 @@ export default function DashboardPage() {
         ) : null}
       </section>
 
-      {subjects.data?.length ? (
+      {recentSubjects?.length ? (
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold">과목</h2>
-            <Link href="/subjects" className="text-sm text-accent">과목 관리</Link>
+            <h2 className="text-base font-semibold">최근 본 과목</h2>
+            <MoreLink href="/subjects" label="과목 더 보기" />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {subjects.data.map((s) => (
-              <Link key={s.id} href={`/study/all?subject=${encodeURIComponent(s.name)}`} className="inline-flex items-center gap-2 rounded-full border border-line bg-elevated px-3 py-1.5 text-sm hover:border-line-strong">
+          <div className="flex flex-wrap gap-2" role="list" aria-label="최근 본 과목">
+            {recentSubjects.map((s) => (
+              <Link key={s.id} role="listitem" href={`/study/all?subject=${encodeURIComponent(s.name)}`} className="inline-flex items-center gap-2 rounded-full border border-line bg-elevated px-3 py-1.5 text-sm hover:border-line-strong">
                 <span className="h-2 w-2 rounded-full" style={{ background: s.color ?? 'var(--accent)' }} />
                 {s.name}
                 <span className="text-[12px] text-ink-3 tabular">{s.questionCount}문항 · due {s.progress.dueToday}</span>
@@ -119,5 +124,13 @@ export default function DashboardPage() {
         </section>
       ) : null}
     </div>
+  );
+}
+
+function MoreLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link href={href} aria-label={label} className="inline-flex items-center gap-1 text-sm text-accent underline-offset-4 hover:underline">
+      더 보기 <ArrowRight className="h-3.5 w-3.5" />
+    </Link>
   );
 }

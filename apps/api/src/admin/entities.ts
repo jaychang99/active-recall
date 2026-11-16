@@ -51,7 +51,7 @@ const stamps: FieldMeta[] = [
 
 const QUESTION_TYPES = ['single_choice', 'multiple_choice', 'true_false', 'short_answer', 'essay', 'cloze', 'ordering', 'matching', 'numeric', 'cloze_select', 'statement_set', 'categorize', 'two_tier', 'recall_card', 'stepwise', 'highlight', 'cloze_bank', 'code_cloze', 'matrix', 'numeric_grid', 'list_answer', 'image_hotspot', 'parsons', 'find_and_fix', 'coordinate_point', 'regex_answer'];
 const CARD_STATUS = ['NEW', 'LEARNING', 'REVIEW', 'RELEARNING'];
-const SESSION_MODES = ['study', 'cram', 'practice', 'exam'];
+const SESSION_MODES = ['study', 'cram', 'practice', 'exam', 'browse'];
 
 export const ENTITIES: EntityMeta[] = [
   {
@@ -61,6 +61,7 @@ export const ENTITIES: EntityMeta[] = [
       { name: 'slug', label: '슬러그 (배치 deck.id)', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
       { name: 'title', label: '제목', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
       { name: 'archivedAt', label: '아카이브', type: 'datetime', filterable: true, sortable: true },
+      { name: 'lastStudiedAt', label: '최근 열람', type: 'datetime', sortable: true },
       { name: 'subject', label: '과목', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
       { name: 'language', label: '언어', type: 'string', editable: true, required: true, filterable: true, sortable: true },
       { name: 'description', label: '설명', type: 'text', editable: true, searchable: true, wide: true },
@@ -143,6 +144,7 @@ export const ENTITIES: EntityMeta[] = [
       { name: 'id', label: 'ID', type: 'string', sortable: true },
       { name: 'name', label: '이름', type: 'string', editable: true, required: true, filterable: true, searchable: true, sortable: true },
       { name: 'archivedAt', label: '아카이브', type: 'datetime', filterable: true, sortable: true },
+      { name: 'lastStudiedAt', label: '최근 열람', type: 'datetime', sortable: true },
       { name: 'color', label: '색', type: 'string', editable: true },
       { name: 'description', label: '설명', type: 'text', editable: true, searchable: true, wide: true },
       ...stamps,

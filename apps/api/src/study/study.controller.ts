@@ -29,6 +29,10 @@ class StartSessionDto {
   @IsOptional() @IsIn(SESSION_MODES) mode?: SessionStudyMode;
   @IsOptional() @IsInt() @Min(0) queueSize?: number;
 }
+class VisitDto {
+  @IsOptional() @IsString() deckId?: string;
+  @IsOptional() @IsString() subject?: string;
+}
 class PracticeDto {
   @IsString() questionId!: string;
   @IsOptional() @IsString() sessionId?: string;
@@ -70,6 +74,10 @@ export class StudyController {
 
   @Patch('sessions/:id/end') end(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.study.endSession(user.id, id);
+  }
+
+  @Post('visit') visit(@CurrentUser() user: AuthUser, @Body() dto: VisitDto) {
+    return this.study.visit(user.id, dto);
   }
 
   @Post('practice') practice(@CurrentUser() user: AuthUser, @Body() dto: PracticeDto) {

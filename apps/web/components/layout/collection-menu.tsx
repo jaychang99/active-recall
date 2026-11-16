@@ -23,9 +23,10 @@ export function CollectionMenu({ kind, onNavigate }: { kind: 'decks' | 'subjects
     queryFn: () => kind === 'decks' ? api<Deck[]>('/decks') : api<SubjectSummary[]>('/subjects'),
     enabled: open,
   });
+  // Same "recent" as the dashboard: opened in browse, cram, study or an exam (the API already sorts by it).
   const recent = (query.data ?? [])
-    .filter((item) => item.lastReviewedAt && !item.archivedAt)
-    .sort((a, b) => Date.parse(b.lastReviewedAt!) - Date.parse(a.lastReviewedAt!))
+    .filter((item) => item.lastStudiedAt && !item.archivedAt)
+    .sort((a, b) => Date.parse(b.lastStudiedAt!) - Date.parse(a.lastStudiedAt!))
     .slice(0, 5);
 
   return (
@@ -46,11 +47,11 @@ export function CollectionMenu({ kind, onNavigate }: { kind: 'decks' | 'subjects
         <Link href={`/${kind}`} onClick={onNavigate} aria-current={pathname === `/${kind}` && !subjectView ? 'page' : undefined} className="block rounded-md px-2 py-2 text-[13px] font-medium text-ink-2 hover:bg-muted hover:text-ink">
           전체 {label} 보기
         </Link>
-        <p className="px-2 pt-2 pb-1 text-[11px] text-ink-3">최근 복습</p>
+        <p className="px-2 pt-2 pb-1 text-[11px] text-ink-3">최근 본 {label}</p>
         {query.isPending ? <p role="status" className="flex items-center gap-1.5 px-2 py-2 text-[12px] text-ink-3"><Spinner className="h-3 w-3" />불러오는 중…</p> : null}
         {query.isError ? <div className="px-2 py-2 text-[12px] text-ink-3"><p>최근 항목을 불러오지 못했습니다.</p><button type="button" className="mt-1 text-accent hover:underline" onClick={() => void query.refetch()}>다시 시도</button></div> : null}
-        {query.isSuccess && !recent.length ? <p className="px-2 py-2 text-[12px] text-ink-3">아직 복습한 {label}이 없습니다.</p> : null}
-        <ul aria-label={`최근 복습한 ${label}`}>
+        {query.isSuccess && !recent.length ? <p className="px-2 py-2 text-[12px] text-ink-3">아직 본 {label}이 없습니다.</p> : null}
+        <ul aria-label={`최근 본 ${label}`}>
           {recent.map((item) => {
             const name = 'title' in item ? item.title : item.name;
             const href = 'title' in item ? `/decks/${item.id}` : `/decks?subject=${encodeURIComponent(item.name)}`;

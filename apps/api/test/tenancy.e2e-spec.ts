@@ -159,6 +159,7 @@ describe('account deletion', () => {
     await as.put(`/questions/${qid}/notes/1`).send({ body: `note ${name}` }).expect(200);
     await as.put(`/questions/${qid}/llm-links/1`).send({ url: `https://chatgpt.com/share/${name}` }).expect(200);
     const session = await as.post('/study/sessions').send({ scope: deckId }).expect(201);
+    await as.post('/study/sessions/open').send({ scope: deckId, mode: 'cram' }).expect(201);
     await as.post('/study/practice').send({ questionId: qid, sessionId: session.body.id, answerPayload: { type: 'single_choice', choiceId: 'a' } }).expect(201);
     const exam = await as.post('/exams').send({ deckId, shuffle: false }).expect(201);
     await as.post(`/exams/${exam.body.id}/submit`).send({ responses: [{ questionId: qid, answerPayload: { type: 'single_choice', choiceId: 'a' } }] }).expect(200);
@@ -180,6 +181,7 @@ describe('account deletion', () => {
       reviews: await p.reviewLog.count(where),
       notes: await p.questionNote.count(where),
       llmLinks: await p.llmAnswerLink.count(where),
+      sessionItems: await p.studySessionItem.count(where),
       sessions: await p.studySession.count(where),
       practices: await p.practiceLog.count(where),
       exams: await p.examAttempt.count(where),

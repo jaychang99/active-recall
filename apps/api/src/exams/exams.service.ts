@@ -60,6 +60,7 @@ export class ExamsService {
         questionIds: toJson(chosen.map((c) => c.id)),
       },
     });
+    await this.prisma.deck.update({ where: { id: dto.deckId, userId }, data: { lastStudiedAt: attempt.startedAt } });
     return this.get(userId, attempt.id);
   }
 

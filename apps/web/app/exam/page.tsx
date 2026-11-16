@@ -1,5 +1,5 @@
 'use client';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GraduationCap, Play } from 'lucide-react';
 import Link from '@/components/ui/navigation-link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -28,9 +28,10 @@ export default function ExamSetupPage() {
   const [dMax, setDMax] = useState(5);
   const [timeLimit, setTimeLimit] = useState(0);
   const [title, setTitle] = useState('');
+  const qc = useQueryClient();
   const create = useMutation({
     mutationFn: () => api<Exam>('/exams', { method: 'POST', json: { deckId: effectiveDeck, title: title || undefined, count, shuffle, types: types.length ? types : undefined, tags: tags.length ? tags : undefined, difficultyMin: dMin, difficultyMax: dMax, timeLimitSec: timeLimit ? timeLimit * 60 : undefined } }),
-    onSuccess: (e) => router.push(`/exam/run/${e.id}`),
+    onSuccess: (e) => { void qc.invalidateQueries({ queryKey: ['decks'] }); router.push(`/exam/run/${e.id}`); },
     onError: (e: Error) => toast.error('시험을 만들지 못했습니다', { description: e.message }),
   });
 

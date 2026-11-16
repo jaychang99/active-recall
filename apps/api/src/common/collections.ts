@@ -7,13 +7,14 @@ export function archiveFilter(opts: CollectionListOptions) {
   return opts.includeArchived ? {} : { archivedAt: opts.archived ? { not: null } : null };
 }
 
-export function recentReviewsFirst<T extends { id: string; lastReviewedAt: Date | null; createdAt: Date }>(items: T[]): T[] {
+/** "Recent" = last opened in any study mode (browse/cram/study/practice) or an exam; never-opened items follow, newest first. */
+export function recentlyStudiedFirst<T extends { id: string; lastStudiedAt: Date | null; createdAt: Date }>(items: T[]): T[] {
   return items.sort((a, b) => {
-    if (a.lastReviewedAt && b.lastReviewedAt) {
-      const diff = b.lastReviewedAt.getTime() - a.lastReviewedAt.getTime();
+    if (a.lastStudiedAt && b.lastStudiedAt) {
+      const diff = b.lastStudiedAt.getTime() - a.lastStudiedAt.getTime();
       if (diff) return diff;
-    } else if (a.lastReviewedAt) return -1;
-    else if (b.lastReviewedAt) return 1;
+    } else if (a.lastStudiedAt) return -1;
+    else if (b.lastStudiedAt) return 1;
     return b.createdAt.getTime() - a.createdAt.getTime() || a.id.localeCompare(b.id);
   });
 }

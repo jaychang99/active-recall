@@ -59,6 +59,7 @@ enum SessionMode {
   cram
   practice
   exam
+  browse // look-only: kept for resuming, never counted in history or stats
 }
 
 enum ShareKind {
@@ -96,6 +97,7 @@ model User {
   reviews          ReviewLog[]
   notes            QuestionNote[]
   llmLinks         LlmAnswerLink[]
+  sessionItems     StudySessionItem[]
   sessions         StudySession[]
   practices        PracticeLog[]
   examAttempts     ExamAttempt[]
@@ -111,19 +113,20 @@ model User {
 }
 
 model Deck {
-  id          String    @id @default(cuid())
-  userId      String
-  slug        String    @db.VarChar(80) // external stable id from batch.deck.id (unique per user)
-  title       String    @db.VarChar(200)
-  description String?   @db.Text
-  subject     String    @db.VarChar(200)
-  language    String    @db.VarChar(35)
-  tagsJson    Json
-  originId    String?   @db.VarChar(64) // root deck id this deck was copied from through a share (null = authored here)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-  archivedAt  DateTime?
+  id            String    @id @default(cuid())
+  userId        String
+  slug          String    @db.VarChar(80) // external stable id from batch.deck.id (unique per user)
+  title         String    @db.VarChar(200)
+  description   String?   @db.Text
+  subject       String    @db.VarChar(200)
+  language      String    @db.VarChar(35)
+  tagsJson      Json
+  originId      String?   @db.VarChar(64) // root deck id this deck was copied from through a share (null = authored here)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  archivedAt    DateTime?
+  lastStudiedAt DateTime? // last opened in browse/cram/study/practice or an exam (drives "recent" lists)
 
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions    Question[]
@@ -159,6 +162,7 @@ model Question {
   reviews       ReviewLog[]
   notes         QuestionNote[]
   llmLinks      LlmAnswerLink[]
+  sessionItems  StudySessionItem[]
   examResponses ExamResponse[]
   practiceLogs  PracticeLog[]
   subjects      QuestionSubject[]
@@ -173,15 +177,16 @@ model Question {
 // Subjects are tag-like labels: one question can belong to many subjects.
 // The deck's `subject` is assigned automatically on import (source = "deck"); learners add more (source = "manual").
 model Subject {
-  id          String    @id @default(cuid())
-  userId      String
-  name        String    @db.VarChar(200)
-  color       String?   @db.VarChar(16)
-  description String?   @db.Text
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-  archivedAt  DateTime?
+  id            String    @id @default(cuid())
+  userId        String
+  name          String    @db.VarChar(200)
+  color         String?   @db.VarChar(16)
+  description   String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  archivedAt    DateTime?
+  lastStudiedAt DateTime? // last opened as a subject-scoped study (any mode)
 
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions QuestionSubject[]
@@ -320,17 +325,53 @@ model StudySession {
   startedAt DateTime    @default(now())
   endedAt   DateTime?
   queueSize Int         @default(0)
+  /// Hash of the queue parameters (scope, mode, filters): reopening the same study page joins this session
+  /// from any device while it is active (not ended, used within the last 6 hours).
+  paramsKey    String?   @db.VarChar(64)
+  lastActiveAt DateTime?
+  /// Queue position the learner was last on (any device); a device with its own position uses that.
+  lastPosition Int       @default(0)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   deletedAt DateTime?
 
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deck      Deck?         @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deck      Deck?              @relation(fields: [deckId], references: [id], onDelete: Cascade)
   reviews   ReviewLog[]
   practices PracticeLog[]
+  items     StudySessionItem[]
 
   @@index([deckId, startedAt])
   @@index([userId, startedAt])
+  @@index([userId, paramsKey, lastActiveAt])
+}
+
+/// One entry of a session's frozen queue (base cards and re-queued copies), shared by every device in the
+/// session. Ratings are not stored here: an entry is rated when its question has an effective review of that
+/// round. `phase` is the shared result state once an answer was opened; drafts stay on each device.
+model StudySessionItem {
+  id                   String    @id @default(cuid())
+  userId               String
+  sessionId            String
+  position             Int
+  questionId           String
+  reviewRound          Int
+  skipped              Boolean   @default(false)
+  phase                String?   @db.VarChar(16) // null = not opened yet · 'submitted' = answer opened (submit or reveal)
+  answerPayloadJson    Json?
+  revealedBeforeAnswer Boolean   @default(false)
+  hintUsed             Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session  StudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, position])
+  @@unique([sessionId, questionId, reviewRound])
+  @@index([userId])
 }
 
 model PracticeLog {

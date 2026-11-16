@@ -12,8 +12,32 @@ const settings = {
   hideRound: false, revealMetaOnAnswer: false, essayAnswerView: 'plain', promptDefaults: null,
 };
 
+function queueItem(q: Question, hasHint = true) {
+  return { questionId: q.id, externalId: q.id, question: toPublicQuestion(q), type: q.type,
+    deck: { id: 'deck', title: '모바일 테스트', subject: '과목' }, hasHint, reviewRound: 1, noteCount: 0,
+    card: { status: 'NEW', version: 0, flagged: false }, preview: null };
+}
+
+/** What POST /study/sessions/open answers: a shared session whose frozen queue is `ordered`. */
+function sessionResponse(id: string, ordered: Question[], resumed: boolean, hasHint = true) {
+  const at = '2026-10-24T00:00:00.000Z';
+  const newItems = ordered.map((q, position) => ({ ...queueItem(q, hasHint), position }));
+  return {
+    resumed,
+    queue: { scope: 'all', mode: 'cram', deck: null, counts: { total: ordered.length } },
+    session: { id, mode: 'cram', startedAt: at, endedAt: null, lastPosition: 0, lastActiveAt: at },
+    items: newItems.map((it) => ({ position: it.position, questionId: it.questionId, reviewRound: 1, skipped: false, phase: null, answerPayload: null, revealedBeforeAnswer: false, hintUsed: false, createdAt: at, updatedAt: at })),
+    newItems,
+    reviews: [],
+    cards: [],
+  };
+}
+
 async function mockApp(page: Page) {
   let savedSettings = { ...settings };
+  // One study session per page, rejoined until it ends (like the API's shared sessions).
+  let study: { id: string; ended: boolean } | null = null;
+  let sessions = 0;
   await page.context().addCookies([{ name: 'authjs.session-token', value: 'ui-test-session', url: process.env.E2E_BASE_URL ?? 'http://localhost:3000' }]);
   await page.route('**/*', async (route) => {
     const request = route.request();
@@ -31,16 +55,18 @@ async function mockApp(page: Page) {
     if (path === '/shares/received/count') return json({ pending: 2 });
     if (path === '/decks') return json([{ id: 'deck', slug: 'a_very_long_deck_identifier_for_layout_testing', title: '아주 긴 덱 제목으로 모바일 선택 항목을 확인합니다 '.repeat(3), subject: '모바일 레이아웃 테스트', progress: { total: 3 } }]);
     if (path === '/subjects' || path.endsWith('/subjects')) return json([]);
-    if (path === '/study/queue') return json({
-      scope: 'all', mode: 'cram', deck: null, counts: { total: questions.length },
-      items: questions.map((q) => ({ questionId: q.id, externalId: q.id, question: toPublicQuestion(q), type: q.type,
-        deck: { id: 'deck', title: '모바일 테스트', subject: '과목' }, hasHint: true, reviewRound: 1, noteCount: 0,
-        card: { status: 'NEW', version: 0, flagged: false }, preview: null })),
-    });
+    if (path === '/study/sessions/open') {
+      const fresh = !study || study.ended || (request.postDataJSON() as { fresh?: boolean }).fresh;
+      if (fresh) study = { id: `ui-session-${++sessions}`, ended: false };
+      return json(sessionResponse(study!.id, questions, !fresh));
+    }
+    if (/^\/study\/sessions\/[^/]+\/state$/.test(path)) return json({ ...sessionResponse(study?.id ?? 'ui-session', questions, true), newItems: [] });
+    if (/^\/study\/sessions\/[^/]+\/(position|items)/.test(path)) return json({});
     if (path.endsWith('/notes')) return json({ notes: [] });
     if (path.endsWith('/hint')) return json({ hint: '모바일 힌트' });
     if (path === '/study/sessions') return json({ id: 'ui-session' });
-    if (path.endsWith('/end')) return json({});
+    if (path === '/study/visit') return json({ lastStudiedAt: new Date().toISOString() });
+    if (path.endsWith('/end')) { if (study) study.ended = true; return json({}); }
     if (path.endsWith('/grade')) {
       const q = questions.find((q) => path.includes(q.id))!;
       const payload = request.postDataJSON() as { answerPayload: AnswerPayload | null };
@@ -75,20 +101,24 @@ async function mockSidebarCollections(page: Page) {
   const progress = { total: 8, new: 7, learning: 1, review: 0, relearning: 0, dueToday: 0, flagged: 0, suspended: 0 };
   const rows = Array.from({ length: 9 }, (_, i) => ({
     id: String(i),
-    lastReviewedAt: i === 0 ? null : `2026-10-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
+    lastReviewedAt: null,
+    lastStudiedAt: i === 0 ? null : `2026-10-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
     archivedAt: i === 8 ? '2026-10-20T10:00:00Z' : null,
     createdAt: '2026-10-01T10:00:00Z', updatedAt: '2026-10-01T10:00:00Z', deletedAt: null,
     description: null, progress,
   }));
   const name = (i: string) => `과목 ${i} ${i === '7' ? '긴 과목 이름으로 모바일 줄바꿈과 너비 확인' : ''}`.trim();
+  // The API returns both lists already ordered by lastStudiedAt (never-opened last).
+  rows.sort((a, b) => (b.lastStudiedAt ?? '').localeCompare(a.lastStudiedAt ?? ''));
   const decks = rows.map((row) => ({ ...row, id: `deck-${row.id}`, slug: `deck_${row.id}`, title: `덱 ${row.id}`, subject: name(row.id), tags: [], language: 'ko', noteCount: 0, questionTags: [] }));
   const subjects = rows.map((row) => ({ ...row, id: `subject-${row.id}`, name: name(row.id), color: null, questionCount: 8, deckIds: [`deck-${row.id}`] }));
   await page.route('**/*', async (route) => {
     if (!['fetch', 'xhr'].includes(route.request().resourceType())) return route.fallback();
     if (route.request().headers()['rsc'] === '1') return route.fallback();
     const path = new URL(route.request().url()).pathname;
-    if (path === '/decks') return route.fulfill({ json: decks });
-    if (path === '/subjects') return route.fulfill({ json: subjects });
+    // Like the API, the default lists leave archived collections out.
+    if (path === '/decks') return route.fulfill({ json: decks.filter((d) => !d.archivedAt) });
+    if (path === '/subjects') return route.fulfill({ json: subjects.filter((s) => !s.archivedAt) });
     if (path === '/decks/deck-7') return route.fulfill({ json: decks[7] });
     if (path === '/decks/deck-7/questions') return route.fulfill({ json: { page: 1, pageSize: 50, total: 0, items: [] } });
     return route.fallback();
@@ -142,30 +172,26 @@ test('saved mobile submit side swaps only the two answer buttons and survives re
   await page.getByLabel('모바일 제출 버튼 위치', { exact: true }).selectOption('left');
   await page.getByTestId('save-settings').click();
   await expect(page.getByText('설정을 저장했습니다', { exact: true })).toBeVisible();
-  // The session snapshot reopens the revealed card; start a fresh session to see the answer buttons again.
-  await page.evaluate(() => sessionStorage.clear());
   await page.goto('/study/all?mode=cram');
   await expect(submit).toBeVisible();
   expect((await submit.boundingBox())!.x).toBeLessThan((await reveal.boundingBox())!.x);
 });
 
-test('completed subject sessions fetch a new queue while reload preserves the current order', async ({ page }) => {
-  let requests = 0;
+test('completed subject sessions start a new queue while a reload rejoins the current one', async ({ page }) => {
+  let created = 0;
+  let ended = true;
   await page.route('**/analytics/**', (route) => route.fulfill({ status: 503, json: { message: 'offline' } }));
-  await page.route('**/study/queue?*', async (route) => {
-    requests++;
-    const ordered = requests === 1 ? questions : [...questions].reverse();
-    await route.fulfill({ json: { scope: 'all', mode: 'scheduled', counts: { total: questions.length },
-      items: ordered.map((q) => ({ questionId: q.id, externalId: q.id, question: toPublicQuestion(q), type: q.type,
-        deck: { id: 'deck', title: '모바일 테스트', subject: '과목' }, hasHint: false, reviewRound: 1, noteCount: 0,
-        card: { status: 'NEW', version: 0, flagged: false }, preview: null })),
-    } });
+  await page.route('**/study/sessions/open', async (route) => {
+    const fresh = ended;
+    if (fresh) { created++; ended = false; }
+    await route.fulfill({ json: sessionResponse(`s${created}`, created === 1 ? questions : [...questions].reverse(), !fresh, false) });
   });
+  await page.route('**/study/sessions/*/end', (route) => { ended = true; return route.fulfill({ json: {} }); });
   await page.goto('/study/all?subject=과목');
   await expect(page.getByTestId('study-screen')).toHaveAttribute('data-question-id', questions[0]!.id);
   await page.reload();
-  await expect.poll(() => requests).toBe(2);
   await expect(page.getByTestId('study-screen')).toHaveAttribute('data-question-id', questions[0]!.id);
+  expect(created).toBe(1);
   for (const q of questions) {
     await expect(page.getByTestId('study-screen')).toHaveAttribute('data-question-id', q.id);
     await page.getByTestId('reveal-btn').click();
@@ -176,7 +202,7 @@ test('completed subject sessions fetch a new queue while reload preserves the cu
   await page.getByRole('link', { name: '대시보드로', exact: true }).click();
   await expect(page).toHaveURL('/');
   await page.goBack();
-  await expect.poll(() => requests).toBe(3);
+  await expect.poll(() => created).toBe(2);
   await expect(page.getByTestId('study-screen')).toHaveAttribute('data-question-id', questions.at(-1)!.id);
 });
 
@@ -314,7 +340,7 @@ test('sidebar stays fixed and scrolls independently while showing five recent co
   await sidebar.getByRole('button', { name: '덱', exact: true }).click();
   await sidebar.getByRole('button', { name: '과목', exact: true }).click();
   for (const kind of ['덱', '과목']) {
-    const recent = sidebar.getByRole('list', { name: `최근 복습한 ${kind}` });
+    const recent = sidebar.getByRole('list', { name: `최근 본 ${kind}` });
     await expect(recent.getByRole('link')).toHaveCount(5);
     for (let i = 0; i < 5; i++) await expect(recent.getByRole('link').nth(i)).toHaveText(new RegExp(`^${kind} ${7 - i}`));
   }
@@ -338,6 +364,23 @@ test('sidebar stays fixed and scrolls independently while showing five recent co
   await page.screenshot({ path: `/tmp/recall-sidebar-${page.viewportSize()!.width}.png` });
 });
 
+test('dashboard shows the same five recent decks and subjects as the sidebar, with more links', async ({ page }) => {
+  await mockSidebarCollections(page);
+  await page.route('**/analytics/**', (route) => route.fulfill({ status: 503, json: { message: 'offline' } }));
+  await page.goto('/');
+  for (const [kind, href] of [['덱', '/decks'], ['과목', '/subjects']] as const) {
+    const recent = page.getByRole('main').getByRole('list', { name: `최근 본 ${kind}` });
+    const items = recent.getByRole('listitem');
+    await expect(items).toHaveCount(5);
+    for (let i = 0; i < 5; i++) await expect(items.nth(i)).toContainText(`${kind} ${7 - i}`);
+    await expect(page.getByRole('heading', { name: `최근 본 ${kind}`, exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: `${kind} 더 보기`, exact: true })).toHaveAttribute('href', href);
+  }
+  await expectNoOverflow(page);
+  await page.getByRole('link', { name: '과목 더 보기', exact: true }).click();
+  await expect(page).toHaveURL(/\/subjects$/);
+});
+
 test('collection submenu toggles and links navigate on desktop and close the mobile drawer', async ({ page }) => {
   const { subjectName } = await mockSidebarCollections(page);
   await page.goto('/prompt');
@@ -351,7 +394,7 @@ test('collection submenu toggles and links navigate on desktop and close the mob
   await deckToggle.click();
   await expect(page.locator('#sidebar-decks')).toBeHidden();
   await deckToggle.click();
-  await sidebar.getByRole('list', { name: '최근 복습한 덱' }).getByRole('link', { name: '덱 7', exact: true }).click();
+  await sidebar.getByRole('list', { name: '최근 본 덱' }).getByRole('link', { name: '덱 7', exact: true }).click();
   await expect(page).toHaveURL(/\/decks\/deck-7$/);
   await expect(page.getByRole('heading', { name: '덱 7', exact: true })).toBeVisible();
   if (mobile) {
@@ -359,7 +402,7 @@ test('collection submenu toggles and links navigate on desktop and close the mob
     await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
   }
   await sidebar.getByRole('button', { name: '과목', exact: true }).click();
-  const subject = sidebar.getByRole('list', { name: '최근 복습한 과목' }).getByRole('link', { name: subjectName, exact: true });
+  const subject = sidebar.getByRole('list', { name: '최근 본 과목' }).getByRole('link', { name: subjectName, exact: true });
   await expect(subject).toHaveAttribute('href', `/decks?subject=${encodeURIComponent(subjectName)}`);
   await subject.click();
   await expect.poll(() => new URL(page.url()).searchParams.get('subject')).toBe(subjectName);
@@ -367,7 +410,7 @@ test('collection submenu toggles and links navigate on desktop and close the mob
     await expect(page.getByRole('button', { name: '메뉴 열기', exact: true })).toHaveAttribute('aria-expanded', 'false');
     await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
   }
-  await expect(sidebar.getByRole('list', { name: '최근 복습한 과목' }).getByRole('link', { name: subjectName, exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(sidebar.getByRole('list', { name: '최근 본 과목' }).getByRole('link', { name: subjectName, exact: true })).toHaveAttribute('aria-current', 'page');
   await sidebar.getByRole('link', { name: '전체 과목 보기', exact: true }).click();
   await expect(page).toHaveURL(/\/subjects$/);
   await expect(page.getByRole('heading', { name: '과목', exact: true })).toBeVisible();
@@ -375,12 +418,12 @@ test('collection submenu toggles and links navigate on desktop and close the mob
 });
 
 for (const kind of ['decks', 'subjects'] as const) {
-  test(`${kind} keep recent review order and support archive tabs and restoration`, async ({ page }) => {
+  test(`${kind} keep recently opened order and support archive tabs and restoration`, async ({ page }) => {
     const progress = { total: 8, new: 7, learning: 1, review: 0, relearning: 0, dueToday: 0, flagged: 0, suspended: 0 };
     const rows = [
-      { id: 'recent', title: '최근 복습한 덱', name: '최근 복습한 과목', subject: 'Z 과목', lastReviewedAt: '2026-10-21T10:00:00Z' },
-      { id: 'older', title: '이전에 복습한 덱', name: '이전에 복습한 과목', subject: 'A 과목', lastReviewedAt: '2026-10-20T10:00:00Z' },
-      { id: 'new', title: '아직 복습하지 않은 덱', name: '아직 복습하지 않은 과목', subject: 'B 과목', lastReviewedAt: null },
+      { id: 'recent', title: '최근에 연 덱', name: '최근에 연 과목', subject: 'Z 과목', lastStudiedAt: '2026-10-21T10:00:00Z' },
+      { id: 'older', title: '이전에 연 덱', name: '이전에 연 과목', subject: 'A 과목', lastStudiedAt: '2026-10-20T10:00:00Z' },
+      { id: 'new', title: '아직 열지 않은 덱', name: '아직 열지 않은 과목', subject: 'B 과목', lastStudiedAt: null },
     ].map((row) => ({ ...row, slug: row.id, language: 'ko', tags: ['테스트'], description: null, color: '#0f766e', progress, questionCount: 8, deckIds: [row.id], archivedAt: null as string | null }));
     await page.route('**/*', async (route) => {
       if (!['fetch', 'xhr'].includes(route.request().resourceType())) return route.fallback();

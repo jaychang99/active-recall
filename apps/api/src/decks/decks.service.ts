@@ -6,7 +6,7 @@ import { SettingsService } from '../settings/settings.service';
 import { endOfDayInTz } from '../common/time';
 import { CardStatus, Prisma, type QuestionType } from '../generated/prisma/client';
 import { SubjectsService } from '../subjects/subjects.service';
-import { archiveFilter, latestReviewsByQuestion, recentReviewsFirst, type CollectionListOptions } from '../common/collections';
+import { archiveFilter, latestReviewsByQuestion, recentlyStudiedFirst, type CollectionListOptions } from '../common/collections';
 
 export interface DeckProgress {
   total: number;
@@ -66,7 +66,7 @@ export class DecksService {
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
     });
     const summaries = await this.summariesByDeck(userId, decks.map((d) => d.id));
-    return recentReviewsFirst(decks.map((d) => ({ ...d, tags: d.tagsJson as string[], progress: summaries.get(d.id)?.progress ?? emptyProgress(), lastReviewedAt: summaries.get(d.id)?.lastReviewedAt ?? null })));
+    return recentlyStudiedFirst(decks.map((d) => ({ ...d, tags: d.tagsJson as string[], progress: summaries.get(d.id)?.progress ?? emptyProgress(), lastReviewedAt: summaries.get(d.id)?.lastReviewedAt ?? null })));
   }
 
   /** Decks grouped by their primary (deck-level) subject. Question-level subjects live in SubjectsService. */
@@ -80,7 +80,7 @@ export class DecksService {
       s.decks.push(d);
       bySubject.set(d.subject, s);
     }
-    // The first deck encountered is the subject's most recently reviewed deck.
+    // The first deck encountered is the subject's most recently studied deck.
     return [...bySubject.values()];
   }
 

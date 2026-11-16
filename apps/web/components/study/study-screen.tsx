@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { AnswerPayload } from '@recall/contracts';
 import { api, ApiRequestError, type GradeResponse, type Queue, type QueueItem, type ReviewResponse } from '@/lib/api';
+import { pruneDeviceState, readDeviceState, writeDeviceState, type OpenedSession, type SessionItem, type SessionState } from '@/lib/study-session';
 import { useShortcuts } from '@/lib/shortcuts/provider';
 import { isEditableTarget, ownsArrowKeys } from '@/lib/shortcuts/manager';
 import { cn, uid } from '@/lib/utils';
@@ -48,28 +49,44 @@ export interface StudyParams {
 
 type CardState = 'answering' | 'submitted' | 'rated';
 
-/** How a card was left: ←/→, jumps and undo restore it exactly (a draft, a revealed answer, a given rating). */
-interface CardMemo { phase: CardState; answer: AnswerPayload | null; grade: GradeResponse | null; revealedBeforeAnswer: boolean; hintUsed: boolean; hint: string | null; rating?: 1 | 2 | 3 | 4; reviewId?: string; interval?: string | null }
+/**
+ * How a card was left: ←/→, jumps and undo restore it exactly (a draft, a revealed answer, a given rating).
+ * `remote` marks a rating made on another device in this session or on another study page.
+ */
+interface CardMemo { phase: CardState; answer: AnswerPayload | null; grade: GradeResponse | null; revealedBeforeAnswer: boolean; hintUsed: boolean; hint: string | null; rating?: 1 | 2 | 3 | 4; reviewId?: string; interval?: string | null; isCorrect?: boolean | null; remote?: 'device' | 'elsewhere' }
 /** Re-queued copies share the question id, so a card in the session is question + review round. */
-const keyOf = (i: QueueItem) => `${i.questionId}:${i.reviewRound}`;
+const keyOf = (i: { questionId: string; reviewRound: number }) => `${i.questionId}:${i.reviewRound}`;
+/** A queue entry; `pending` until the server confirms a re-queued copy. */
+type LiveItem = SessionItem & { pending?: boolean };
+const byPosition = (a: { position: number }, b: { position: number }) => a.position - b.position;
 
-interface Snapshot { items: QueueItem[]; queue: Queue; index: number; done: Done[]; extraItems: QueueItem[]; skipped: string[]; memos?: Record<string, CardMemo>; history?: string[]; savedAt: number }
-const SNAPSHOT_TTL_MS = 6 * 60 * 60 * 1000;
-function readSnapshot(key: string): Snapshot | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.sessionStorage.getItem(key);
-    if (!raw) return null;
-    const snap = JSON.parse(raw) as Snapshot;
-    if (!snap.items || Date.now() - snap.savedAt > SNAPSHOT_TTL_MS) { window.sessionStorage.removeItem(key); return null; }
-    return snap;
-  } catch { return null; }
-}
-function writeSnapshot(key: string, snap: Snapshot) {
-  try { window.sessionStorage.setItem(key, JSON.stringify(snap)); } catch { /* storage unavailable or full */ }
-}
-function clearSnapshot(key: string) {
-  try { window.sessionStorage.removeItem(key); } catch { /* ignore */ }
+/**
+ * Fold the server's view of the session into the card memos: ratings (from the review log), answers opened on any
+ * device, and ratings undone elsewhere. Keys this device changed after the request started are left alone.
+ */
+function mergeMemos(prev: Record<string, CardMemo>, state: SessionState, mine: Set<string>, changedSince: (key: string) => boolean, drafts?: Record<string, AnswerPayload>): Record<string, CardMemo> {
+  const next = { ...prev };
+  for (const it of state.items) {
+    const key = keyOf(it);
+    if (changedSince(key)) continue;
+    const cur = next[key];
+    const review = state.reviews.find((r) => r.questionId === it.questionId && r.reviewRound === it.reviewRound);
+    if (review) {
+      if (cur?.phase === 'rated' && cur.reviewId === review.id) continue;
+      next[key] = {
+        phase: 'rated', answer: cur?.answer ?? it.answerPayload, grade: cur?.grade ?? null, revealedBeforeAnswer: cur?.revealedBeforeAnswer ?? it.revealedBeforeAnswer, hintUsed: cur?.hintUsed ?? it.hintUsed, hint: cur?.hint ?? null,
+        rating: review.rating, reviewId: review.id, isCorrect: review.isCorrect, interval: cur?.interval ?? null,
+        remote: mine.has(review.id) ? undefined : review.sessionId === state.session.id ? 'device' : 'elsewhere',
+      };
+    } else if (cur?.phase === 'rated') {
+      next[key] = { ...cur, phase: it.phase || cur.grade ? 'submitted' : 'answering', rating: undefined, reviewId: undefined, isCorrect: undefined, remote: undefined };
+    } else if (it.phase === 'submitted' && (!cur || cur.phase === 'answering')) {
+      next[key] = { phase: 'submitted', answer: it.answerPayload, grade: null, revealedBeforeAnswer: it.revealedBeforeAnswer, hintUsed: it.hintUsed, hint: cur?.hint ?? null };
+    } else if (!cur && drafts?.[key]) {
+      next[key] = { phase: 'answering', answer: drafts[key]!, grade: null, revealedBeforeAnswer: false, hintUsed: false, hint: null };
+    }
+  }
+  return next;
 }
 
 interface Done { key?: string; questionId: string; rating?: number; isCorrect: boolean | null; reviewId?: string }
@@ -108,18 +125,14 @@ function hasAnswer(p: AnswerPayload | null): boolean {
 
 const MODE_LABEL: Record<StudyParams['mode'], string> = { scheduled: '예정된 학습', cram: '전체 훑기 (cram)', mistakes: '틀린 문제', flagged: '표시한 문제', practice: '연습 (스케줄 영향 없음)', browse: '구경 (기록 없음)' };
 
-function queueUrl(p: StudyParams) {
-  const u = new URLSearchParams();
-  if (p.scope !== 'all') u.set('deckId', p.scope);
-  if (p.subject) u.set('subject', p.subject);
-  u.set('mode', p.mode);
-  if (p.tags?.length) u.set('tags', p.tags.join(','));
-  if (p.types?.length) u.set('types', p.types.join(','));
-  if (p.difficultyMin) u.set('difficultyMin', String(p.difficultyMin));
-  if (p.difficultyMax) u.set('difficultyMax', String(p.difficultyMax));
-  u.set('limit', String(p.limit ?? (p.mode === 'browse' ? 1000 : 200)));
-  return `/study/queue?${u.toString()}`;
+function openBody(p: StudyParams, fresh: boolean) {
+  return {
+    scope: p.scope, mode: p.mode, subject: p.subject, tags: p.tags?.length ? p.tags : undefined, types: p.types?.length ? p.types : undefined,
+    difficultyMin: p.difficultyMin || undefined, difficultyMax: p.difficultyMax || undefined, limit: p.limit ?? (p.mode === 'browse' ? 1000 : 200), fresh: fresh || undefined,
+  };
 }
+
+const RATING_PARTICLE: Record<number, string> = { 1: '로', 2: '으로', 3: '으로', 4: '으로' };
 
 export function StudyScreen({ params }: { params: StudyParams }) {
   const qc = useQueryClient();
@@ -129,25 +142,24 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   // Card whose answer is open: the reveal-on-answer option shows hidden metadata only for exactly this card,
   // so the next card never flashes its metadata even for the frame before the phase resets.
   const [metaRevealedFor, setMetaRevealedFor] = useState<string | null>(null);
-  const storageKey = `rs-study:${JSON.stringify(params)}`;
-  // Snapshot is read only after mount (sessionStorage is client-only; reading it during the first render
-  // would make the client tree differ from the server-rendered skeleton → hydration mismatch).
-  const [restored, setRestored] = useState<Snapshot | null | undefined>(undefined);
-  const [queueId] = useState(() => uid());
-  // The queue is fetched once per session and then frozen: refetches (reconnect, focus, HMR) must never
-  // reorder or drop cards under the learner. A reload within 6 hours resumes from the saved snapshot.
-  const queue = useQuery({
-    queryKey: ['queue', params, queueId],
-    queryFn: () => api<Queue>(queueUrl(params)),
+  // Bumped by "새 세션" / "더 학습하기": opens a fresh session instead of joining the active one.
+  const [openNonce, setOpenNonce] = useState(0);
+  // The session is opened once per page (and per fresh start) and its queue is then frozen: refetches must never
+  // reorder or drop cards under the learner. Reopening the same study page — reload, another tab, another device
+  // within 6 hours — joins the same session on the server.
+  const opened = useQuery({
+    queryKey: ['study-open', params, openNonce],
+    queryFn: () => api<OpenedSession>('/study/sessions/open', { method: 'POST', json: openBody(params, openNonce > 0) }),
     staleTime: Infinity,
     gcTime: 0,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    enabled: restored === null,
+    retry: 1,
   });
-  const [baseItems, setBaseItems] = useState<QueueItem[] | null>(null);
-  const [queueMeta, setQueueMeta] = useState<Queue | null>(null);
+  const [session, setSession] = useState<{ id: string; startedAt: string; resumed: boolean } | null>(null);
+  const [baseItems, setBaseItems] = useState<LiveItem[] | null>(null);
+  const [queueMeta, setQueueMeta] = useState<OpenedSession['queue'] | null>(null);
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<CardState>('answering');
   const [answer, setAnswer] = useState<AnswerPayload | null>(null);
@@ -159,8 +171,6 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const [showExplanation, setShowExplanation] = useState(true);
   // "이전 응답 보기": closed on every card until asked for.
   const [showPrevious, setShowPrevious] = useState(false);
-  const [sessionStartedAt] = useState(() => Date.now());
-  const [done, setDone] = useState<Done[]>([]);
   // Cards visited this session, by keyOf(): moving between cards stashes the current one here and restores the target.
   const [memos, setMemos] = useState<Record<string, CardMemo>>({});
   // Rated cards in rating order; Cmd/Ctrl+Z and U walk back through it.
@@ -168,15 +178,22 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   const [pendingRating, setPendingRating] = useState<1 | 2 | 3 | 4 | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [notesFocus, setNotesFocus] = useState(0);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [extraItems, setExtraItems] = useState<QueueItem[]>([]);
-  const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  // Positions skipped (buried/suspended) in this session.
+  const [skipped, setSkipped] = useState<Set<number>>(new Set());
   const startedAt = useRef<number>(0);
   const digitHandler = useRef<((n: number) => void) | null>(null);
   const submitLock = useRef(false);
   const studyRoot = useRef<HTMLDivElement>(null);
   const jumpInput = useRef<HTMLInputElement>(null);
   const [shuffleSeed] = useState(() => uid());
+  // Reviews this device made in the session (so its own ratings are not labelled as another device's).
+  const mine = useRef<Set<string>>(new Set());
+  // When this device last changed a card (rated, undid, opened) or skipped a position: a sync that started
+  // earlier must not overwrite that.
+  const localChange = useRef<Map<string, number>>(new Map());
+  const touch = (key: string) => localChange.current.set(key, Date.now());
+  const baseItemsRef = useRef<LiveItem[] | null>(null);
+  useEffect(() => { baseItemsRef.current = baseItems; }, [baseItems]);
 
   // Show a card as it was left, or fresh when it has never been touched.
   const applyMemo = useCallback((m: CardMemo | undefined, key: string | null) => {
@@ -195,69 +212,108 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   }, []);
   const resetCard = useCallback(() => applyMemo(undefined, null), [applyMemo]);
 
+  // Start (or join) the session: shared state from the server, position and drafts from this device.
   useEffect(() => {
-    const snap = readSnapshot(storageKey);
-    setRestored(snap);
-    if (snap) {
-      setBaseItems(snap.items);
-      setQueueMeta(snap.queue);
-      setIndex(snap.index);
-      setDone(snap.done);
-      setExtraItems(snap.extraItems);
-      setSkipped(new Set(snap.skipped));
-      setMemos(snap.memos ?? {});
-      setHistory(snap.history ?? []);
-      const current = [...snap.items, ...snap.extraItems].filter((i) => !snap.skipped.includes(i.questionId))[snap.index];
-      if (current) applyMemo(snap.memos?.[keyOf(current)], keyOf(current));
-    }
-  }, [storageKey, applyMemo]);
-  useEffect(() => {
-    if (queue.data && !baseItems) {
-      setBaseItems(queue.data.items);
-      setQueueMeta(queue.data);
-    }
-  }, [queue.data, baseItems]);
+    const d = opened.data;
+    if (!d) return;
+    pruneDeviceState();
+    const device = readDeviceState(d.session.id);
+    mine.current = new Set(device?.mine ?? []);
+    localChange.current = new Map();
+    const list = [...d.newItems].sort(byPosition);
+    const skippedNow = new Set(d.items.filter((i) => i.skipped).map((i) => i.position));
+    const memosNow = mergeMemos({}, d, mine.current, () => false, device?.drafts);
+    const visible = list.filter((i) => !skippedNow.has(i.position));
+    const wanted = device?.position ?? d.session.lastPosition;
+    let at = visible.findIndex((i) => i.position >= wanted);
+    if (at < 0) at = visible.length ? visible.length - 1 : 0;
+    setSession({ id: d.session.id, startedAt: d.session.startedAt, resumed: d.resumed });
+    setQueueMeta(d.queue);
+    setBaseItems(list);
+    setSkipped(skippedNow);
+    setMemos(memosNow);
+    // Cmd/Ctrl+Z walks back through the session's ratings, oldest first in the list.
+    const byKey = new Set(list.map((i) => keyOf(i)));
+    setHistory(d.reviews.filter((r) => byKey.has(keyOf(r))).map((r) => keyOf(r)));
+    setIndex(at);
+    const current = visible[at];
+    applyMemo(current ? memosNow[keyOf(current)] : undefined, current ? keyOf(current) : null);
+  }, [opened.data, applyMemo]);
 
-  // Patch one card's state in the frozen queue (base + re-queued copies). The react-query cache is not the
+  // Patch one card's state in the frozen queue (every entry of that question). The react-query cache is not the
   // source of truth once the queue is frozen, so updates must land here or the next rating sends a stale version.
   const patchCard = useCallback((questionId: string, patch: Partial<QueueItem['card']>) => {
-    const apply = (list: QueueItem[]) => list.map((i) => (i.questionId === questionId ? { ...i, card: { ...i.card, ...patch } } : i));
-    setBaseItems((b) => (b ? apply(b) : b));
-    setExtraItems((x) => apply(x));
+    setBaseItems((b) => (b ? b.map((i) => (i.questionId === questionId ? { ...i, card: { ...i.card, ...patch } } : i)) : b));
   }, []);
 
-  // A resumed snapshot carries the card versions from when the queue was first fetched. Cards reviewed or undone
-  // since then (another tab, an undo before the reload) would 409 on rating, so re-sync their state once on resume.
-  useEffect(() => {
-    if (!restored) return;
-    let cancelled = false;
-    api<Queue>(queueUrl(params))
-      .then((fresh) => {
-        if (cancelled) return;
-        const byId = new Map(fresh.items.map((i) => [i.questionId, i.card]));
-        const sync = (list: QueueItem[]) => list.map((i) => { const c = byId.get(i.questionId); return c && c.version !== i.card.version ? { ...i, card: c } : i; });
-        setBaseItems((b) => (b ? sync(b) : b));
-        setExtraItems((x) => sync(x));
-        setQueueMeta((m) => (m ? { ...m, counts: fresh.counts } : m));
-      })
-      .catch(() => { /* offline: stale versions self-heal on the next 409 */ });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restored]);
+  // Other devices' work: new entries (re-queued copies), removed copies, skips, card versions and memos.
+  const merge = useCallback((state: SessionState, since: number) => {
+    const changedSince = (key: string) => (localChange.current.get(key) ?? 0) > since;
+    const live = new Set(state.items.map((i) => i.position));
+    const cards = new Map(state.cards.map((c) => [c.questionId, c]));
+    setBaseItems((b) => {
+      if (!b) return b;
+      const incoming = state.newItems.filter((n) => !b.some((i) => i.position === n.position && !i.pending));
+      const incomingKeys = new Set(incoming.map((n) => keyOf(n)));
+      const kept = b.filter((i) => (i.pending ? !incomingKeys.has(keyOf(i)) : live.has(i.position)));
+      return [...kept, ...incoming]
+        .map((i) => { const c = cards.get(i.questionId); return c && c.version !== i.card.version ? { ...i, card: { ...i.card, version: c.version, status: c.status, flagged: c.flagged, suspended: c.suspended } } : i; })
+        .sort(byPosition);
+    });
+    setSkipped((prev) => {
+      const next = new Set(state.items.filter((i) => i.skipped).map((i) => i.position));
+      for (const p of prev) if ((localChange.current.get(`#${p}`) ?? 0) > since) next.add(p);
+      return next;
+    });
+    setMemos((m) => mergeMemos(m, state, mine.current, changedSince));
+  }, []);
 
-  const items = useMemo(() => [...(baseItems ?? []), ...extraItems].filter((i) => !skipped.has(i.questionId)), [baseItems, extraItems, skipped]);
+  const syncing = useRef(false);
+  const sync = useCallback(async () => {
+    if (!session || syncing.current) return null;
+    syncing.current = true;
+    const since = Date.now();
+    try {
+      const known = Math.max(-1, ...(baseItemsRef.current ?? []).filter((i) => !i.pending).map((i) => i.position)) + 1;
+      const state = await api<SessionState>(`/study/sessions/${session.id}/state?known=${known}`);
+      merge(state, since);
+      return state;
+    } catch { return null; } finally { syncing.current = false; }
+  }, [session, merge]);
+  // Stay in step with other devices: every 20 s while visible, on focus, and shortly after each card change.
+  useEffect(() => {
+    if (!session) return;
+    const tick = () => { if (document.visibilityState === 'visible') void sync(); };
+    const timer = window.setInterval(tick, 20_000);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('focus', tick);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', tick); window.removeEventListener('focus', tick); };
+  }, [session, sync]);
+
+  const items = useMemo(() => (baseItems ?? []).filter((i) => !skipped.has(i.position)), [baseItems, skipped]);
   const item = items[index] ?? null;
   const cardKey = item ? keyOf(item) : null;
   const finished = !!baseItems && (items.length === 0 || index >= items.length);
-  // The current card once its answer is open (drafts are not persisted, so typing never rewrites the snapshot).
-  const liveMemo = useMemo<CardMemo | null>(() => (phase !== 'answering' && grade ? { phase, answer, grade, revealedBeforeAnswer, hintUsed, hint } : null), [phase, answer, grade, revealedBeforeAnswer, hintUsed, hint]);
-  // persist progress so a reload (or dev hot reload) resumes at the same card
   useEffect(() => {
-    if (!baseItems || !queueMeta) return;
-    if (finished) { clearSnapshot(storageKey); return; }
-    const saved = cardKey && liveMemo && memos[cardKey]?.phase !== 'rated' ? { ...memos, [cardKey]: liveMemo } : memos;
-    writeSnapshot(storageKey, { items: baseItems, queue: queueMeta, index, done, extraItems, skipped: [...skipped], memos: saved, history, savedAt: Date.now() });
-  }, [storageKey, baseItems, queueMeta, index, done, extraItems, skipped, finished, cardKey, liveMemo, memos, history]);
+    if (!session || !cardKey) return;
+    const t = window.setTimeout(() => void sync(), 400);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardKey]);
+  // This device's place and drafts (tiny, in localStorage); the session's last place on the server for other devices.
+  const position = item?.position ?? null;
+  useEffect(() => {
+    if (!session || position === null) return;
+    const drafts: Record<string, AnswerPayload> = {};
+    for (const [k, m] of Object.entries(memos)) if (m.phase === 'answering' && m.answer && hasAnswer(m.answer)) drafts[k] = m.answer;
+    if (cardKey && phase === 'answering' && hasAnswer(answer)) drafts[cardKey] = answer!;
+    writeDeviceState(session.id, { position, drafts, mine: [...mine.current] });
+  }, [session, position, memos, cardKey, phase, answer]);
+  useEffect(() => {
+    if (!session || position === null) return;
+    const t = window.setTimeout(() => { api(`/study/sessions/${session.id}/position`, { method: 'PATCH', json: { position } }).catch(() => {}); }, 800);
+    return () => window.clearTimeout(t);
+  }, [session, position]);
   const isPractice = params.mode === 'practice';
   // Browse: look at every question (limits, due dates, suspend/bury ignored); nothing is recorded, no rating step.
   const isBrowse = params.mode === 'browse';
@@ -297,16 +353,16 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     return items.length;
   }, [memos, items, index, unrated]);
 
-  // session bookkeeping
+  // Every mode (browse included) counts as having opened the deck/subject for the "recent" lists.
   useEffect(() => {
-    if (!baseItems || sessionId || restored === undefined || restored || isBrowse) return;
-    api<{ id: string }>('/study/sessions', { method: 'POST', json: { scope: params.scope, subject: params.subject, mode: params.mode, queueSize: baseItems.length } })
-      .then((s) => setSessionId(s.id))
+    if (params.scope === 'all' && !params.subject) return;
+    api('/study/visit', { method: 'POST', json: { deckId: params.scope === 'all' ? undefined : params.scope, subject: params.subject } })
+      .then(() => { void qc.invalidateQueries({ queryKey: ['decks'] }); void qc.invalidateQueries({ queryKey: ['subjects'] }); })
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseItems]);
+  }, [params.scope, params.subject, qc]);
+
   useEffect(() => {
-    if (finished && sessionId) api(`/study/sessions/${sessionId}/end`, { method: 'PATCH' }).catch(() => {});
+    if (finished && session) api(`/study/sessions/${session.id}/end`, { method: 'PATCH' }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished]);
 
@@ -320,17 +376,20 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     mutationFn: async ({ payload }: { payload: AnswerPayload | null; revealed: boolean }) => {
       if (!item) throw new Error('no item');
       const res = await api<GradeResponse>(`/questions/${item.questionId}/grade`, { method: 'POST', json: { answerPayload: payload } });
-      if (isPractice) await api('/study/practice', { method: 'POST', json: { questionId: item.questionId, sessionId: sessionId ?? undefined, answerPayload: payload, elapsedMs: Date.now() - startedAt.current } }).catch(() => {});
+      if (isPractice) await api('/study/practice', { method: 'POST', json: { questionId: item.questionId, sessionId: session?.id, answerPayload: payload, elapsedMs: Date.now() - startedAt.current } }).catch(() => {});
       return res;
     },
-    onSuccess: (res, { revealed }) => {
+    onSuccess: (res, { payload, revealed }) => {
       setGrade(res);
       setPhase('submitted');
       if (!item) return;
       const key = keyOf(item);
       setMetaRevealedFor(key);
+      touch(key);
       // practice/browse have no rating step: an opened answer is what counts as done
-      if (unrated) setDone((d) => [...d.filter((x) => x.key !== key), { key, questionId: item.questionId, isCorrect: revealed ? null : res.grade.isCorrect }]);
+      if (unrated) setMemos((m) => ({ ...m, [key]: { phase: 'submitted', answer: payload, grade: res, revealedBeforeAnswer: revealed, hintUsed, hint, isCorrect: revealed ? null : res.grade.isCorrect } }));
+      // Share the opened answer with the session's other devices.
+      if (session) api(`/study/sessions/${session.id}/items/${item.position}/state`, { method: 'PUT', json: { answerPayload: payload, revealedBeforeAnswer: revealed, hintUsed } }).catch(() => {});
     },
     onError: (e: Error) => { submitLock.current = false; toast.error('채점에 실패했습니다', { description: e.message }); },
   });
@@ -369,15 +428,16 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       const isCorrect = revealedBeforeAnswer ? null : (grade?.grade.isCorrect ?? null);
       return api<ReviewResponse>('/reviews', {
         method: 'POST',
-        json: { questionId: item.questionId, rating, idempotencyKey: key, sessionId: sessionId ?? undefined, elapsedMs: Date.now() - startedAt.current, isCorrect, revealedBeforeAnswer, hintUsed, answerPayload: answer, expectedVersion: item.card.version },
+        json: { questionId: item.questionId, rating, idempotencyKey: key, sessionId: session?.id, elapsedMs: Date.now() - startedAt.current, isCorrect, revealedBeforeAnswer, hintUsed, answerPayload: answer, expectedVersion: item.card.version },
       });
     },
     onSuccess: (res, rating) => {
       if (!item) return;
       const key = keyOf(item);
       const interval = item.preview ? item.preview[RATINGS[rating - 1]!.key].interval : null;
-      setDone((d) => [...d.filter((x) => x.key !== key), { key, questionId: item.questionId, rating, isCorrect: grade?.grade.isCorrect ?? null, reviewId: res.review.id }]);
-      setMemos((m) => ({ ...m, [key]: { phase: 'rated', answer, grade, revealedBeforeAnswer, hintUsed, hint, rating, reviewId: res.review.id, interval } }));
+      mine.current.add(res.review.id);
+      touch(key);
+      setMemos((m) => ({ ...m, [key]: { phase: 'rated', answer, grade, revealedBeforeAnswer, hintUsed, hint, rating, reviewId: res.review.id, interval, isCorrect: grade?.grade.isCorrect ?? null } }));
       setHistory((h) => [...h.filter((k) => k !== key), key]);
       setPhase('rated');
       void qc.invalidateQueries({ queryKey: ['notes', item.questionId] });
@@ -386,17 +446,31 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       // Again/Hard on a learning step re-queues the card at the end of this session so it is seen again today.
       const appended = rating === 1 && (res.card.status === 'LEARNING' || res.card.status === 'RELEARNING') && !isPractice;
       if (appended) {
-        setExtraItems((x) => [...x, { ...item, card: { ...item.card, version: res.card.version, status: res.card.status }, reviewRound: res.reviewRound + 1, preview: res.nextPreview ?? null }]);
+        // Shown at once; the server confirms its slot (another device may have appended meanwhile).
+        const copy: LiveItem = { ...item, position: Math.max(...(baseItemsRef.current ?? [item]).map((i) => i.position)) + 1, pending: true, card: { ...item.card, version: res.card.version, status: res.card.status }, reviewRound: res.reviewRound + 1, preview: res.nextPreview ?? null };
+        setBaseItems((b) => (b ? [...b, copy] : b));
+        if (session) {
+          api<SessionItem>(`/study/sessions/${session.id}/items`, { method: 'POST', json: { questionId: item.questionId, reviewRound: copy.reviewRound } })
+            .then((saved) => setBaseItems((b) => (b ? b.map((i) => (i.pending && keyOf(i) === keyOf(copy) ? saved : i)).sort(byPosition) : b)))
+            .catch(() => {});
+        }
       }
       if (settings.autoAdvanceAfterRating) next({ appended });
     },
-    onError: (e: Error, rating) => {
+    onError: async (e: Error, rating) => {
       setPendingRating(null);
       if (e instanceof ApiRequestError && e.status === 409 && item) {
-        // Our copy of the card is stale (undo, another tab, a reset). Take the server's version so the next
-        // rating goes through, and offer to re-send this one with a single click.
+        // Our copy of the card is stale. Usually another device (or another study page) rated it already: show
+        // that rating instead of saving a second review. Otherwise take the server's version and offer a re-send.
         const current = (e.details as { currentVersion?: number } | undefined)?.currentVersion;
         if (typeof current === 'number') patchCard(item.questionId, { version: current });
+        const state = await sync();
+        const other = state?.reviews.find((r) => r.questionId === item.questionId && r.reviewRound === item.reviewRound);
+        if (other) {
+          const ko = RATINGS[other.rating - 1]!.ko;
+          toast('이 카드는 다른 곳에서 이미 평가되었습니다', { description: `‘${ko}’${RATING_PARTICLE[other.rating]} 평가된 결과를 보여 드립니다. 바꾸려면 ‘다시 평가’를 누르세요.` });
+          return;
+        }
         toast.error('카드 상태가 다른 곳에서 바뀌어 평가를 저장하지 못했습니다', {
           description: '최신 상태로 맞췄습니다. 평가를 다시 저장할 수 있습니다.',
           action: typeof current === 'number' ? { label: '다시 저장', onClick: () => { setPendingRating(rating); reviewMut.mutate(rating); } } : undefined,
@@ -419,11 +493,18 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       const undone = items[target];
       const memo = memos[key];
       const copyKey = undone ? keyOf({ ...undone, reviewRound: res.reviewRound + 1 }) : null;
-      const reopened: CardMemo | undefined = memo?.grade ? { phase: 'submitted', answer: memo.answer, grade: memo.grade, revealedBeforeAnswer: memo.revealedBeforeAnswer, hintUsed: memo.hintUsed, hint: memo.hint } : undefined;
-      setDone((d) => d.filter((x) => x.reviewId !== reviewId));
+      // Reopen with the answer shown when there was one (here or on the device that rated it), else to answer anew.
+      const reopened: CardMemo | undefined = memo && (memo.grade || memo.answer || memo.revealedBeforeAnswer) ? { phase: 'submitted', answer: memo.answer, grade: memo.grade, revealedBeforeAnswer: memo.revealedBeforeAnswer, hintUsed: memo.hintUsed, hint: memo.hint } : undefined;
+      void reviewId;
+      touch(key);
       setHistory((h) => h.filter((k) => k !== key));
       if (undone) {
-        setExtraItems((x) => x.filter((i) => keyOf(i) !== copyKey));
+        const copy = (baseItemsRef.current ?? []).find((i) => keyOf(i) === copyKey);
+        if (copy) {
+          if (copyKey) touch(copyKey);
+          setBaseItems((b) => (b ? b.filter((i) => keyOf(i) !== copyKey) : b));
+          if (session && !copy.pending) api(`/study/sessions/${session.id}/items/${copy.position}`, { method: 'DELETE' }).catch(() => {});
+        }
         // keep the card's new version (undo bumps it too) so the next rating does not conflict
         const { stateJson, ...card } = res.card;
         void stateJson;
@@ -468,7 +549,9 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         // Same order as "next", counted in the list without this card.
         const target = pickNext(false);
         const t = items[target];
-        setSkipped((s) => new Set(s).add(item.questionId));
+        localChange.current.set(`#${item.position}`, Date.now());
+        setSkipped((s) => new Set(s).add(item.position));
+        if (session) api(`/study/sessions/${session.id}/items/${item.position}`, { method: 'PATCH', json: { skipped: true } }).catch(() => {});
         applyMemo(t ? memos[keyOf(t)] : undefined, t ? keyOf(t) : null);
         setIndex(target > index ? target - 1 : target);
       }
@@ -505,7 +588,15 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     return { status: !m ? 'todo' : m.phase === 'answering' ? 'draft' : 'answered' };
   });
   const lastRated = history.length ? memos[history[history.length - 1]!] : undefined;
-  const previous = usePreviousResponses(item?.questionId ?? '', item?.reviewRound ?? 0, sessionStartedAt, !!item && phase !== 'answering');
+  const previous = usePreviousResponses(item?.questionId ?? '', item?.reviewRound ?? 0, session ? Date.parse(session.startedAt) : 0, !!item && phase !== 'answering');
+  // Done = rated cards (and, without a rating step, opened ones), wherever they were rated.
+  const done: Done[] = items.flatMap((it) => {
+    const k = keyOf(it);
+    const m = memos[k];
+    if (m?.phase === 'rated') return [{ key: k, questionId: it.questionId, rating: m.rating, isCorrect: m.isCorrect ?? null, reviewId: m.reviewId }];
+    if (unrated && m && m.phase !== 'answering') return [{ key: k, questionId: it.questionId, isCorrect: m.isCorrect ?? null }];
+    return [];
+  });
 
   const metaControl: MetaControl = { mask: meta.mask, revealed: meta.revealOnAnswer && phase !== 'answering' && cardKey !== null && metaRevealedFor === cardKey, onToggle: meta.toggle };
   const roundHidden = slotState(metaControl, 'round') === 'masked';
@@ -516,6 +607,49 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     if (cardKey && window.matchMedia('(max-width: 767px)').matches) studyRoot.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
   }, [cardKey]);
   const shortcutsOn = settings.shortcutsEnabled;
+
+  // Another device changed the card on screen: rated it, undid its rating, or opened its answer (when nothing was
+  // typed here yet). Local changes keep memos and the screen in step already, so only those cases differ.
+  useEffect(() => {
+    if (!cardKey) return;
+    const m = memos[cardKey];
+    if (m?.phase === 'rated' && phase !== 'rated') applyMemo({ ...m, answer: answer ?? m.answer, grade: grade ?? m.grade, revealedBeforeAnswer: revealedBeforeAnswer || m.revealedBeforeAnswer }, cardKey);
+    else if (phase === 'rated' && m && m.phase !== 'rated') applyMemo({ ...m, grade: m.grade ?? grade }, cardKey);
+    else if (phase === 'answering' && m?.phase === 'submitted' && !hasAnswer(answer)) applyMemo(m, cardKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memos, cardKey]);
+
+  // A card restored with its answer open (reload, another device) has no grade yet: grade the stored answer again
+  // (grading has no side effects) so the result view can show the key and explanation.
+  useEffect(() => {
+    if (!item || !cardKey || phase === 'answering' || grade) return;
+    let cancelled = false;
+    const key = cardKey;
+    api<GradeResponse>(`/questions/${item.questionId}/grade`, { method: 'POST', json: { answerPayload: revealedBeforeAnswer && !hasAnswer(answer) ? null : answer } })
+      .then((res) => {
+        if (cancelled) return;
+        setGrade(res);
+        setMemos((m) => (m[key] ? { ...m, [key]: { ...m[key]!, grade: res } } : m));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardKey, phase, grade]);
+
+  // "새 세션" / "더 학습하기": end the active session for this page and build a new queue.
+  const [confirmRestart, setConfirmRestart] = useState(false);
+  const restart = useCallback(() => {
+    setConfirmRestart(false);
+    setBaseItems(null);
+    setQueueMeta(null);
+    setSession(null);
+    setMemos({});
+    setHistory([]);
+    setSkipped(new Set());
+    setIndex(0);
+    resetCard();
+    setOpenNonce((n) => n + 1);
+  }, [resetCard]);
   const typing = item?.type === 'essay' || item?.type === 'short_answer' || item?.type === 'cloze' || item?.type === 'numeric' || item?.type === 'stepwise' || item?.type === 'recall_card';
 
   useShortcuts(
@@ -578,9 +712,9 @@ export function StudyScreen({ params }: { params: StudyParams }) {
     shortcutsOn && finished && items.length > 0,
   );
 
-  if (!baseItems && !queue.isError) return <LoadingState label="학습할 문항을 준비하는 중…" className="mx-auto min-h-64 max-w-[840px]" />;
-  if (queue.isError) return <div className="mx-auto max-w-[840px]"><ErrorState message={(queue.error as Error).message} onRetry={() => queue.refetch()} /></div>;
-  if (finished || !item) return <SessionSummary params={params} done={done} queue={queueMeta ?? queue.data!} onBack={items.length ? () => goTo(items.length - 1) : undefined} onUndo={!unrated && history.length ? undo : undefined} undoing={undoMut.isPending} shortcuts={shortcutsOn} onRestart={async () => { clearSnapshot(storageKey); setIndex(0); setDone([]); setExtraItems([]); setSkipped(new Set()); setMemos({}); setHistory([]); const r = await queue.refetch(); if (r.data) { resetCard(); setBaseItems(r.data.items); setQueueMeta(r.data); } }} />;
+  if (opened.isError) return <div className="mx-auto max-w-[840px]"><ErrorState message={(opened.error as Error).message} onRetry={() => opened.refetch()} /></div>;
+  if (!baseItems || !queueMeta) return <LoadingState label="학습할 문항을 준비하는 중…" className="mx-auto min-h-64 max-w-[840px]" />;
+  if (finished || !item) return <SessionSummary params={params} done={done} queue={queueMeta} empty={!baseItems.length} onBack={items.length ? () => goTo(items.length - 1) : undefined} onUndo={!unrated && history.length ? undo : undefined} undoing={undoMut.isPending} shortcuts={shortcutsOn} onRestart={restart} />;
 
   const progress = done.length;
   const total = items.length;
@@ -593,6 +727,10 @@ export function StudyScreen({ params }: { params: StudyParams }) {
         {queueMeta?.deck || params.subject ? <MetaChip k="subject" label={queueMeta?.deck ? '덱' : '과목'} control={metaControl} testId="meta-subject" className="font-medium text-ink"><span>{queueMeta?.deck?.title ?? `과목: ${params.subject}`}</span></MetaChip> : <span className="font-medium text-ink" data-testid="meta-subject">모든 덱</span>}
         <Badge tone={unrated ? 'warn' : 'neutral'}>{MODE_LABEL[params.mode]}</Badge>
         <span className="tabular">{progress} / {total} 완료</span>
+        <span className="flex items-center gap-1" data-testid="session-chip">
+          {session?.resumed ? <Tooltip content="새로고침·다른 탭·다른 기기에서 같은 학습을 열면 이 세션을 이어서 합니다 (6시간 동안)."><span className="text-ink-2">이어서 학습 중</span></Tooltip> : null}
+          <button type="button" onClick={() => setConfirmRestart(true)} className="-mx-1 min-h-8 rounded px-1 hover:bg-muted hover:text-ink" data-testid="new-session-btn">새 세션</button>
+        </span>
         {params.mode === 'scheduled' ? <span className="tabular">오늘 복습 {queueMeta?.counts.reviewedToday ?? 0} / 목표 {settings.dailyReviewGoal}</span> : null}
         {lastRated?.rating && phase === 'answering' ? (
           <button type="button" onClick={undo} disabled={undoMut.isPending} className="-mx-1 flex min-h-8 items-center gap-1 rounded px-1 tabular hover:bg-muted hover:text-ink" data-testid="last-rating" aria-label={`직전 평가 ${RATINGS[lastRated.rating - 1]!.ko}: 되돌리고 다시 평가`}>
@@ -654,6 +792,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
           </div></StudyActions>
         ) : null}
 
+        {phase !== 'answering' && !grade ? <LoadingState label="결과를 불러오는 중…" className="min-h-24" /> : null}
         {phase !== 'answering' && grade ? (
           <div className="space-y-4" data-testid="result">
             <div className="flex flex-wrap items-center gap-3">
@@ -682,6 +821,11 @@ export function StudyScreen({ params }: { params: StudyParams }) {
                 </div>
               )}</StudyActions>
             ) : null}
+            {phase === 'rated' && cardKey && memos[cardKey]?.remote && memos[cardKey]?.rating ? (
+              <p className="rounded-md border border-line bg-muted/50 px-3 py-2 text-[13px] text-ink-2" data-testid="remote-rated">
+                {memos[cardKey]!.remote === 'device' ? '다른 기기에서' : '다른 학습 화면에서'} <strong className={RATINGS[memos[cardKey]!.rating! - 1]!.cls.split(' ')[1]}>‘{RATINGS[memos[cardKey]!.rating! - 1]!.ko}’</strong>{RATING_PARTICLE[memos[cardKey]!.rating!]} 평가했습니다. 바꾸려면 ‘다시 평가’를 누르세요.
+              </p>
+            ) : null}
             {phase === 'rated' ? (
               <StudyActions><div className="flex flex-wrap items-center gap-2">
                 <Button variant="primary" size="lg" onClick={() => next()} kbd="N" data-testid="next-btn">다음 문제 <ArrowRight className="h-4 w-4" /></Button>
@@ -700,6 +844,15 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
       </article>
 
+      <Dialog open={confirmRestart} onOpenChange={setConfirmRestart}>
+        <DialogContent title="새 세션을 시작할까요?" description="지금 세션은 끝나고 문항을 새로 뽑습니다. 이미 한 평가·메모·기록은 그대로 남습니다. 다른 기기에서 이 학습을 열면 새 세션으로 이어집니다.">
+          <div className="mt-2 flex flex-wrap justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConfirmRestart(false)}>취소</Button>
+            <Button variant="primary" onClick={restart} data-testid="confirm-new-session">새로 시작</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showInfo} onOpenChange={setShowInfo}>
         <DialogContent title="카드 정보" description={`${meta.mask.subject && !metaControl.revealed ? '덱 (가려짐)' : item.deck.title} · ${meta.mask.source && !metaControl.revealed ? 'ID (가려짐)' : item.externalId}`}>
           <CardInfoTable card={item.card} round={item.reviewRound} hideRound={roundHidden} />
@@ -713,11 +866,11 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   );
 }
 
-function SessionSummary({ params, done, queue, onRestart, onBack, onUndo, undoing, shortcuts }: { params: StudyParams; done: Done[]; queue: Queue; onRestart: () => void; onBack?: () => void; onUndo?: () => void; undoing?: boolean; shortcuts?: boolean }) {
+function SessionSummary({ params, done, queue, empty, onRestart, onBack, onUndo, undoing, shortcuts }: { params: StudyParams; done: Done[]; queue: Omit<Queue, 'items'>; empty: boolean; onRestart: () => void; onBack?: () => void; onUndo?: () => void; undoing?: boolean; shortcuts?: boolean }) {
   const gradable = done.filter((d) => d.isCorrect !== null);
   const correct = gradable.filter((d) => d.isCorrect).length;
   const counts = [1, 2, 3, 4].map((r) => done.filter((d) => d.rating === r).length);
-  const nothing = queue.items.length === 0;
+  const nothing = empty;
   const browse = params.mode === 'browse';
   return (
     <div className="mx-auto max-w-[840px]" data-testid="session-summary">

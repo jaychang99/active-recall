@@ -20,6 +20,7 @@ import { AuthModule } from './auth/auth.module';
 import { SharesModule } from './shares/shares.module';
 import { PromptsModule } from './prompts/prompts.module';
 import { LlmLinksModule } from './llm-links/llm-links.module';
+import { StudySessionsModule } from './study-sessions/study-sessions.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { LlmLinksModule } from './llm-links/llm-links.module';
     SharesModule,
     PromptsModule,
     LlmLinksModule,
+    StudySessionsModule,
   ],
   controllers: [HealthController, SchemasController],
 })

@@ -1,5 +1,5 @@
 'use client';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RotateCcw } from 'lucide-react';
 import Link from '@/components/ui/navigation-link';
 import { useRouter } from 'next/navigation';
@@ -19,9 +19,10 @@ export default function ExamResultPage({ params }: { params: Promise<{ attemptId
   const router = useRouter();
   const exam = useQuery({ queryKey: ['exam-result', attemptId], queryFn: () => api<Exam>(`/exams/${attemptId}`) });
   const [filter, setFilter] = useState<'all' | 'wrong'>('all');
+  const qc = useQueryClient();
   const retry = useMutation({
     mutationFn: () => api<Exam>('/exams', { method: 'POST', json: { deckId: exam.data!.deck.id, retryOfAttemptId: attemptId, title: `${exam.data!.title} — 오답 재시험` } }),
-    onSuccess: (e) => router.push(`/exam/run/${e.id}`),
+    onSuccess: (e) => { void qc.invalidateQueries({ queryKey: ['decks'] }); router.push(`/exam/run/${e.id}`); },
     onError: (e: Error) => toast.error(e.message),
   });
   if (exam.isLoading) return <LoadingState label="시험 결과를 불러오는 중…" className="min-h-64" />;

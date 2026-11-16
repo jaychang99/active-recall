@@ -46,6 +46,14 @@ export function seededShuffle<T>(arr: T[], seed: number): T[] {
   return a;
 }
 
+const QUEUE_INCLUDE = {
+  card: true,
+  deck: { select: { id: true, title: true, subject: true } },
+  _count: { select: { notes: { where: { deletedAt: null } }, reviews: { where: { undone: false, deletedAt: null } } } },
+} satisfies Prisma.QuestionInclude;
+type QueueRow = Prisma.QuestionGetPayload<{ include: typeof QUEUE_INCLUDE }>;
+interface ItemContext { now: Date; params: { requestRetention: number; maximumInterval: number; enableFuzz: boolean }; showPreview: boolean }
+
 @Injectable()
 export class StudyService {
   constructor(
@@ -84,7 +92,7 @@ export class StudyService {
     const all = await this.prisma.question.findMany({
       where: { ...qWhere, ...(opts.types?.length ? { type: { in: opts.types } } : {}) },
       orderBy: [{ deckId: 'asc' }, { sortIndex: 'asc' }],
-      include: { card: true, deck: { select: { id: true, title: true, subject: true } }, _count: { select: { notes: { where: { deletedAt: null } }, reviews: { where: { undone: false, deletedAt: null } } } } },
+      include: QUEUE_INCLUDE,
     });
     // content filters (JSON payload)
     const rows = all.filter((r) => {
@@ -148,34 +156,8 @@ export class StudyService {
       .map((r) => r.card!.dueAt.getTime());
     const nextLearningDueAt = learningLater.length ? new Date(Math.min(...learningLater)) : null;
 
-    const items = ordered.map((r) => {
-      const q = r.payloadJson as unknown as Question;
-      const card = r.card ? deserializeCard(r.card.stateJson as unknown as SerializedCard) : this.fsrs.emptyCard(now);
-      return {
-        questionId: r.id,
-        externalId: r.externalId,
-        deck: r.deck,
-        type: r.type,
-        question: toPublicQuestion(q),
-        hasHint: !!q.hint,
-        card: {
-          status: r.card?.status ?? CardStatus.NEW,
-          dueAt: r.card?.dueAt ?? now,
-          version: r.card?.version ?? 0,
-          reps: r.card?.reps ?? 0,
-          lapses: r.card?.lapses ?? 0,
-          stability: r.card?.stability ?? 0,
-          difficulty: r.card?.difficulty ?? 0,
-          flagged: r.card?.flagged ?? false,
-          suspended: r.card?.suspended ?? false,
-          lastReviewAt: r.card?.lastReviewAt ?? null,
-          retrievability: this.fsrs.retrievability(params, card, now),
-        },
-        reviewRound: r._count.reviews + 1,
-        noteCount: r._count.notes,
-        preview: settings.showIntervalPreview && opts.mode !== 'practice' && opts.mode !== 'browse' ? this.fsrs.preview(params, card, now) : null,
-      };
-    });
+    const ctx: ItemContext = { now, params, showPreview: settings.showIntervalPreview && opts.mode !== 'practice' && opts.mode !== 'browse' };
+    const items = ordered.map((r) => this.toQueueItem(r, ctx));
 
     return {
       scope: opts.scope,
@@ -202,6 +184,53 @@ export class StudyService {
       nextLearningDueAt,
       items,
     };
+  }
+
+  /** What the study screen shows for one queue entry: the public question, card state and interval preview. */
+  private toQueueItem(r: QueueRow, ctx: ItemContext, reviewRound = r._count.reviews + 1) {
+    const q = r.payloadJson as unknown as Question;
+    const card = r.card ? deserializeCard(r.card.stateJson as unknown as SerializedCard) : this.fsrs.emptyCard(ctx.now);
+    return {
+      questionId: r.id,
+      externalId: r.externalId,
+      deck: r.deck,
+      type: r.type,
+      question: toPublicQuestion(q),
+      hasHint: !!q.hint,
+      card: {
+        status: r.card?.status ?? CardStatus.NEW,
+        dueAt: r.card?.dueAt ?? ctx.now,
+        version: r.card?.version ?? 0,
+        reps: r.card?.reps ?? 0,
+        lapses: r.card?.lapses ?? 0,
+        stability: r.card?.stability ?? 0,
+        difficulty: r.card?.difficulty ?? 0,
+        flagged: r.card?.flagged ?? false,
+        suspended: r.card?.suspended ?? false,
+        lastReviewAt: r.card?.lastReviewAt ?? null,
+        retrievability: this.fsrs.retrievability(ctx.params, card, ctx.now),
+      },
+      reviewRound,
+      noteCount: r._count.notes,
+      preview: ctx.showPreview ? this.fsrs.preview(ctx.params, card, ctx.now) : null,
+    };
+  }
+
+  /**
+   * Queue entries for stored references (a shared session's queue), in the given order. Each keeps its stored
+   * review round (the round identifies the entry); questions deleted since are left out.
+   */
+  async itemsFor(userId: string, refs: { questionId: string; reviewRound: number }[], mode: StudyMode) {
+    if (!refs.length) return [];
+    const settings = await this.settings.get(userId);
+    const ctx: ItemContext = {
+      now: new Date(),
+      params: { requestRetention: settings.requestRetention, maximumInterval: settings.maximumInterval, enableFuzz: settings.enableFuzz },
+      showPreview: settings.showIntervalPreview && mode !== 'practice' && mode !== 'browse',
+    };
+    const rows = await this.prisma.question.findMany({ where: { userId, deletedAt: null, deck: { deletedAt: null }, id: { in: [...new Set(refs.map((r) => r.questionId))] } }, include: QUEUE_INCLUDE });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return refs.flatMap((ref) => { const r = byId.get(ref.questionId); return r ? [this.toQueueItem(r, ctx, ref.reviewRound)] : []; });
   }
 
   async hint(userId: string, questionId: string) {
@@ -233,6 +262,17 @@ export class StudyService {
     return { ...ended, reviews, practices };
   }
 
+  /** Opening a deck or subject in any mode (browse included) or an exam marks it as recently studied. */
+  async visit(userId: string, dto: { deckId?: string; subject?: string }) {
+    const at = new Date();
+    if (dto.deckId) {
+      const { count } = await this.prisma.deck.updateMany({ where: { id: dto.deckId, userId, deletedAt: null }, data: { lastStudiedAt: at } });
+      if (!count) throw ApiError.notFound('Deck', dto.deckId);
+    }
+    if (dto.subject) await this.prisma.subject.updateMany({ where: { userId, name: dto.subject, deletedAt: null }, data: { lastStudiedAt: at } });
+    return { lastStudiedAt: at };
+  }
+
   /** Practice mode answer log: graded, stored, never touches FSRS. */
   async logPractice(userId: string, dto: { questionId: string; sessionId?: string; answerPayload?: AnswerPayload | null; elapsedMs?: number }) {
     const row = await this.prisma.question.findFirst({ where: { id: dto.questionId, userId, deletedAt: null } });
@@ -253,7 +293,8 @@ export class StudyService {
 
   async recentSessions(userId: string, limit = 20) {
     const sessions = await this.prisma.studySession.findMany({
-      where: { userId, deletedAt: null },
+      // Browse sessions only exist to resume a position; they are not study history.
+      where: { userId, deletedAt: null, mode: { not: SessionMode.browse } },
       orderBy: { startedAt: 'desc' },
       take: limit,
       include: { deck: { select: { id: true, title: true, subject: true } }, _count: { select: { reviews: { where: { undone: false } }, practices: true } } },

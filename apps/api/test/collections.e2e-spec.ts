@@ -8,7 +8,6 @@ describe('collection recency and archive', () => {
   let subjectA: string;
   let subjectB: string;
   let questionA: string;
-  let questionB: string;
   let userId: string;
   const batchA = () => ({ ...exampleBatch(), deck: { ...exampleBatch().deck, id: 'archive_a', title: 'Z 덱', subject: 'Z 과목' } });
   const batchB = () => ({ ...exampleBatch(), deck: { ...exampleBatch().deck, id: 'archive_b', title: 'A 덱', subject: 'A 과목' } });
@@ -24,33 +23,48 @@ describe('collection recency and archive', () => {
     subjectA = (await ctx.prisma.subject.findUniqueOrThrow({ where: { userId_name: { userId, name: 'Z 과목' } } })).id;
     subjectB = (await ctx.prisma.subject.findUniqueOrThrow({ where: { userId_name: { userId, name: 'A 과목' } } })).id;
     questionA = (await ctx.prisma.question.findFirstOrThrow({ where: { userId, deckId: deckA } })).id;
-    questionB = (await ctx.prisma.question.findFirstOrThrow({ where: { userId, deckId: deckB } })).id;
   });
 
-  it('sorts decks and subjects by effective last review, ahead of names, edits and unreviewed items', async () => {
-    const a = await review(questionA, 'recent-a');
-    expect((await ctx.api.get('/decks').expect(200)).body.map((d: { id: string }) => d.id)).toEqual([deckA, deckB]);
-    expect((await ctx.api.get('/subjects').expect(200)).body.map((s: { id: string }) => s.id)).toEqual([subjectA, subjectB]);
-    const b = await review(questionB, 'recent-b');
-    await ctx.api.patch(`/decks/${deckA}`).send({ title: '최근 수정한 덱' }).expect(200);
+  it('orders decks and subjects by the last time they were opened in any study mode or an exam', async () => {
+    const ids = async (path: string) => (await ctx.api.get(path).expect(200)).body.map((d: { id: string }) => d.id);
+    // Never opened: newest first.
+    expect(await ids('/decks')).toEqual([deckB, deckA]);
+    expect(await ids('/subjects')).toEqual([subjectB, subjectA]);
+    // Browse records no review, but still counts as having opened the deck.
+    const browse = await ctx.api.post('/study/visit').send({ deckId: deckA }).expect(201);
     let decks = (await ctx.api.get('/decks').expect(200)).body;
-    expect(decks.map((d: { id: string }) => d.id)).toEqual([deckB, deckA]);
-    expect(decks[0].lastReviewedAt).toBe(b.body.review.reviewedAt);
-    expect((await ctx.api.get('/subjects').expect(200)).body[0].id).toBe(subjectB);
-    await ctx.api.post(`/reviews/${b.body.review.id}/undo`).expect(200);
-    decks = (await ctx.api.get('/decks').expect(200)).body;
     expect(decks.map((d: { id: string }) => d.id)).toEqual([deckA, deckB]);
-    expect(decks[0].lastReviewedAt).toBe(a.body.review.reviewedAt);
-    expect(decks[1].lastReviewedAt).toBeNull();
-    expect((await ctx.api.get('/subjects').expect(200)).body[0].id).toBe(subjectA);
-    // Resetting FSRS scheduling keeps historical recency; it is not an undo.
+    expect(decks[0]).toMatchObject({ lastStudiedAt: browse.body.lastStudiedAt, lastReviewedAt: null });
+    // Opening a deck does not mark its subjects; opening a subject does not mark its decks.
+    expect(await ids('/subjects')).toEqual([subjectB, subjectA]);
+    await ctx.api.post('/study/visit').send({ subject: 'Z 과목' }).expect(201);
+    expect(await ids('/subjects')).toEqual([subjectA, subjectB]);
+    expect(await ids('/decks')).toEqual([deckA, deckB]);
+    // Starting an exam opens its deck.
+    await ctx.api.post('/exams').send({ deckId: deckB, count: 2 }).expect(201);
+    expect(await ids('/decks')).toEqual([deckB, deckA]);
+    // A review alone (no visit) does not reorder, and edits never do; lastReviewedAt still tracks reviews.
+    const a = await review(questionA, 'recent-a');
+    await ctx.api.patch(`/decks/${deckA}`).send({ title: '최근 수정한 덱' }).expect(200);
+    decks = (await ctx.api.get('/decks').expect(200)).body;
+    expect(decks.map((d: { id: string }) => d.id)).toEqual([deckB, deckA]);
+    expect(decks[1].lastReviewedAt).toBe(a.body.review.reviewedAt);
+    // Resetting FSRS scheduling keeps historical review recency; it is not an undo.
     await ctx.api.post(`/cards/${questionA}/reset`).expect(200);
-    expect((await ctx.api.get('/decks').expect(200)).body[0]).toMatchObject({ id: deckA, lastReviewedAt: a.body.review.reviewedAt });
-    expect((await ctx.api.get('/subjects').expect(200)).body[0]).toMatchObject({ id: subjectA, lastReviewedAt: a.body.review.reviewedAt });
+    expect((await ctx.api.get('/decks').expect(200)).body[1]).toMatchObject({ id: deckA, lastReviewedAt: a.body.review.reviewedAt });
+    await ctx.api.post('/study/visit').send({ deckId: 'missing' }).expect(404);
+  });
+
+  it('only lets the owner mark a deck as opened', async () => {
+    await ctx.api.post('/study/visit').send({ deckId: deckA, subject: 'Z 과목' }).expect(201);
+    await ctx.as('b').post('/study/visit').send({ deckId: deckA }).expect(404);
+    await ctx.as('b').post('/study/visit').send({ subject: 'Z 과목' }).expect(201);
+    expect((await ctx.prisma.subject.findUniqueOrThrow({ where: { id: subjectA, userId } })).lastStudiedAt).toEqual((await ctx.prisma.deck.findUniqueOrThrow({ where: { id: deckA, userId } })).lastStudiedAt);
   });
 
   it('archives and unarchives decks without changing cards, notes or review history', async () => {
     await review(questionA, 'archive-review');
+    await ctx.api.post('/study/visit').send({ deckId: deckA }).expect(201);
     await ctx.api.put(`/questions/${questionA}/notes/2`).send({ body: '보존할 메모' }).expect(200);
     const card = await ctx.prisma.cardState.findUniqueOrThrow({ where: { questionId: questionA, userId } });
     const before = (await ctx.api.get('/decks').expect(200)).body.find((d: { id: string }) => d.id === deckA);
@@ -73,6 +87,7 @@ describe('collection recency and archive', () => {
     const restored = (await ctx.api.get('/decks').expect(200)).body[0];
     expect(restored.id).toBe(deckA);
     expect(restored.lastReviewedAt).toBe(before.lastReviewedAt);
+    expect(restored.lastStudiedAt).toBe(before.lastStudiedAt);
     expect(restored.archivedAt).toBeNull();
     expect((await ctx.api.get('/study/queue?mode=cram').expect(200)).body.items).toHaveLength(16);
   });
