@@ -34,11 +34,12 @@ import { StudyNav, type NavCell } from './study-nav';
 import { StudyRunner } from './study-runner';
 import { PreviousResponsesPanel, usePreviousResponses } from './previous-responses';
 import { LlmLinksPanel } from './llm-links';
+import { AttemptCounters, AttemptCountersHelp } from './attempt-counters';
 import { LoadingState } from '@/components/ui/loading';
 
 export interface StudyParams {
   scope: string; // deck id or 'all'
-  mode: 'scheduled' | 'cram' | 'mistakes' | 'flagged' | 'practice' | 'browse';
+  mode: 'scheduled' | 'new' | 'cram' | 'mistakes' | 'flagged' | 'practice' | 'browse';
   subject?: string;
   tags?: string[];
   types?: string[];
@@ -123,7 +124,7 @@ function hasAnswer(p: AnswerPayload | null): boolean {
   }
 }
 
-const MODE_LABEL: Record<StudyParams['mode'], string> = { scheduled: '예정된 학습', cram: '전체 훑기 (cram)', mistakes: '틀린 문제', flagged: '표시한 문제', practice: '연습 (스케줄 영향 없음)', browse: '구경 (기록 없음)' };
+const MODE_LABEL: Record<StudyParams['mode'], string> = { scheduled: '예정된 학습', new: '새 카드만', cram: '전체 훑기 (cram)', mistakes: '틀린 문제', flagged: '표시한 문제', practice: '연습 (스케줄 영향 없음)', browse: '구경 (기록 없음)' };
 
 function openBody(p: StudyParams, fresh: boolean) {
   return {
@@ -318,6 +319,11 @@ export function StudyScreen({ params }: { params: StudyParams }) {
   // Browse: look at every question (limits, due dates, suspend/bury ignored); nothing is recorded, no rating step.
   const isBrowse = params.mode === 'browse';
   const unrated = isPractice || isBrowse;
+  // Opt-in (settings): no Easy after a wrong or partial answer, or an answer revealed without trying.
+  const easyBlocked = settings.blockEasyWhenWrong && !unrated && phase === 'submitted' && (revealedBeforeAnswer || grade?.grade.isCorrect === false);
+  const easyBlockedReason = revealedBeforeAnswer ? "답을 내지 않고 정답을 봐서 '쉬움'은 막혀 있습니다" : "틀린 답이라 '쉬움'은 막혀 있습니다";
+  // Nth time this question comes up in this session (re-queued copies after Again count).
+  const sessionAttempt = item ? items.slice(0, index + 1).filter((i) => i.questionId === item.questionId).length : 0;
 
   // Remember the current card before leaving it. A rated card changes only through rate/undo.
   const stash = useCallback(() => {
@@ -447,7 +453,7 @@ export function StudyScreen({ params }: { params: StudyParams }) {
       const appended = rating === 1 && (res.card.status === 'LEARNING' || res.card.status === 'RELEARNING') && !isPractice;
       if (appended) {
         // Shown at once; the server confirms its slot (another device may have appended meanwhile).
-        const copy: LiveItem = { ...item, position: Math.max(...(baseItemsRef.current ?? [item]).map((i) => i.position)) + 1, pending: true, card: { ...item.card, version: res.card.version, status: res.card.status }, reviewRound: res.reviewRound + 1, preview: res.nextPreview ?? null };
+        const copy: LiveItem = { ...item, position: Math.max(...(baseItemsRef.current ?? [item]).map((i) => i.position)) + 1, pending: true, card: { ...item.card, version: res.card.version, status: res.card.status }, reviewRound: res.reviewRound + 1, reviewsTodayBefore: item.reviewsTodayBefore + 1, preview: res.nextPreview ?? null };
         setBaseItems((b) => (b ? [...b, copy] : b));
         if (session) {
           api<SessionItem>(`/study/sessions/${session.id}/items`, { method: 'POST', json: { questionId: item.questionId, reviewRound: copy.reviewRound } })
@@ -481,9 +487,10 @@ export function StudyScreen({ params }: { params: StudyParams }) {
 
   const rate = useCallback((rating: 1 | 2 | 3 | 4) => {
     if (phase !== 'submitted' || reviewMut.isPending || pendingRating) return;
+    if (rating === 4 && easyBlocked) { toast(easyBlockedReason, { description: '설정 › 틀리면 쉬움 막기에서 끌 수 있습니다.' }); return; }
     setPendingRating(rating);
     reviewMut.mutate(rating);
-  }, [phase, reviewMut, pendingRating]);
+  }, [phase, reviewMut, pendingRating, easyBlocked, easyBlockedReason]);
 
   // Undo reopens the card with its answer still shown, so it can be re-rated straight away.
   const undoMut = useMutation({
@@ -748,10 +755,13 @@ export function StudyScreen({ params }: { params: StudyParams }) {
             question={item.question}
             meta={metaControl}
             extra={<>
-              <MetaChip k="round" label="회차" control={metaControl} testId="meta-round">
-                <span>{item.reviewRound}회차</span>
-                <span className="ml-3">{item.card.status === 'NEW' ? '새 카드' : item.card.status === 'REVIEW' ? '복습' : '학습 중'}</span>
-              </MetaChip>
+              <span className="inline-flex items-center gap-1.5">
+                <MetaChip k="round" label="회차" control={metaControl} testId="meta-round">
+                  <AttemptCounters session={sessionAttempt} today={item.reviewsTodayBefore + 1} total={item.reviewRound} />
+                  <span className="ml-3">{item.card.status === 'NEW' ? '새 카드' : item.card.status === 'REVIEW' ? '복습' : '학습 중'}</span>
+                </MetaChip>
+                {roundHidden ? null : <AttemptCountersHelp />}
+              </span>
               {item.noteCount ? <span>메모 {item.noteCount}</span> : null}
             </>}
           />
@@ -817,7 +827,8 @@ export function StudyScreen({ params }: { params: StudyParams }) {
               ) : (
                 <div className="space-y-2">
                   <p className="text-[13px] text-ink-2">얼마나 잘 떠올렸나요? 정오답과 무관하게 <strong>회상 난이도</strong>로 평가하세요.</p>
-                  <RatingBar preview={item.preview} onRate={rate} disabled={reviewMut.isPending} pending={pendingRating} />
+                  <RatingBar preview={item.preview} onRate={rate} disabled={reviewMut.isPending} pending={pendingRating} blocked={easyBlocked ? { ratings: [4], reason: easyBlockedReason } : undefined} />
+                  {easyBlocked ? <p className="text-[12px] text-ink-3" data-testid="easy-blocked-note">{easyBlockedReason} · <Link href="/settings" className="underline underline-offset-2 hover:text-ink">설정에서 끄기</Link></p> : null}
                 </div>
               )}</StudyActions>
             ) : null}
@@ -874,8 +885,10 @@ function SessionSummary({ params, done, queue, empty, onRestart, onBack, onUndo,
   const browse = params.mode === 'browse';
   return (
     <div className="mx-auto max-w-[840px]" data-testid="session-summary">
-      <h1 className="text-xl font-semibold">{nothing ? (browse ? '볼 문제가 없습니다' : '지금은 학습할 카드가 없습니다') : browse ? '구경 완료' : '세션 완료'}</h1>
-      {nothing && browse ? null : nothing ? (
+      <h1 className="text-xl font-semibold">{nothing ? (browse ? '볼 문제가 없습니다' : params.mode === 'new' ? '아직 안 본 새 카드가 없습니다' : '지금은 학습할 카드가 없습니다') : browse ? '구경 완료' : '세션 완료'}</h1>
+      {nothing && browse ? null : nothing && params.mode === 'new' ? (
+        <p className="mt-2 text-sm text-ink-2">이 범위의 카드는 모두 한 번 이상 학습했습니다. 복습은 ‘학습’에서 예정된 날에 이어집니다.</p>
+      ) : nothing ? (
         <div className="mt-2 space-y-2 text-sm text-ink-2">
           <p>예정된 카드가 없거나 오늘의 상한에 도달했습니다. {queue.nextLearningDueAt ? `다음 학습 카드는 ${new Date(queue.nextLearningDueAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}에 예정되어 있습니다.` : ''}</p>
           <ul className="list-disc pl-5 text-[13px] text-ink-3">
@@ -893,7 +906,9 @@ function SessionSummary({ params, done, queue, empty, onRestart, onBack, onUndo,
       <div className="mt-6 flex flex-wrap gap-2">
         {onBack ? <Button variant="ghost" onClick={onBack} kbd={shortcuts ? '←' : undefined} data-testid="summary-back"><ArrowLeft className="h-4 w-4" /> 마지막 문제로</Button> : null}
         {onUndo ? <Button variant="ghost" loading={undoing} loadingLabel="평가 복구 중…" onClick={onUndo} kbd={shortcuts ? '⌘Z' : undefined} data-testid="summary-undo"><Undo2 className="h-4 w-4" /> 마지막 평가 다시 하기</Button> : null}
-        {params.mode === 'scheduled' && !nothing ? <Button variant="primary" onClick={onRestart}>더 학습하기</Button> : null}
+        {(params.mode === 'scheduled' || params.mode === 'new') && !nothing ? <Button variant="primary" onClick={onRestart}>더 학습하기</Button> : null}
+        {/* new cards the daily limit left out of the scheduled queue */}
+        {params.mode === 'scheduled' && queue.counts.newAvailable > queue.counts.newBudget ? <Link href={`/study/${params.scope}?mode=new${params.subject ? `&subject=${encodeURIComponent(params.subject)}` : ''}`} className="inline-flex h-9 items-center rounded-md border border-line px-3.5 text-sm" data-testid="summary-new-only">새 카드만 마저 보기 ({queue.counts.newAvailable - queue.counts.newBudget})</Link> : null}
         {browse && !nothing ? <Button variant="primary" onClick={onRestart}>처음부터 다시</Button> : null}
         {nothing && !browse ? <Link href={`/study/${params.scope}?mode=cram${params.subject ? `&subject=${encodeURIComponent(params.subject)}` : ''}`} className="inline-flex h-9 items-center rounded-md bg-accent px-3.5 text-sm font-medium text-accent-ink">전체 훑기 (cram)</Link> : null}
         {nothing && !browse && params.scope !== 'all' ? <Link href={`/study/${params.scope}?mode=browse`} className="inline-flex h-9 items-center rounded-md border border-line px-3.5 text-sm" data-testid="browse-link">구경하기 (기록 없음)</Link> : null}

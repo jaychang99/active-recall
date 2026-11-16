@@ -10,7 +10,8 @@ import { endOfDayInTz, startOfDayInTz } from '../common/time';
 import { CardStatus, Prisma, SessionMode, type QuestionType } from '../generated/prisma/client';
 import { activeCollectionQuestions } from '../common/collections';
 
-export type StudyMode = 'scheduled' | 'cram' | 'mistakes' | 'flagged' | 'practice' | 'browse';
+/** `new`: only never-seen cards, past the daily new-card limit (recorded like scheduled study). */
+export type StudyMode = 'scheduled' | 'new' | 'cram' | 'mistakes' | 'flagged' | 'practice' | 'browse';
 /** Modes that open a StudySession (browse is read-only and never records anything). */
 export type SessionStudyMode = Exclude<StudyMode, 'browse'>;
 
@@ -52,7 +53,14 @@ const QUEUE_INCLUDE = {
   _count: { select: { notes: { where: { deletedAt: null } }, reviews: { where: { undone: false, deletedAt: null } } } },
 } satisfies Prisma.QuestionInclude;
 type QueueRow = Prisma.QuestionGetPayload<{ include: typeof QUEUE_INCLUDE }>;
-interface ItemContext { now: Date; params: { requestRetention: number; maximumInterval: number; enableFuzz: boolean }; showPreview: boolean }
+/** `todayRounds`: per question, the review rounds of its effective reviews today (for "today's Nth attempt"). */
+interface ItemContext { now: Date; params: { requestRetention: number; maximumInterval: number; enableFuzz: boolean }; showPreview: boolean; todayRounds: Map<string, number[]> }
+
+function roundsByQuestion(logs: { questionId: string; reviewRound: number }[]) {
+  const map = new Map<string, number[]>();
+  for (const l of logs) map.set(l.questionId, [...(map.get(l.questionId) ?? []), l.reviewRound]);
+  return map;
+}
 
 @Injectable()
 export class StudyService {
@@ -83,7 +91,7 @@ export class StudyService {
 
     const todayLogs = await this.prisma.reviewLog.findMany({
       where: { userId, undone: false, deletedAt: null, reviewedAt: { gte: dayStart, lt: dayEnd }, question: qWhere },
-      select: { questionId: true, previousStatus: true },
+      select: { questionId: true, previousStatus: true, reviewRound: true },
     });
     const reviewedToday = new Set(todayLogs.map((l) => l.questionId)).size;
     const newIntroducedToday = new Set(todayLogs.filter((l) => l.previousStatus === CardStatus.NEW).map((l) => l.questionId)).size;
@@ -123,6 +131,10 @@ export class StudyService {
         ordered = [...learning, ...reviewDue.slice(0, reviewBudget), ...newOrdered.slice(0, newBudget)];
         break;
       }
+      case 'new':
+        // "새 카드만": every never-seen card, ignoring the daily new-card limit; reviews wait for scheduled study.
+        ordered = settings.newCardOrder === 'random' ? seededShuffle(fresh, seed) : fresh;
+        break;
       case 'cram':
       case 'practice':
         ordered = opts.shuffle === false ? eligible : seededShuffle(eligible, seed);
@@ -156,7 +168,7 @@ export class StudyService {
       .map((r) => r.card!.dueAt.getTime());
     const nextLearningDueAt = learningLater.length ? new Date(Math.min(...learningLater)) : null;
 
-    const ctx: ItemContext = { now, params, showPreview: settings.showIntervalPreview && opts.mode !== 'practice' && opts.mode !== 'browse' };
+    const ctx: ItemContext = { now, params, showPreview: settings.showIntervalPreview && opts.mode !== 'practice' && opts.mode !== 'browse', todayRounds: roundsByQuestion(todayLogs) };
     const items = ordered.map((r) => this.toQueueItem(r, ctx));
 
     return {
@@ -211,6 +223,8 @@ export class StudyService {
         retrievability: this.fsrs.retrievability(ctx.params, card, ctx.now),
       },
       reviewRound,
+      /** Effective reviews of this question today before this entry (the entry is today's attempt N + 1). */
+      reviewsTodayBefore: (ctx.todayRounds.get(r.id) ?? []).filter((round) => round < reviewRound).length,
       noteCount: r._count.notes,
       preview: ctx.showPreview ? this.fsrs.preview(ctx.params, card, ctx.now) : null,
     };
@@ -223,12 +237,19 @@ export class StudyService {
   async itemsFor(userId: string, refs: { questionId: string; reviewRound: number }[], mode: StudyMode) {
     if (!refs.length) return [];
     const settings = await this.settings.get(userId);
+    const now = new Date();
+    const ids = [...new Set(refs.map((r) => r.questionId))];
+    const todayLogs = await this.prisma.reviewLog.findMany({
+      where: { userId, undone: false, deletedAt: null, questionId: { in: ids }, reviewedAt: { gte: startOfDayInTz(now, settings.timezone), lt: endOfDayInTz(now, settings.timezone) } },
+      select: { questionId: true, reviewRound: true },
+    });
     const ctx: ItemContext = {
-      now: new Date(),
+      now,
       params: { requestRetention: settings.requestRetention, maximumInterval: settings.maximumInterval, enableFuzz: settings.enableFuzz },
       showPreview: settings.showIntervalPreview && mode !== 'practice' && mode !== 'browse',
+      todayRounds: roundsByQuestion(todayLogs),
     };
-    const rows = await this.prisma.question.findMany({ where: { userId, deletedAt: null, deck: { deletedAt: null }, id: { in: [...new Set(refs.map((r) => r.questionId))] } }, include: QUEUE_INCLUDE });
+    const rows = await this.prisma.question.findMany({ where: { userId, deletedAt: null, deck: { deletedAt: null }, id: { in: ids } }, include: QUEUE_INCLUDE });
     const byId = new Map(rows.map((r) => [r.id, r]));
     return refs.flatMap((ref) => { const r = byId.get(ref.questionId); return r ? [this.toQueueItem(r, ctx, ref.reviewRound)] : []; });
   }
@@ -245,7 +266,7 @@ export class StudyService {
       const deck = await this.prisma.deck.findFirst({ where: { id: dto.scope, userId, deletedAt: null }, select: { id: true } });
       if (!deck) throw ApiError.notFound('Deck', dto.scope);
     }
-    const mode: SessionMode = dto.mode === 'practice' ? SessionMode.practice : dto.mode === 'scheduled' ? SessionMode.study : SessionMode.cram;
+    const mode: SessionMode = dto.mode === 'practice' ? SessionMode.practice : dto.mode === 'scheduled' || dto.mode === 'new' ? SessionMode.study : SessionMode.cram;
     return this.prisma.studySession.create({
       data: { userId, deckId: isDeck ? dto.scope : null, scope: isDeck ? 'deck' : dto.subject ? `subject:${dto.subject}` : 'all', mode, queueSize: dto.queueSize },
     });

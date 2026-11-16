@@ -115,6 +115,7 @@ export default function SettingsPage() {
         </Row>
         <Row label="키보드 단축키" hint="끄면 숫자·Space·Enter 단축키가 동작하지 않습니다." id="shortcutsEnabled"><Switch id="shortcutsEnabled" checked={form.shortcutsEnabled ?? true} onCheckedChange={(v) => set('shortcutsEnabled', v)} aria-label="단축키" /></Row>
         <Row label="평가 버튼에 다음 간격 표시" hint="Anki처럼 Again/Hard/Good/Easy 아래 예상 간격을 보여줍니다." id="showIntervalPreview"><Switch id="showIntervalPreview" checked={form.showIntervalPreview ?? true} onCheckedChange={(v) => set('showIntervalPreview', v)} /></Row>
+        <Row label="틀리면 '쉬움' 막기" hint="켜면 오답(부분 정답 포함)이거나 답을 내지 않고 정답을 공개한 카드에서 '쉬움' 평가를 누를 수 없습니다. 자동채점이 안 되는 서술형 등은 막지 않습니다." id="blockEasyWhenWrong"><Switch id="blockEasyWhenWrong" checked={form.blockEasyWhenWrong ?? false} onCheckedChange={(v) => set('blockEasyWhenWrong', v)} data-testid="settings-block-easy" /></Row>
         <Row label="평가 후 자동으로 다음 문제" hint="끄면 평가 후 N 키나 버튼으로 넘어갑니다." id="autoAdvanceAfterRating"><Switch id="autoAdvanceAfterRating" checked={form.autoAdvanceAfterRating ?? true} onCheckedChange={(v) => set('autoAdvanceAfterRating', v)} /></Row>
         <Row label="보기 순서 섞기" hint="선택지 ID는 바뀌지 않습니다." id="shuffleChoices"><Switch id="shuffleChoices" checked={form.shuffleChoices ?? true} onCheckedChange={(v) => set('shuffleChoices', v)} /></Row>
         <Row label="서술형 모범답안 보기" hint="문장별 배점 = 모범답안을 따라 읽으며 문장마다 몇 점인지 표시합니다 (배점 데이터가 있는 문항만, 없으면 기본 보기). 학습 중에도 모범답안 위 전환 버튼이나 B 키로 바꿀 수 있습니다." id="essayAnswerView">

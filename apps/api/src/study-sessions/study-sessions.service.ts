@@ -25,7 +25,7 @@ export interface OpenSessionInput {
 
 export interface ItemStateInput { answerPayload?: AnswerPayload | null; revealedBeforeAnswer?: boolean; hintUsed?: boolean }
 
-const MODE_OF: Record<StudyMode, SessionMode> = { scheduled: SessionMode.study, cram: SessionMode.cram, mistakes: SessionMode.cram, flagged: SessionMode.cram, practice: SessionMode.practice, browse: SessionMode.browse };
+const MODE_OF: Record<StudyMode, SessionMode> = { scheduled: SessionMode.study, new: SessionMode.study, cram: SessionMode.cram, mistakes: SessionMode.cram, flagged: SessionMode.cram, practice: SessionMode.practice, browse: SessionMode.browse };
 
 /** Same study page = same parameters, whatever device opened it. */
 export function paramsKey(i: OpenSessionInput): string {

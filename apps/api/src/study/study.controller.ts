@@ -8,8 +8,8 @@ import type { AnswerPayload } from '@recall/contracts';
 import { StudyService, type SessionStudyMode, type StudyMode } from './study.service';
 import { QuestionType } from '../generated/prisma/client';
 
-const MODES = ['scheduled', 'cram', 'mistakes', 'flagged', 'practice', 'browse'] as const;
-const SESSION_MODES = ['scheduled', 'cram', 'mistakes', 'flagged', 'practice'] as const;
+const MODES = ['scheduled', 'new', 'cram', 'mistakes', 'flagged', 'practice', 'browse'] as const;
+const SESSION_MODES = ['scheduled', 'new', 'cram', 'mistakes', 'flagged', 'practice'] as const;
 const toList = ({ value }: { value: unknown }) => (Array.isArray(value) ? value : typeof value === 'string' && value.length ? value.split(',') : undefined);
 
 class QueueQuery {

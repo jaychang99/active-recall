@@ -60,3 +60,27 @@ describe('queue randomization', () => {
     }
   });
 });
+
+describe('new-only mode and today counts', () => {
+  it('queues every NEW card past the daily new-card limit, leaving reviews out', async () => {
+    vi.mocked(randomInt).mockReturnValue(7 as never);
+    const { service, prisma, rows } = fixture();
+    const reviewed = { ...rows[0]!, card: { status: 'REVIEW', dueAt: new Date(0), suspended: false, buriedUntil: null, stateJson: {} }, _count: { reviews: 2, notes: 0 } };
+    prisma.question.findMany.mockResolvedValue([reviewed, ...rows.slice(1)]);
+    const s = { timezone: 'Asia/Seoul', newCardsPerDay: 2, reviewsPerDay: 200, newCardOrder: 'deck', showIntervalPreview: false };
+    (service as unknown as { settings: { get: ReturnType<typeof vi.fn> } }).settings.get.mockResolvedValue(s);
+    (service as unknown as { fsrs: Record<string, unknown> }).fsrs.preview = vi.fn();
+    const result = await service.queue('user', { scope: 'deck-a', mode: 'new', limit: 100 });
+    expect(result.items.map((i) => i.questionId)).toEqual(rows.slice(1).map((r) => r.id));
+    expect(result.counts.newBudget).toBe(2);
+  });
+
+  it("counts today's earlier effective reviews of the same question before each entry", async () => {
+    vi.mocked(randomInt).mockReturnValue(7 as never);
+    const { service, prisma, rows } = fixture();
+    prisma.question.findMany.mockResolvedValue([{ ...rows[0]!, _count: { reviews: 2, notes: 0 } }]);
+    prisma.reviewLog.findMany.mockResolvedValue([{ questionId: 'q0', previousStatus: 'NEW', reviewRound: 1 }, { questionId: 'q0', previousStatus: 'LEARNING', reviewRound: 2 }]);
+    const result = await service.queue('user', { scope: 'deck-a', mode: 'cram', limit: 10 });
+    expect(result.items[0]).toMatchObject({ reviewRound: 3, reviewsTodayBefore: 2 });
+  });
+});

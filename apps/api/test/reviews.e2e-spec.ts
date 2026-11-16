@@ -132,6 +132,18 @@ describe('reviews / FSRS / undo / queue / notes', () => {
     await ctx.api.post('/reviews').send({ questionId: qid, rating: 1, idempotencyKey: 'k-wrong', isCorrect: false }).expect(201);
     const mis = await ctx.api.get(`/study/queue?deckId=${deckId}&mode=mistakes`).expect(200);
     expect(mis.body.items.map((i: { questionId: string }) => i.questionId)).toContain(qid);
+    // new-only: every never-seen card past the daily limit (3), without the reviewed one; it opens a recorded session
+    const fresh = await ctx.api.get(`/study/queue?deckId=${deckId}&mode=new`).expect(200);
+    expect(fresh.body.counts.queued).toBe(fresh.body.counts.newAvailable);
+    expect(fresh.body.counts.queued).toBeGreaterThan(3);
+    expect(fresh.body.items.every((i: { card: { status: string } }) => i.card.status === 'NEW')).toBe(true);
+    expect(fresh.body.items.some((i: { questionId: string }) => i.questionId === qid)).toBe(false);
+    await ctx.api.post('/study/sessions').send({ scope: deckId, mode: 'new' }).expect(201);
+    // today's attempt count: the re-learning card reviewed once today comes back as today's 2nd (round 2)
+    const cram = await ctx.api.get(`/study/queue?deckId=${deckId}&mode=cram&shuffle=false`).expect(200);
+    const again = cram.body.items.find((i: { questionId: string }) => i.questionId === qid);
+    expect(again).toMatchObject({ reviewRound: 2, reviewsTodayBefore: 1 });
+    expect(fresh.body.items[0].reviewsTodayBefore).toBe(0);
     // cross-deck + subject scope
     const all = await ctx.api.get('/study/queue?subject=Computer%20Networks&mode=cram').expect(200);
     expect(all.body.counts.total).toBe(8);

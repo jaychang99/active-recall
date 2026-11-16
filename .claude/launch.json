@@ -1,7 +1,56 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "web", "runtimeExecutable": "pnpm", "runtimeArgs": ["--filter", "@recall/web", "dev"], "port": 3000 },
-    { "name": "api", "runtimeExecutable": "pnpm", "runtimeArgs": ["--filter", "@recall/api", "dev"], "port": 4000 }
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@recall/web",
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@recall/api",
+        "dev"
+      ],
+      "port": 4000
+    },
+    {
+      "name": "api-alt",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@recall/api",
+        "dev"
+      ],
+      "env": {
+        "API_PORT": "4100"
+      },
+      "port": 4100
+    },
+    {
+      "name": "web-alt",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@recall/web",
+        "exec",
+        "next",
+        "dev",
+        "-p",
+        "3100"
+      ],
+      "env": {
+        "NEXT_PUBLIC_API_URL": "http://localhost:4100",
+        "AUTH_URL": "http://localhost:3100"
+      },
+      "port": 3100
+    }
   ]
 }

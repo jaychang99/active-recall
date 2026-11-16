@@ -1,6 +1,6 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Eye, EyeOff, Flag, GraduationCap, MoreHorizontal, NotebookPen, PauseCircle, Play, PlayCircle, RotateCcw, Tags, Trash2 } from 'lucide-react';
+import { Download, Eye, EyeOff, Flag, GraduationCap, MoreHorizontal, NotebookPen, PauseCircle, Play, PlayCircle, RotateCcw, Sparkles, Tags, Trash2 } from 'lucide-react';
 import Link from '@/components/ui/navigation-link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useState } from 'react';
@@ -82,6 +82,7 @@ export default function DeckDetailPage({ params }: { params: Promise<{ deckId: s
         actions={
           <>
             <Link href={`/study/${d.id}`}><Button variant="primary"><Play className="h-4 w-4" /> 학습 {d.progress.dueToday ? `(due ${d.progress.dueToday})` : ''}</Button></Link>
+            {d.progress.new ? <Link href={`/study/${d.id}?mode=new`} title="복습 카드는 빼고, 한 번도 안 본 카드만 하루 새 카드 상한과 상관없이 먼저 학습합니다 (평가는 FSRS에 기록)" data-testid="study-new-only"><Button><Sparkles className="h-4 w-4" /> 새 카드만 ({d.progress.new})</Button></Link> : null}
             <Link href={`/study/${d.id}?mode=cram`}><Button><PlayCircle className="h-4 w-4" /> 훑기</Button></Link>
             <Link href={`/study/${d.id}?mode=practice`}><Button>연습</Button></Link>
             <Link href={`/study/${d.id}?mode=browse`} title="학습 상한·스케줄과 무관하게 모든 문제를 풀어보고 정답만 확인 (기록 없음)"><Button><Eye className="h-4 w-4" /> 구경</Button></Link>

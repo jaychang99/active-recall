@@ -9,7 +9,7 @@ import { QuestionType } from '../generated/prisma/client';
 import type { StudyMode } from '../study/study.service';
 import { StudySessionsService } from './study-sessions.service';
 
-const MODES = ['scheduled', 'cram', 'mistakes', 'flagged', 'practice', 'browse'] as const;
+const MODES = ['scheduled', 'new', 'cram', 'mistakes', 'flagged', 'practice', 'browse'] as const;
 
 class OpenSessionDto {
   @IsString() scope!: string; // deck id or "all"

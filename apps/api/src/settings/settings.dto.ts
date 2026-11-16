@@ -19,6 +19,7 @@ export class UpdateSettingsDto {
   @IsOptional() @IsBoolean() hideSource?: boolean;
   @IsOptional() @IsBoolean() hideRound?: boolean;
   @IsOptional() @IsBoolean() revealMetaOnAnswer?: boolean;
+  @IsOptional() @IsBoolean() blockEasyWhenWrong?: boolean;
   @IsOptional() @IsIn(['plain', 'scored']) essayAnswerView?: string;
   @IsOptional() @IsIn(['deck', 'random']) newCardOrder?: string;
   @IsOptional() @IsInt() @Min(0) @Max(STUDY_SETTING_MAX) dailyReviewGoal?: number;

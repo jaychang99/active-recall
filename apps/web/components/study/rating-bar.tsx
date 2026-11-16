@@ -11,21 +11,27 @@ export const RATINGS = [
 ] as const;
 
 /** The signature control: four FSRS grades with the resulting interval under each. */
-export function RatingBar({ preview, onRate, disabled, pending }: { preview: IntervalPreview | null; onRate: (rating: 1 | 2 | 3 | 4) => void; disabled?: boolean; pending?: 1 | 2 | 3 | 4 | null }) {
+/** `blocked`: grades that cannot be given right now (e.g. Easy after a wrong answer), with the reason as their tooltip. */
+export function RatingBar({ preview, onRate, disabled, pending, blocked }: { preview: IntervalPreview | null; onRate: (rating: 1 | 2 | 3 | 4) => void; disabled?: boolean; pending?: 1 | 2 | 3 | 4 | null; blocked?: { ratings: readonly number[]; reason: string } }) {
   return (
     <div className="grid grid-cols-4 gap-2" role="group" aria-label="회상 난이도 평가" data-testid="rating-bar">
-      {RATINGS.map((r) => (
+      {RATINGS.map((r) => {
+        const isBlocked = !!blocked?.ratings.includes(r.value);
+        return (
         <button
           key={r.value}
           type="button"
-          disabled={disabled}
+          disabled={disabled || isBlocked}
           onClick={() => onRate(r.value)}
           data-rating={r.value}
-          aria-label={`${r.ko} (${r.label}) — ${preview?.[r.key].interval ?? ''}`}
+          data-blocked={isBlocked || undefined}
+          title={isBlocked ? blocked!.reason : undefined}
+          aria-label={`${r.ko} (${r.label}) — ${isBlocked ? blocked!.reason : (preview?.[r.key].interval ?? '')}`}
           aria-busy={pending === r.value || undefined}
           className={cn(
             'group relative flex flex-col items-center gap-0.5 rounded-md border bg-elevated px-2 py-2.5 transition-colors hover:bg-muted disabled:opacity-60',
             r.cls,
+            isBlocked && 'cursor-not-allowed border-dashed opacity-40 hover:bg-elevated disabled:opacity-40',
             pending === r.value && 'bg-muted ring-2 ring-current',
           )}
         >
@@ -33,9 +39,10 @@ export function RatingBar({ preview, onRate, disabled, pending }: { preview: Int
             <kbd className="kbd" aria-hidden>{r.value}</kbd>
             {r.ko}
           </span>
-          <span className="flex items-center gap-1 text-[12px] tabular text-ink-3">{pending === r.value ? <><Spinner className="h-3 w-3" /> 저장 중</> : preview ? preview[r.key].interval : r.label}</span>
+          <span className="flex items-center gap-1 text-[12px] tabular text-ink-3">{pending === r.value ? <><Spinner className="h-3 w-3" /> 저장 중</> : isBlocked ? '막힘' : preview ? preview[r.key].interval : r.label}</span>
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 }
